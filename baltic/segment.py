@@ -2,12 +2,17 @@ from numpy import dtype, unique
 import zarr
 
 
-class Pod:
+# IDEA: use tree-like structure with COWto handle updates (and then
+# implement garbage collection and defragmentations) -> this allow
+# concurrent writes (so need merges) and allows versioning
 
-    def __init__(self, zarr_group, schema=None):
+class Segment:
+
+    def __init__(self, zarr_group, schema):
         if not isinstance(zarr_group, zarr.Group):
             zarr_group = zarr.group(zarr_group)
         self.root = zarr_group
+        self.schema = schema
 
     def save_col(self, name, arr):
         if name in self.root:
@@ -26,13 +31,15 @@ class Pod:
             categ = zarr.Categorize(unique(arr), dtype=object)
             self.root.array(name, arr, dtype=object, object_codec=categ)
 
-    def save(self, df, use_idx=False):
+    def save(self, df, reverse_idx=False):
         # TODO ensure columns are part of schema
         categ_like = [dtype('O'), dtype('U')]
-        cols = dict(df)
-
-        for name, arr in cols.items():
-            arr = arr.values # FIXME
+        names = list(self.schema['dimensions'])
+        names.extend(self.schema['measures'])
+        for name in names:
+            arr = df[name]
+            if hasattr(arr, 'values'):
+                arr = arr.values
             if arr.dtype in categ_like:
                 self.save_categ_col(name, arr)
             else:

@@ -1,6 +1,9 @@
 from time import perf_counter
 from contextlib import contextmanager
 
+from omegaconf import OmegaConf
+
+
 @contextmanager
 def timeit(title=''):
     start = perf_counter()
@@ -8,6 +11,10 @@ def timeit(title=''):
     delta = perf_counter() - start
     print(title, delta)
 
+def read_schema(schema_string):
+    omg = OmegaConf.create(schema_string)
+    # TODO validation
+    return omg
 
 # def create_idx(self, name , arr):
 #     keys, inv= unique(arr, return_inverse=True)
