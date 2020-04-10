@@ -1,4 +1,3 @@
-from hashlib import sha1
 from numpy import array
 from os import listdir
 from os.path import join
@@ -8,7 +7,7 @@ from uuid import uuid4
 
 import zarr
 
-from baltic import Segment, RefLog
+from baltic import Segment, RefLog, Schema
 
 
 def test_write_segment():
@@ -18,10 +17,7 @@ def test_write_segment():
         'value': array([1.1, 2.2, 3.3, 4.4, 5.5] * FACTOR),
         'category': array(names * FACTOR),
     }
-    schema = {
-        'dimensions': ['category'],
-        'measures': ['value'],
-    }
+    schema = Schema(['category'], ['value'])
     gr = zarr.TempStore()
     segment = Segment(gr, schema)
     segment.save(frame)
@@ -30,15 +26,28 @@ def test_write_segment():
     for col in res:
         assert (res[col][:] == frame[col]).all()
 
+class ObjectStore:
+    def __init__(self):
+        self.kv = []
+
+    def put(self, data):
+        key = sha1(data).hexdigest()
+        self.kv[key]= data
+
+    def get(self, key):
+        return self.kv[key]
 
 def test_create_refs():
     # Create 3 changeset in series
     datum = b'ham spam foo bar baz'.split()
+    store = ObjectStore()
+
     with TemporaryDirectory() as td:
         reflog = RefLog(td)
         for data in datum:
-            name = sha1(data).hexdigest()
-            reflog.save(name, data)
+            key = store.put(data)
+            info = f'{key timestamp author}'
+            reflog.save(name, info)
 
         res = listdir(td)
         assert len(res) > 0
@@ -46,3 +55,6 @@ def test_create_refs():
         for name, expected in zip(reflog.walk(), datum):
             data = open(join(td, name), 'rb').read()
             assert data == expected
+
+        # Merge first two items
+        reflog.merge(merge_func)

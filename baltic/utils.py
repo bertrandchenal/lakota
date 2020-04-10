@@ -1,8 +1,12 @@
+from hashlib import sha1
+from itertools import islice
 from time import perf_counter
 from contextlib import contextmanager
+from collections import deque
 
-from omegaconf import OmegaConf
-
+default_hash = sha1
+take = lambda it, n: list(islice(it, 0, n))
+tail = lambda it , n: deque(it, maxlen=n)
 
 @contextmanager
 def timeit(title=''):
@@ -11,10 +15,10 @@ def timeit(title=''):
     delta = perf_counter() - start
     print(title, delta)
 
-def read_schema(schema_string):
-    omg = OmegaConf.create(schema_string)
-    # TODO validation
-    return omg
+# def read_schema(schema_string):
+#     omg = OmegaConf.create(schema_string)
+#     # TODO validation
+#     return omg
 
 # def create_idx(self, name , arr):
 #     keys, inv= unique(arr, return_inverse=True)

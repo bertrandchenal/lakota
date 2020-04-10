@@ -34,8 +34,8 @@ class Segment:
     def save(self, df, reverse_idx=False):
         # TODO ensure columns are part of schema
         categ_like = [dtype('O'), dtype('U')]
-        names = list(self.schema['dimensions'])
-        names.extend(self.schema['measures'])
+        names = list(self.schema.dimensions)
+        names.extend(self.schema.measures)
         for name in names:
             arr = df[name]
             if hasattr(arr, 'values'):
