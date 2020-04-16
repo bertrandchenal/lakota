@@ -1,41 +1,23 @@
-from numpy import array
-from os import listdir
 from os.path import join
+from os import listdir
 from tempfile import TemporaryDirectory
-from uuid import uuid4
 
 
-import zarr
 
 from baltic import Segment, RefLog, Schema
 
 
-def test_write_segment():
-    FACTOR = 100_000
-    names = [str(uuid4()) for _ in range(5)]
-    frame = {
-        'value': array([1.1, 2.2, 3.3, 4.4, 5.5] * FACTOR),
-        'category': array(names * FACTOR),
-    }
-    schema = Schema(['category'], ['value'])
-    gr = zarr.TempStore()
-    segment = Segment(gr, schema)
-    segment.save(frame)
-    res = segment.read('category', 'value')
 
-    for col in res:
-        assert (res[col][:] == frame[col]).all()
+# class ObjectStore:
+#     def __init__(self):
+#         self.kv = []
 
-class ObjectStore:
-    def __init__(self):
-        self.kv = []
+#     def put(self, data):
+#         key = sha1(data).hexdigest()
+#         self.kv[key]= data
 
-    def put(self, data):
-        key = sha1(data).hexdigest()
-        self.kv[key]= data
-
-    def get(self, key):
-        return self.kv[key]
+#     def get(self, key):
+#         return self.kv[key]
 
 def test_create_refs():
     # Create 3 changeset in series
@@ -46,7 +28,7 @@ def test_create_refs():
         reflog = RefLog(td)
         for data in datum:
             key = store.put(data)
-            info = f'{key timestamp author}'
+            info = f'{key} {timestamp} {author}'
             reflog.save(name, info)
 
         res = listdir(td)

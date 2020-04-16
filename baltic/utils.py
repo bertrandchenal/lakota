@@ -5,7 +5,7 @@ from contextlib import contextmanager
 from collections import deque
 
 default_hash = sha1
-take = lambda it, n: list(islice(it, 0, n))
+head = lambda it, n: list(islice(it, 0, n))
 tail = lambda it , n: deque(it, maxlen=n)
 
 @contextmanager

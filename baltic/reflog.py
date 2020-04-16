@@ -1,7 +1,7 @@
 from collections import defaultdict
 
 from .store import get_store
-from .utils import tail
+from .utils import tail, head
 
 
 phi = '0'*40
@@ -23,7 +23,10 @@ class RefLog:
 
         # Create parent.child
         filename = '.'.join(parent, key)
-        self.store(filename, content)
+        self.store.set(filename, content)
+
+    def read(self, revision):
+        return self.store.get(revision)
 
     def log(self):
         '''
@@ -39,6 +42,9 @@ class RefLog:
     def find_leaf(self):
         leaf, = tail(self.walk(), 1)
         return leaf
+
+    def head(self, count):
+        return head(self.walk(), count)
 
     def walk(self):
         '''
