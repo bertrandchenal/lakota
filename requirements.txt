@@ -1,3 +1,4 @@
+dask[distributed]
 pytest
 s3fs
 zarr

@@ -1,6 +1,8 @@
+from time import sleep
+from random import random
 from collections import defaultdict
 
-from .utils import tail, head
+from .utils import tail, head, digest
 
 
 phi = '0'*40
@@ -15,7 +17,8 @@ class RefLog:
     def __init__(self, store):
         self.store = store
 
-    def commit(self, key, content, parent=None):
+    def commit(self, content, parent=None, _jitter=False):
+        key = digest(content)
         if parent is None:
             # Find parent
             parent = self.find_leaf()
@@ -24,10 +27,15 @@ class RefLog:
             else:
                 parent = parent.split('.', 1)[1]
 
+        # Debug helper
+        if _jitter:
+            sleep(random())
+
         # Create parent.child
         filename = '.'.join((parent, key))
         # XXX add and extension (.sch or .sgm)
         self.store[filename] = content
+        return filename
 
     def read(self, revision):
         return self.store[revision]
