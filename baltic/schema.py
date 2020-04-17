@@ -1,14 +1,19 @@
 import json
 
+from .utils import head
 
 class Schema:
 
-    def __init__(self, columns, index):
+    def __init__(self, columns, index=None):
         for name, type_ in columns.items():
             if type_ in ('dim', 'msr'):
                 continue
             msg = f'Column type {type_} for column {name} not supported'
             raise ValueError(msg)
+
+        # First column is the default index
+        if index is None:
+            index = head(columns, 1)
         for name in index:
             if name in columns:
                 continue

@@ -1,6 +1,5 @@
 from collections import defaultdict
 
-from .store import get_store
 from .utils import tail, head
 
 
@@ -13,26 +12,31 @@ class RefLog:
     Build a tree over a store to provide concurrent commits
     '''
 
-    def __init__(self, root):
-        self.store = get_store(root)
+    def __init__(self, store):
+        self.store = store
 
     def commit(self, key, content, parent=None):
         if parent is None:
             # Find parent
             parent = self.find_leaf()
+            if parent is None:
+                parent = phi
+            else:
+                parent = parent.split('.', 1)[1]
 
         # Create parent.child
-        filename = '.'.join(parent, key)
-        self.store.set(filename, content)
+        filename = '.'.join((parent, key))
+        # XXX add and extension (.sch or .sgm)
+        self.store[filename] = content
 
     def read(self, revision):
-        return self.store.get(revision)
+        return self.store[revision]
 
     def log(self):
         '''
         Create a parent:[child] dict of all the revisions
         '''
-        listing = self.store.listdir()
+        listing = list(self.store)
         log = defaultdict(list)
         for name in listing:
             parent, child = name.split('.')
@@ -40,8 +44,10 @@ class RefLog:
         return log
 
     def find_leaf(self):
-        leaf, = tail(self.walk(), 1)
-        return leaf
+        res = tail(self.walk(), 1)
+        if not res:
+            return None
+        return res[0]
 
     def head(self, count):
         return head(self.walk(), count)

@@ -22,45 +22,36 @@ class Segment:
         sgm.write(df)
         return sgm
 
-    def write_col(self, name, arr):
-        if name in self.root:
-            self.root[name].append(arr)
+    def __setitem__(self, name, arr):
+        categ_like = (dtype('O'), dtype('U')) # should be managed in schema
+        if arr.dtype in categ_like:
+            categ = zarr.Categorize(unique(arr), dtype=object)
+            self.root.array(name, arr, dtype=object, object_codec=categ)
         else:
             self.root.array(name, arr)
 
-    def write_categ_col(self, name, arr):
-        if name in self.root:
-            # TODO check categories are the same
-            self.root[name].append(arr)
-        else:
-            categ = zarr.Categorize(unique(arr), dtype=object)
-            self.root.array(name, arr, dtype=object, object_codec=categ)
-
     def write(self, df, reverse_idx=False):
         # TODO check no column is missing (at least in the index)
-        categ_like = [dtype('O'), dtype('U')]
         for name in self.schema.columns:
             arr = df[name]
             if hasattr(arr, 'values'):
                 arr = arr.values
-            if arr.dtype in categ_like:
-                self.write_categ_col(name, arr)
-            else:
-                self.write_col(name, arr)
-
-    def read_col(self, name):
-        return self.root[name]
+            self[name] = arr
 
     def read(self, *names):
         cols = {}
         for name in names:
-            arr = self.read_col(name)
+            arr = self[name]
             cols[name] = arr
         return cols
+
+    def __getitem__(self, name):
+        return self.root[name]
 
     def hexdigests(self):
         for name in self.schema.columns:
             yield name, self.root[name].hexdigest()
 
-    def copy(self, column, dest_group, dest_name):
+    def copy(self, column, dest_group, dest_name=None):
+        dest_name = dest_name or column
         zarr.copy(self.root[column], dest_group, dest_name)

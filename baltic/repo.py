@@ -5,6 +5,7 @@ from .store import get_store
 from .utils import default_hash
 from .segment import Segment
 
+
 class Repo:
     '''
     Combine a store and a reflog to provide a versioned and concurrent
@@ -33,7 +34,10 @@ class Repo:
         key = default_hash(content).hexdigest()
         self.reflog.commit(key, content, phi)
 
-    def read(self, filters):
+    def read(self, start, stop):
+        '''
+        Read underlying array between start and stop
+        '''
         pass
 
     def write(self, df, idx_start=None, idx_end=None):
@@ -49,7 +53,7 @@ class Repo:
         key = default_hash(content).hexdigest()
         self.reflog.commit(key, content)
 
-    def sqash(self, from_revision=None, to_revision=None):
+    def squash(self, from_revision=None, to_revision=None):
         '''
         Collapse all revision between the two
         '''
