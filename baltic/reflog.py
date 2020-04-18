@@ -40,13 +40,15 @@ class RefLog:
     def read(self, revision):
         return self.store[revision]
 
+    def __iter__(self):
+        return iter(self.store)
+
     def log(self):
         '''
         Create a parent:[child] dict of all the revisions
         '''
-        listing = list(self.store)
         log = defaultdict(list)
-        for name in listing:
+        for name in self:
             parent, child = name.split('.')
             log[parent].append(child)
         return log

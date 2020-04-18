@@ -19,7 +19,7 @@ def test_commit():
         timestamp = 1234
         author = 'Doe'
         info = f'{key} {timestamp} {author}'.encode()
-        reflog.commit(digest(info), info)
+        reflog.commit(info)
 
     res = list(store)
     assert len(res) == len(datum)
@@ -60,9 +60,7 @@ def test_concurrent_commit():
     # As we inserted datum in a random fashion we have no order
     # garantee
     expected = set(map(digest, datum))
-    for parent, children in reflog.log().items():
-        for child in children:
-            name = f'{parent}.{child}'
-            key, _ = store.get(name).decode().split(' ', 1)
-            expected.remove(key)
+    for name in list(reflog):
+        key, _ = store.get(name).decode().split(' ', 1)
+        expected.remove(key)
     assert not expected
