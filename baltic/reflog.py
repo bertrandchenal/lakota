@@ -21,7 +21,7 @@ class RefLog:
         key = digest(content)
         if parent is None:
             # Find parent
-            parent = self.find_leaf()
+            parent = self.leaf()
             if parent is None:
                 parent = phi
             else:
@@ -33,7 +33,7 @@ class RefLog:
 
         # Create parent.child
         filename = '.'.join((parent, key))
-        # XXX add and extension (.sch or .sgm)
+        # XXX add an extension (.sch, .sgm, .pkg)
         self.store[filename] = content
         return filename
 
@@ -53,7 +53,7 @@ class RefLog:
             log[parent].append(child)
         return log
 
-    def find_leaf(self):
+    def leaf(self):
         res = tail(self.walk(), 1)
         if not res:
             return None

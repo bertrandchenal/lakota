@@ -8,6 +8,7 @@ default_hash = sha1
 digest = lambda data: sha1(data).hexdigest()
 head = lambda it, n: list(islice(it, 0, n))
 tail = lambda it , n: deque(it, maxlen=n)
+skip = lambda it, n: list(islice(it, n, None))
 
 @contextmanager
 def timeit(title=''):

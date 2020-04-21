@@ -1,5 +1,3 @@
-from time import sleep
-from random import random
 from concurrent.futures import ThreadPoolExecutor
 
 from zarr import MemoryStore
@@ -61,6 +59,6 @@ def test_concurrent_commit():
     # garantee
     expected = set(map(digest, datum))
     for name in list(reflog):
-        key, _ = store.get(name).decode().split(' ', 1)
+        key, _ = reflog.read(name).decode().split(' ', 1)
         expected.remove(key)
     assert not expected

@@ -1,10 +1,12 @@
 from pathlib import Path
+import json
 
-from .reflog import RefLog, phi
-from .store import get_store
-from .utils import default_hash
+import zarr
+
+from .reflog import RefLog
 from .segment import Segment
-
+from .schema import Schema
+from .utils import skip
 
 class Repo:
     '''
@@ -12,10 +14,17 @@ class Repo:
     management of timeseries.
     '''
 
-    def __init__(self, root):
-        self.root = Path(root)
-        self.reflog = RefLog(self.root / 'refs')
-        self.sgm_store = get_store(self.root / 'segments')
+    def __init__(self, path=None):
+
+        if not path:
+            self.store = zarr.MemoryStore()
+            self.reflog = RefLog(zarr.MemoryStore())
+            self.sgm_grp = zarr.group()
+        else:
+            path = Path(path)
+            self.store = zarr.DirectoryStore(path)
+            self.reflog = RefLog(zarr.DirectoryStore(path / 'refs'))
+            self.sgm_grp = zarr.group(store=zarr.DirectoryStore(path/ 'segments'))
         self._schema = None
 
     @property
@@ -26,37 +35,50 @@ class Repo:
         res = self.reflog.head(1)
         if not res:
             return res
-        self._schema, = res
+        content = self.reflog.store.get(res[0])
+        schema = Schema(**json.loads(content))
+        self._schema = schema
         return self._schema
 
     def init(self, schema):
         content = schema.dumps()
-        key = default_hash(content).hexdigest()
-        self.reflog.commit(key, content, phi)
+        self.reflog.commit(content.encode())
 
-    def read(self, start, stop):
+    def read(self, start=None, stop=None):
         '''
         Read underlying array between start and stop
         '''
-        pass
+        # Follow revisions backwards
+        revisions = reversed(skip(self.reflog.walk(), 1))
+        for rev in revisions:
+            content = self.reflog.read(rev)
+            info = json.loads(content)
+            # Create and populate segment 
+            sgm = Segment(self.schema)
+            for column, dig in info['columns'].items():
+                prefix, suffix = dig[:2], dig[2:]
+                sgm[column] = self.sgm_grp[prefix][suffix]
 
-    def write(self, df, idx_start=None, idx_end=None):
-        # TODO user idx_range if given
-        # TODO verify schema
-        sgm = Segment.from_df(self.schema, df)
-        lines = []
-        for name, digest in sgm.hexdigests():
-            prefix, suffix = digest[:2], digest[2:]
-            sgm.copy(name, self.sgm_store.group(prefix), suffix)
-            lines.append(' '.join(name, digest))
-        content = '\n'.join(lines)
-        key = default_hash(content).hexdigest()
-        self.reflog.commit(key, content)
+
+        # TODO concat!
+        return sgm
+
+    def write(self, sgm, idx_start=None, idx_end=None):
+        info = {
+            'idx_start': idx_start or sgm.idx_start,
+            'idx_end': idx_end or sgm.idx_end,
+            'columns': {},
+        }
+        for name, dig in sgm.hexdigests():
+            prefix, suffix = dig[:2], dig[2:]
+            sgm.copy(name, self.sgm_grp.require_group(prefix), suffix)
+            info['columns'][name] = dig
+        content = json.dumps(info)
+        self.reflog.commit(content.encode())
 
     def squash(self, from_revision=None, to_revision=None):
         '''
         Collapse all revision between the two
         '''
-        from_revision = from_revision or phi
 
         # TODO
