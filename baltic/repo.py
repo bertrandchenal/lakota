@@ -8,6 +8,15 @@ from .segment import Segment
 from .schema import Schema
 from .utils import skip
 
+# TODO: have a repo to store all the schema and one repo per
+# timeseries
+
+# OR: mix everything in one repo, and rely on 'fmt' in the the info file
+
+# each repo can also be the two first letters of the digest of the
+# label
+
+
 class Repo:
     '''
     Combine a store and a reflog to provide a versioned and concurrent
@@ -59,14 +68,15 @@ class Repo:
                 prefix, suffix = dig[:2], dig[2:]
                 sgm[column] = self.sgm_grp[prefix][suffix]
 
-
-        # TODO concat!
+        # TODO concat/squash! (save result ?)
         return sgm
 
     def write(self, sgm, idx_start=None, idx_end=None):
         info = {
             'idx_start': idx_start or sgm.idx_start,
             'idx_end': idx_end or sgm.idx_end,
+            'fmt': 'zarr',
+            'size'; sgm.size(), # -> can be zarr or pqt, but also schema!
             'columns': {},
         }
         for name, dig in sgm.hexdigests():

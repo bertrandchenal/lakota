@@ -33,7 +33,7 @@ class RefLog:
 
         # Create parent.child
         filename = '.'.join((parent, key))
-        # XXX add an extension (.sch, .sgm, .pkg)
+        # XXX add .pkg ext that will pack a list of revs in one file
         self.store[filename] = content
         return filename
 

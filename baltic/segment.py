@@ -2,6 +2,10 @@ from numpy import dtype, unique
 import zarr
 
 
+# TODO support both parquet and zarr to import architecture (first
+# step, move repo.read and repo.write in segment, because it will be
+# format-specific)
+
 class Segment:
     '''
     In-memory storage for one or more dataframe
