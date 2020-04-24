@@ -15,16 +15,16 @@ class Repo:
     '''
 
     def __init__(self, path=None):
-
-        if not path:
-            self.store = zarr.MemoryStore()
-            self.reflog = RefLog(zarr.MemoryStore())
-            self.sgm_grp = zarr.group()
-        else:
+        if path:
             path = Path(path)
-            self.store = zarr.DirectoryStore(path)
-            self.reflog = RefLog(zarr.DirectoryStore(path / 'refs'))
-            self.sgm_grp = zarr.group(store=zarr.DirectoryStore(path/ 'segments'))
+            self.reflog_store = zarr.DirectoryStore(path / 'refs')
+            self.sgm_store = zarr.DirectoryStore(path / 'segments')
+        else:
+            self.reflog_store = zarr.MemoryStore()
+            self.sgm_store = zarr.MemoryStore()
+
+        self.reflog = RefLog(self.reflog_store)
+        self.sgm_grp = zarr.group(store=self.sgm_store)
         self._schema = None
 
     @property
@@ -53,7 +53,7 @@ class Repo:
         for rev in revisions:
             content = self.reflog.read(rev)
             info = json.loads(content)
-            # Create and populate segment 
+            # Create and populate segment
             sgm = Segment(self.schema)
             for column, dig in info['columns'].items():
                 prefix, suffix = dig[:2], dig[2:]

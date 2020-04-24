@@ -6,14 +6,22 @@ import pytest
 from baltic import Repo, Schema, Segment
 
 
-@pytest.yield_fixture()
-def repo():
-    with TemporaryDirectory() as td:
-        schema = Schema({
-            'timestamp': 'dim',
-            'value': 'msr',
-        })
-        repo = Repo(td)
+@pytest.yield_fixture(params=['directory', 'memory'])
+def repo(request):
+    schema = Schema({
+        'timestamp': 'dim',
+        'value': 'msr',
+    })
+
+    if request.param == 'directory':
+        with TemporaryDirectory() as td:
+            # directory based repo
+            repo = Repo(td)
+            repo.init(schema)
+            yield repo
+    else:
+        # in-memory repo
+        repo = Repo()
         repo.init(schema)
         yield repo
 
