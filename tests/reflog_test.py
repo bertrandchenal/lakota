@@ -3,7 +3,7 @@ from concurrent.futures import ThreadPoolExecutor
 from zarr import MemoryStore
 
 from baltic import RefLog
-from baltic.utils import digest
+from baltic.utils import hexdigest
 
 
 def test_commit():
@@ -13,7 +13,7 @@ def test_commit():
 
     reflog = RefLog(store)
     for data in datum:
-        key = digest(data)
+        key = hexdigest(data)
         timestamp = 1234
         author = 'Doe'
         info = f'{key} {timestamp} {author}'.encode()
@@ -25,7 +25,7 @@ def test_commit():
     # Read commits
     for name, expected in zip(reflog.walk(), datum):
         data = store.get(name)
-        assert data.decode().startswith(digest(expected))
+        assert data.decode().startswith(hexdigest(expected))
 
 
 def test_concurrent_commit():
@@ -35,7 +35,7 @@ def test_concurrent_commit():
 
     contents = []
     for data in datum:
-        key = digest(data)
+        key = hexdigest(data)
         timestamp = 1234
         author = 'Doe'
         info = f'{key} {timestamp} {author}'.encode()
@@ -57,7 +57,7 @@ def test_concurrent_commit():
 
     # As we inserted datum in a random fashion we have no order
     # garantee
-    expected = set(map(digest, datum))
+    expected = set(map(hexdigest, datum))
     for name in list(reflog):
         key, _ = reflog.read(name).decode().split(' ', 1)
         expected.remove(key)

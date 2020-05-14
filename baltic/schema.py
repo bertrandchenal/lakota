@@ -42,3 +42,10 @@ class Schema:
     def __repr__(self):
         cols = [f'{c}:{self._dtype[c]}' for c in self.columns]
         return '<Schema {}>'.format(' '.join(cols))
+
+    def __eq__(self, other):
+        return all((
+            self.idx == other.idx,
+            self.columns == other.columns,
+            self._dtype == other._dtype,
+        ))

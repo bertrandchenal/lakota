@@ -19,10 +19,8 @@ def frame():
 
 @pytest.fixture
 def sgm(frame):
-    schema = Schema({
-        'category': 'dim',
-        'value': 'msr',
-    })
+    schema = Schema(['category:str', 'value:float'])
+
     sgm = Segment(schema)
     sgm.write(frame)
     return sgm
@@ -38,6 +36,7 @@ def test_read_segment(sgm, frame):
 def test_copy_segment(sgm):
     group = zarr.group()
 
-    for col in sgm.schema.columns:
-        sgm.copy(col, group)
-        assert (sgm[col][:] == group[col][:]).all()
+    digests = sgm.save(group)
+    for col, dig in zip(sgm.schema.columns, digests):
+        prefix, suffix = dig[:2], dig[2:]
+        assert (sgm[col][:] == group[prefix][suffix][:]).all()
