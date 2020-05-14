@@ -2,7 +2,7 @@ from time import sleep
 from random import random
 from collections import defaultdict
 
-from .utils import tail, head, digest
+from .utils import tail, head, hexdigest
 
 
 phi = '0'*40
@@ -18,7 +18,7 @@ class RefLog:
         self.store = store
 
     def commit(self, content, parent=None, _jitter=False):
-        key = digest(content)
+        key = hexdigest(content)
         if parent is None:
             # Find parent
             parent = self.leaf()

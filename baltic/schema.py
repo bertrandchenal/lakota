@@ -1,37 +1,44 @@
 import json
 
-from .utils import head
+DTYPES = [
+    'S32',
+    'float',
+    'int',
+    'str',
+]
 
 class Schema:
 
-    def __init__(self, columns, index=None):
-        for name, type_ in columns.items():
-            if type_ in ('dim', 'msr'):
-                continue
-            msg = f'Column type {type_} for column {name} not supported'
-            raise ValueError(msg)
+    def __init__(self, columns, idx_len=0):
+        self.columns = []
+        self._dtype = {}
+        for col in columns:
+            name, dtype = col.split(':', 1)
+            assert dtype in DTYPES
+            self.columns.append(name)
+            self._dtype[name] = dtype
 
-        # First column is the default index
-        if index is None:
-            index = head(columns, 1)
-        for name in index:
-            if name in columns:
-                continue
-            msg = f'Undefined column "{name}" in index'
-            raise ValueError(msg)
-        self.columns = columns
-        self.index = index
+        # All but last column is the default index
+        idx_len = idx_len or len(columns) - 1
+        self.idx = self.columns[:idx_len]
+
+    def dtype(self, name):
+        return self._dtype[name]
 
     @classmethod
     def loads(self, content):
         d = json.loads(content)
         return Schema(
             columns=d['columns'],
-            index=d['index'],
+            idx_len=d['idx_len'],
         )
 
     def dumps(self):
         return json.dumps({
-            'columns': self.columns,
-            'index': self.index,
+            'columns': [f'{c}:{self._dtype[c]}' for c in self.columns],
+            'idx_len': len(self.idx),
         })
+
+    def __repr__(self):
+        cols = [f'{c}:{self._dtype[c]}' for c in self.columns]
+        return '<Schema {}>'.format(' '.join(cols))
