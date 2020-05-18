@@ -37,6 +37,7 @@ class Schema:
         return json.dumps({
             'columns': [f'{c}:{self._dtype[c]}' for c in self.columns],
             'idx_len': len(self.idx),
+            'fmt': 'segment.zarr.v1',
         })
 
     def __repr__(self):

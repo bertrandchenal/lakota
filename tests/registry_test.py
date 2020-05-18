@@ -1,4 +1,4 @@
-from baltic import Registry, Schema, Segment
+from baltic import Registry, Schema
 
 def test_new_label():
     reg = Registry()

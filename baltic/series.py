@@ -7,13 +7,14 @@ import zarr
 from .reflog import RefLog
 from .segment import Segment
 
-# TODO: have a repo to store all the schema and one repo per
-# timeseries
 
-# OR: mix everything in one repo, and rely on 'fmt' in the the info file
-
-# each repo can also be the two first letters of the digest of the
-# label (but that would be taken cared outside of this class)
+def intersect(info, start, end):
+    ok_start = not end or info['start'] <= end
+    ok_end = not start or info['end'] >= start
+    if not (ok_start and ok_end):
+        return None
+    # return reduced range
+    return (max(info['start'], start), min(info['end'], end))
 
 
 class Series:
@@ -36,31 +37,53 @@ class Series:
         self.sgm_grp = zarr.group(store=sgm_store)
         self.schema = schema
 
-    def read(self, start=None, stop=None):
+    def read(self, start=[], end=[]):
         '''
-        Read underlying array between start and stop
+        Read all matching segment and combine them
         '''
-        # Follow revisions backwards
+
+        # Collect all rev info
         revisions = self.reflog.walk()
-        sgm = None
+        series_info = []
         for rev in revisions:
             content = self.reflog.read(rev)
             info = json.loads(content)
-            # TODO Skip revision if no intersection with start/stop
-            # (or masked by higher revision)
+            if intersect(info, start, end):
+                series_info.append(info)
+        # Order revision backward
+        series_info = list(reversed(series_info))
+        # Recursive discovery of matching segments
+        segments = self._read(series_info, start, end)
 
-            # Create and populate segment
-            sgm = Segment.from_zarr(self.schema, self.sgm_grp, info['columns'])
-
-            # TODO stack relevant segments
-            # sgm = Segment(self.schema)
-            # for column, dig in info['columns'].items():
-            #     prefix, suffix = dig[:2], dig[2:]
-            #     sgm[column] = self.sgm_grp[prefix][suffix]
-
-        if sgm is None:
+        if not segments:
             return Segment(self.schema)
-        return sgm
+        return Segment.concat(self.schema, *segments)
+
+    def _read(self, series_info, start, end):
+        segments = []
+        for pos, info in enumerate(series_info):
+            match = intersect(info, start, end)
+            if not match:
+                continue
+
+            # instanciate segment
+            sgm = Segment.from_zarr(self.schema, self.sgm_grp,
+                                    info['columns'], match)
+            segments.append(sgm)
+
+            mstart, mend = match
+            # recurse left
+            if mstart > start:
+                left_sgm = self._read(series_info[pos+1:], start, mstart)
+                segments = left_sgm + segments
+
+            # recurse right
+            if mend < end:
+                right_sgm = self._read(series_info[pos+1:], mend, end)
+                segments = segments + right_sgm
+
+            break
+        return segments
 
     def write(self, sgm, start=None, end=None):
         col_digests = sgm.save(self.sgm_grp)
@@ -68,9 +91,8 @@ class Series:
         idx_end = end or sgm.end()
 
         info = {
-            'idx_start': idx_start,
-            'idx_end': idx_end,
-            'fmt': 'segment.zarr', # not needed here should be saved in schema (or somewhere in reg)
+            'start': idx_start,
+            'end': idx_end,
             'size': sgm.size(), # needed to implement squashing strategies
             'timestamp': time.time(),
             'columns': col_digests,

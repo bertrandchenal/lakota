@@ -25,12 +25,22 @@ class Segment:
         return sgm
 
     @classmethod
-    def from_zarr(cls, schema, group, digests):
+    def from_zarr(cls, schema, group, digests, sub_range=None):
         sgm = cls(schema)
+        if sub_range:
+            # TODO implement partial read
+            ...
+
         for name, dig in zip(schema.columns, digests):
             prefix, suffix = dig[:2], dig[2:]
+            # XXX is shallow correct here ?
             zarr.copy(group[prefix][suffix], sgm.root, name, shallow=True)
         return sgm
+    @classmethod
+    def concat(cls, *segments):
+        # TODO check all schema are the same
+        # FIXME!
+        return segments[-1]
 
     def __setitem__(self, name, arr):
         categ_like = (dtype('O'), dtype('U')) # should be more extensive
