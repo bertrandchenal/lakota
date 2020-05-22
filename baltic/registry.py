@@ -33,7 +33,7 @@ class Registry:
 
     def get(self, label):
         sgm = self.schema_series.read()
-        idx = sgm.index('label', label)
+        idx = sgm.index(label)
         assert sgm['label'][idx] == label
         schema = Schema.loads(sgm['schema'][idx])
         series = Series(schema, self.series_store)

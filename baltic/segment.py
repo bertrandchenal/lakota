@@ -1,4 +1,4 @@
-from bisect import bisect_left
+from bisect import bisect_left, bisect_right
 
 from numpy import dtype, unique, array_equal
 import zarr
@@ -25,17 +25,23 @@ class Segment:
         return sgm
 
     @classmethod
-    def from_zarr(cls, schema, group, digests, sub_range=None):
+    def from_zarr(cls, schema, group, digests):
         sgm = cls(schema)
-        if sub_range:
-            # TODO implement partial read
-            ...
-
         for name, dig in zip(schema.columns, digests):
             prefix, suffix = dig[:2], dig[2:]
-            # XXX is shallow correct here ?
-            zarr.copy(group[prefix][suffix], sgm.root, name, shallow=True)
+            zarr.copy(group[prefix][suffix], sgm.root, name)
         return sgm
+
+    def slice(self, start, end):
+        new_group = zarr.group()
+        idx_start = self.index(*start)
+        idx_end = self.index(*end)
+        for name in self.schema.columns:
+            sl = self.root[name][idx_start:idx_end]
+            new_group.array(name, sl, dtype=self.schema.dtype(name))
+
+        return Segment(self.schema, new_group)
+
     @classmethod
     def concat(cls, *segments):
         # TODO check all schema are the same
@@ -54,6 +60,9 @@ class Segment:
         return all(
             array_equal(self[c][:], other[c][:])
             for c in self.schema.columns)
+    def __len__(self):
+        name = self.schema.columns[0]
+        return len(self.root[name])
 
     def write(self, df, reverse_idx=False):
         # TODO check no column is missing (at least in the index)
@@ -112,5 +121,13 @@ class Segment:
             zarr.copy(self.root[name], group.require_group(prefix), suffix)
         return all_dig
 
-    def index(self, name, value):
-        return bisect_left(self.root[name], value)
+    def index(self, *values):
+        if not values:
+            return None
+        lo = 0
+        hi = len(self)
+        for name, val in zip(self.schema.idx, values):
+            lo = bisect_left(self.root[name], val, lo=lo, hi=hi)
+            hi = bisect_right(self.root[name], val, lo=lo, hi=hi)
+        print(lo, hi)
+        return lo

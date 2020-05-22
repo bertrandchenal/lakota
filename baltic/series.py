@@ -68,7 +68,7 @@ class Series:
 
             # instanciate segment
             sgm = Segment.from_zarr(self.schema, self.sgm_grp,
-                                    info['columns'], match)
+                                    info['columns']).slice(*match)
             segments.append(sgm)
 
             mstart, mend = match
