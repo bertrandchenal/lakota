@@ -129,5 +129,4 @@ class Segment:
         for name, val in zip(self.schema.idx, values):
             lo = bisect_left(self.root[name], val, lo=lo, hi=hi)
             hi = bisect_right(self.root[name], val, lo=lo, hi=hi)
-        print(lo, hi)
         return lo

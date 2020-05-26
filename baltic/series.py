@@ -23,18 +23,11 @@ class Series:
     concurrent management of timeseries.
     '''
 
-    def __init__(self, schema, store=None):
+    def __init__(self, schema, group=None):
         self.schema = schema
-        if store:
-            path = Path(store.root)
-            reflog_store = zarr.DirectoryStore(path / 'refs')
-            sgm_store = zarr.DirectoryStore(path / 'segments')
-        else:
-            reflog_store = zarr.MemoryStore()
-            sgm_store = zarr.MemoryStore()
-
-        self.reflog = RefLog(reflog_store)
-        self.sgm_grp = zarr.group(store=sgm_store)
+        group = group or zarr.group()
+        self.reflog = RefLog(group.require_group('ref'))
+        self.sgm_grp = group.require_group('sgm')
         self.schema = schema
 
     def read(self, start=[], end=[]):
@@ -43,10 +36,8 @@ class Series:
         '''
 
         # Collect all rev info
-        revisions = self.reflog.walk()
         series_info = []
-        for rev in revisions:
-            content = self.reflog.read(rev)
+        for content in self.reflog.read():
             info = json.loads(content)
             if intersect(info, start, end):
                 series_info.append(info)
@@ -98,7 +89,7 @@ class Series:
             'columns': col_digests,
         }
         content = json.dumps(info)
-        self.reflog.commit(content.encode())
+        self.reflog.commit([content])
 
     def squash(self, from_revision=None, to_revision=None):
         '''

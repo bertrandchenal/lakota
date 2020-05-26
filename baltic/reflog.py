@@ -2,23 +2,25 @@ from time import sleep
 from random import random
 from collections import defaultdict
 
+import zarr
+
 from .utils import tail, head, hexdigest
 
 
 phi = '0'*40
 
-
+# TODO rename into "Commit" or "Log"
 class RefLog:
 
     '''
-    Build a tree over a store to provide concurrent commits
+    Build a tree over a zarr group to provide concurrent commits
     '''
 
-    def __init__(self, store):
-        self.store = store
+    def __init__(self, group):
+        self.group = group
 
-    def commit(self, content, parent=None, _jitter=False):
-        key = hexdigest(content)
+    def commit(self, items, parent=None, _jitter=False):
+        # Find parent
         if parent is None:
             # Find parent
             parent = self.leaf()
@@ -32,18 +34,19 @@ class RefLog:
             sleep(random())
 
         # Create parent.child
+        arr =  zarr.array(items, dtype=str)
+        key = arr.hexdigest()
         filename = '.'.join((parent, key))
+
         # XXX add .pkg ext that will pack a list of revs in one file
-        self.store[filename] = content
+        zarr.copy(arr, self.group, filename)
         return filename
 
-    def read(self, revision):
-        return self.store[revision]
 
     def __iter__(self):
-        return iter(self.store)
+        return iter(self.group)
 
-    def log(self):
+    def log(self): # TODO rename into refs
         '''
         Create a parent:[child] dict of all the revisions
         '''
@@ -62,16 +65,39 @@ class RefLog:
     def head(self, count):
         return head(self.walk(), count)
 
-    def walk(self):
+    def walk(self, parent=phi):
         '''
         Depth-first traversal of the three
         '''
         log = self.log()
-        parent = phi
-        while True:
-            children = log.get(parent)
-            if not children:
-                break
-            first = sorted(children)[0]
-            yield '{}.{}'.format(parent, first)
-            parent = first
+        yield from self._walk(log, parent=parent)
+
+    def _walk(self, log, parent=phi):
+        children = log.get(parent, [])
+        for child in children:
+            path = '{}.{}'.format(parent, child)
+            yield path
+            yield from self._walk(log, child)
+
+    # def read(self, revision):
+    #     return self.group[revision]
+
+    def read(self, parent=phi):
+        for rev in self.walk(parent=parent):
+            yield from self.group[rev]
+
+    def pack(self):
+        '''
+        Combine the current list of revisions into one array of revision
+        '''
+        items = []
+        revisions = []
+        for rev in self.walk():
+            revisions.append(rev)
+            items.extend(self.group[rev])
+        self.commit(items, parent=phi)
+
+        # Clean old revisions
+        for rev in revisions:
+            del self.group[rev]
+

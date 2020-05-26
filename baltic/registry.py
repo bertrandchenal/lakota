@@ -15,12 +15,10 @@ class Registry:
 
     def __init__(self, path=None):
         self.grp = zarr.group(path)
-        if path:
-            self.schema_series = Series(self.schema, path / 'registry')
-            self.series_store = zarr.DirectoryStore(path / 'series')
-        else:
-            self.schema_series = Series(self.schema)
-            self.series_store = zarr.MemoryStore()
+        self.schema_series = Series(self.schema,
+                                    self.grp.require_group('registry'))
+        self.series_group = self.grp.require_group('series')
+
 
     def create(self, schema, *labels):
         sgm = Segment.from_df(
@@ -36,7 +34,7 @@ class Registry:
         idx = sgm.index(label)
         assert sgm['label'][idx] == label
         schema = Schema.loads(sgm['schema'][idx])
-        series = Series(schema, self.series_store)
+        series = Series(schema, self.series_group)
         return series
 
     def squash(self, from_revision=None, to_revision=None):
