@@ -1,8 +1,10 @@
+import zarr
+
 from baltic import Series, Schema, Segment
 
 def test_write_series():
     schema = Schema(['timestamp:int', 'value:float'])
-    series = Series(schema)
+    series = Series(schema, zarr.group())
 
     # Write some values
     sgm = Segment.from_df(schema, {

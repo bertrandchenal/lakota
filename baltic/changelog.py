@@ -39,9 +39,8 @@ class Changelog:
         filename = '.'.join((parent, key))
 
         # XXX add .pkg ext that will pack a list of revs in one file
-        zarr.copy(arr, self.group, filename)
+        zarr.copy(arr, self.group, filename, if_exists='skip')
         return filename
-
 
     def __iter__(self):
         return iter(self.group)
@@ -95,6 +94,8 @@ class Changelog:
         for rev in self.walk():
             revisions.append(rev)
             items.extend(self.group[rev])
+        if len(revisions) == 1:
+            return
         self.commit(items, parent=phi)
 
         # Clean old revisions

@@ -1,6 +1,6 @@
 from bisect import bisect_left, bisect_right
 
-from numpy import dtype, unique, array_equal
+from numpy import unique, array_equal
 import zarr
 
 
@@ -32,6 +32,10 @@ class Segment:
             zarr.copy(group[prefix][suffix], sgm.root, name)
         return sgm
 
+    def df(self):
+        from pandas import DataFrame
+        return DataFrame(dict(self))
+
     def slice(self, start, end):
         new_group = zarr.group()
         idx_start = self.index(*start)
@@ -49,12 +53,13 @@ class Segment:
         return segments[-1]
 
     def __setitem__(self, name, arr):
-        categ_like = (dtype('O'), dtype('U')) # should be more extensive
-        if self.schema.dtype(name) in categ_like:
+        categ_like = ('O', 'U') # should be more extensive
+        dt = self.schema.dtype(name)
+        if dt in categ_like:
             categ = zarr.Categorize(unique(arr), dtype=object)
             self.root.array(name, arr, dtype=object, object_codec=categ)
         else:
-            self.root.array(name, arr)
+            self.root.array(name, arr, dtype=dt)
 
     def __eq__(self, other):
         return all(
@@ -107,8 +112,8 @@ class Segment:
         return [self.serialize(n, self.root[n][-1]) for n in self.schema.idx]
 
     def serialize(self, column, value):
-        dtype = self.schema.dtype(column)
-        if dtype in ('int', 'int64'):
+        dt = self.schema.dtype(column)
+        if dt in ('int', 'int64'):
             # json does not like int64
             return int(value)
         return value
@@ -118,7 +123,8 @@ class Segment:
         for name, dig in self.hexdigests():
             all_dig.append(dig)
             prefix, suffix = dig[:2], dig[2:]
-            zarr.copy(self.root[name], group.require_group(prefix), suffix)
+            zarr.copy(self.root[name], group.require_group(prefix), suffix,
+                      if_exists='skip')
         return all_dig
 
     def index(self, *values):

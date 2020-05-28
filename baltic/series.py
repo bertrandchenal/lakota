@@ -23,22 +23,25 @@ class Series:
     concurrent management of timeseries.
     '''
 
-    def __init__(self, schema, group=None):
+    def __init__(self, schema, group):
         self.schema = schema
-        group = group or zarr.group()
-        self.changelog = Changelog(group.require_group('chl'))
-        self.sgm_grp = group.require_group('sgm')
+        self.changelog = Changelog(group.require_group('changelog'))
+        self.sgm_grp = group.require_group('segment')
         self.schema = schema
 
     def read(self, start=[], end=[]):
         '''
         Read all matching segment and combine them
         '''
+        start = self.schema.deserialize(start)
+        end = self.schema.deserialize(end)
 
         # Collect all rev info
         series_info = []
         for content in self.changelog.read():
             info = json.loads(content)
+            info['start'] = self.schema.deserialize(info['start'])
+            info['end'] = self.schema.deserialize(info['end'])
             if intersect(info, start, end):
                 series_info.append(info)
         # Order revision backward
@@ -82,8 +85,8 @@ class Series:
         idx_end = end or sgm.end()
 
         info = {
-            'start': idx_start,
-            'end': idx_end,
+            'start': self.schema.serialize(idx_start),
+            'end': self.schema.serialize(idx_end),
             'size': sgm.size(), # needed to implement squashing strategies
             'timestamp': time.time(),
             'columns': col_digests,

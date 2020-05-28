@@ -19,7 +19,6 @@ class Registry:
                                     self.grp.require_group('registry'))
         self.series_group = self.grp.require_group('series')
 
-
     def create(self, schema, *labels):
         sgm = Segment.from_df(
             self.schema,
@@ -30,6 +29,7 @@ class Registry:
         self.schema_series.write(sgm) # SQUASH ?
 
     def get(self, label):
+        # FIXME create one folder per label
         sgm = self.schema_series.read()
         idx = sgm.index(label)
         assert sgm['label'][idx] == label

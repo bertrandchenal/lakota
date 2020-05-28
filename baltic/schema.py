@@ -1,11 +1,6 @@
+from numpy import dtype
 import json
 
-DTYPES = [
-    'S32',
-    'float',
-    'int',
-    'str',
-]
 
 class Schema:
 
@@ -13,10 +8,11 @@ class Schema:
         self.columns = []
         self._dtype = {}
         for col in columns:
-            name, dtype = col.split(':', 1)
-            assert dtype in DTYPES
+            name, dt = col.split(':', 1)
             self.columns.append(name)
-            self._dtype[name] = dtype
+            # Make sure dtype is valid
+            dtype(dt)
+            self._dtype[name] = dt
 
         # All but last column is the default index
         idx_len = idx_len or len(columns) - 1
@@ -50,3 +46,17 @@ class Schema:
             self.columns == other.columns,
             self._dtype == other._dtype,
         ))
+
+    def serialize(self, values):
+        res = []
+        for col, val in zip(self.columns, values):
+            res.append(str(val))
+        return res
+
+    def deserialize(self, values):
+        res = []
+        for col, val in zip(self.columns, values):
+            val = dtype(self.dtype(col)).type(val)
+            res.append(val)
+        return res
+
