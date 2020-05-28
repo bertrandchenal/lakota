@@ -4,7 +4,7 @@ from concurrent.futures import ThreadPoolExecutor
 import pytest
 import zarr
 
-from baltic import RefLog
+from baltic import Changelog
 from baltic.utils import hexdigest
 
 
@@ -17,32 +17,32 @@ def grp(request):
     with TemporaryDirectory() as tdir:
         yield zarr.group(tdir)
 
-def populate(reflog, datum):
+def populate(changelog, datum):
     for data in datum:
         key = hexdigest(data)
         timestamp = 1234
         author = 'Doe'
         info = f'{key} {timestamp} {author}'.encode()
-        reflog.commit([info.decode()])
+        changelog.commit([info.decode()])
 
 
 def test_commit(grp):
     # Create 5 changeset in series
     datum = b'ham spam foo bar baz'.split()
-    reflog = RefLog(grp)
-    populate(reflog, datum)
+    changelog = Changelog(grp)
+    populate(changelog, datum)
 
     res = list(grp)
     assert len(res) == len(datum)
 
     # Read commits
-    for data, expected in zip(reflog.read(), datum):
+    for data, expected in zip(changelog.read(), datum):
         assert data.startswith(hexdigest(expected))
 
 
 def test_concurrent_commit(grp):
     datum = b'ham spam foo bar baz'.split()
-    reflogs = [RefLog(grp) for _ in range(len(datum))]
+    changelogs = [Changelog(grp) for _ in range(len(datum))]
 
     contents = []
     for data in datum:
@@ -55,8 +55,8 @@ def test_concurrent_commit(grp):
     # Concurrent commits
     with ThreadPoolExecutor() as executor:
         futs = []
-        for reflog, info in zip(reflogs, contents):
-            f = executor.submit(reflog.commit, [info.decode()], _jitter=True)
+        for changelog, info in zip(changelogs, contents):
+            f = executor.submit(changelog.commit, [info.decode()], _jitter=True)
             futs.append(f)
         executor.shutdown()
 
@@ -69,7 +69,7 @@ def test_concurrent_commit(grp):
     # As we inserted datum in a random fashion we have no order
     # garantee
     expected = set(map(hexdigest, datum))
-    for item in reflog.read():
+    for item in changelog.read():
         key, _ = item.split(' ', 1)
         expected.remove(key)
     assert not expected
@@ -78,11 +78,11 @@ def test_concurrent_commit(grp):
 def test_pack(grp):
     # Create 5 changeset in series
     datum = b'ham spam foo bar baz'.split()
-    reflog = RefLog(grp)
-    populate(reflog, datum)
+    changelog = Changelog(grp)
+    populate(changelog, datum)
 
-    reflog.pack()
+    changelog.pack()
 
     # Read commits
-    for data, expected in zip(reflog.read(), datum):
+    for data, expected in zip(changelog.read(), datum):
         assert data.startswith(hexdigest(expected))

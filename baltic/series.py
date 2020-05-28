@@ -4,7 +4,7 @@ import time
 
 import zarr
 
-from .reflog import RefLog
+from .changelog import Changelog
 from .segment import Segment
 
 
@@ -19,14 +19,14 @@ def intersect(info, start, end):
 
 class Series:
     '''
-    Combine a zarr group and a reflog to provide a versioned and
+    Combine a zarr group and a changelog to provide a versioned and
     concurrent management of timeseries.
     '''
 
     def __init__(self, schema, group=None):
         self.schema = schema
         group = group or zarr.group()
-        self.reflog = RefLog(group.require_group('ref'))
+        self.changelog = Changelog(group.require_group('chl'))
         self.sgm_grp = group.require_group('sgm')
         self.schema = schema
 
@@ -37,7 +37,7 @@ class Series:
 
         # Collect all rev info
         series_info = []
-        for content in self.reflog.read():
+        for content in self.changelog.read():
             info = json.loads(content)
             if intersect(info, start, end):
                 series_info.append(info)
@@ -89,7 +89,7 @@ class Series:
             'columns': col_digests,
         }
         content = json.dumps(info)
-        self.reflog.commit([content])
+        self.changelog.commit([content])
 
     def squash(self, from_revision=None, to_revision=None):
         '''

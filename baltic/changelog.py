@@ -9,8 +9,8 @@ from .utils import tail, head, hexdigest
 
 phi = '0'*40
 
-# TODO rename into "Commit" or "Log"
-class RefLog:
+
+class Changelog:
 
     '''
     Build a tree over a zarr group to provide concurrent commits
@@ -46,7 +46,7 @@ class RefLog:
     def __iter__(self):
         return iter(self.group)
 
-    def log(self): # TODO rename into refs
+    def log(self):
         '''
         Create a parent:[child] dict of all the revisions
         '''
