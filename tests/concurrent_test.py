@@ -1,6 +1,10 @@
+import os
+import shutil
+
 from dask.distributed import Client, LocalCluster
 from numpy.random import random
 from pandas import DataFrame, date_range
+
 from baltic import Registry, Schema, Segment
 
 
@@ -19,10 +23,13 @@ def insert(args):
 
 def test_insert():
     schema = Schema(['timestamp:M8[s]', 'value:f'])
-    registry = Registry('/dev/shm/test_data')
+    test_dir = '/dev/shm/test_data'
+    if os.path.exists(test_dir):
+        shutil.rmtree(test_dir)
+    registry = Registry(test_dir)
     registry.create(schema, 'my_label')
     series = registry.get('my_label')
-    years = list(range(1970, 2020))
+    years = list(range(2000, 2020))
 
     cluster = LocalCluster()
     client = Client(cluster)

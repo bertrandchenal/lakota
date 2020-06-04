@@ -41,7 +41,6 @@ class Changelog:
         key = arr.hexdigest()
         filename = '.'.join((parent, key))
 
-        # XXX add .pkg ext that will pack a list of revs in one file
         zarr.copy(arr, self.group, filename, if_exists='skip')
         return filename
 
@@ -75,6 +74,9 @@ class Changelog:
         yield from self._walk(log, parent=parent)
 
     def _walk(self, log, parent=phi):
+        '''
+        Depth-first traversal of the changelog tree
+        '''
         children = log.get(parent, [])
         for child in children:
             path = '{}.{}'.format(parent, child)

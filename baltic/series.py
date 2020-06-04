@@ -1,8 +1,5 @@
-from pathlib import Path
 import json
 import time
-
-import zarr
 
 from .changelog import Changelog
 from .segment import Segment
@@ -80,6 +77,7 @@ class Series:
         return segments
 
     def write(self, sgm, start=None, end=None):
+        # TODO assert that sgm is sorted!
         col_digests = sgm.save(self.sgm_grp)
         idx_start = start or sgm.start()
         idx_end = end or sgm.end()
