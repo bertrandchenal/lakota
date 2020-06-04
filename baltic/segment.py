@@ -47,10 +47,18 @@ class Segment:
         return Segment(self.schema, new_group)
 
     @classmethod
-    def concat(cls, *segments):
-        # TODO check all schema are the same
-        # FIXME!
-        return segments[-1]
+    def concat(cls, schema, *segments):
+        new_len = sum(len(s) for s in segments)
+        new_group = zarr.group()
+        for name in schema.columns:
+            new_group.empty(name, shape=new_len, dtype=schema.dtype(name))
+            idx_start = 0
+            for s in segments:
+                idx_end = idx_start + len(s)
+                new_group[name][idx_start:idx_end] = s[name]
+                idx_start = idx_end
+
+        return Segment(schema, new_group)
 
     def __setitem__(self, name, arr):
         categ_like = ('O', 'U') # should be more extensive
@@ -123,8 +131,14 @@ class Segment:
         for name, dig in self.hexdigests():
             all_dig.append(dig)
             prefix, suffix = dig[:2], dig[2:]
-            zarr.copy(self.root[name], group.require_group(prefix), suffix,
-                      if_exists='skip')
+            try:
+                sg = group.require_group(prefix)
+                zarr.copy(self.root[name], sg, suffix, if_exists='skip')
+            except ValueError:
+                print(name)
+                # Zarr does not raise anything more precice than a
+                # ValueError when a group already exists
+                pass
         return all_dig
 
     def index(self, *values):

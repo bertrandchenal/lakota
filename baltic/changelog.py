@@ -4,11 +4,14 @@ from collections import defaultdict
 
 import zarr
 
-from .utils import tail, head, hexdigest
+from .utils import tail, head
 
 
 phi = '0'*40
 
+
+# TODO: Use multi-col segment instead of a unique col with a large
+# string in it.
 
 class Changelog:
 

@@ -1,5 +1,5 @@
 from uuid import uuid4
-from numpy import array
+from numpy import array, append
 
 import pytest
 import zarr
@@ -40,3 +40,11 @@ def test_copy_segment(sgm):
     for col, dig in zip(sgm.schema.columns, digests):
         prefix, suffix = dig[:2], dig[2:]
         assert (sgm[col][:] == group[prefix][suffix][:]).all()
+
+
+def test_concat(sgm):
+    sgm2 = Segment.concat(sgm.schema, sgm, sgm)
+    val2 = sgm2['value'][:]
+    val = sgm['value'][:]
+    eq = val2 == append(val, val)
+    assert all(eq)
