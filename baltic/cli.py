@@ -4,6 +4,14 @@ from .utils import timeit
 import argparse
 
 
+# generated from http://www.patorjk.com/software/taag/
+# With fond "Calvin S"
+banner = '''
+┌┐ ┌─┐┬ ┌┬┐┬┌─┐
+├┴┐├─┤│  │ ││
+└─┘┴ ┴┴─┘┴ ┴└─┘
+'''
+
 def read(args):
     reg = Registry(args.path)
     series = reg.get(args.label)
@@ -45,12 +53,16 @@ def tree(args):
 
 
 def print_help(parser, args):
-    parser.parse_args([args.command, '-h'])
+    parser.parse_args([args.help_cmd, '-h'])
 
 
 def run():
+
     # top-level parser
-    parser = argparse.ArgumentParser(prog='baltic')
+    parser = argparse.ArgumentParser(
+        prog='baltic', description=banner,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
     parser.add_argument('--path', '-p', default='.')
     parser.add_argument('--timing', '-t', action='store_true',
                         help='Enable timing')
@@ -86,7 +98,7 @@ def run():
 
     # Add help command
     parser_help = subparsers.add_parser('help')
-    parser_help.add_argument('command')
+    parser_help.add_argument('help_cmd')
     parser_help.set_defaults(func=lambda args: print_help(parser, args))
 
     # Execute command
