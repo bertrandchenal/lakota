@@ -22,9 +22,13 @@ class Series:
 
     def __init__(self, schema, group):
         self.schema = schema
-        self.changelog = Changelog(group.require_group('changelog'))
-        self.sgm_grp = group.require_group('segment')
-        self.schema = schema
+        self.group = group
+        self.reset()
+
+    def reset(self):
+        self.changelog_group = self.group.require_group('changelog')
+        self.changelog = Changelog(self.changelog_group)
+        self.sgm_grp = self.group.require_group('segment')
 
     def read(self, start=[], end=[]):
         '''
@@ -92,9 +96,19 @@ class Series:
         content = json.dumps(info)
         self.changelog.commit([content])
 
-    def squash(self, from_revision=None, to_revision=None):
+    def truncate(self):
+        del self.group['changelog']
+        del self.group['segment']
+        self.reset()
+
+    def squash(self):
         '''
-        Collapse all revision between the two
+        Remove all the revisions, collapse all segments into one
         '''
 
-        # TODO
+        # FIXME: it would make more sense to create a snapshot and
+        # keep historical content in an archive group. (and have
+        # another command that remove archives)
+        sgm = self.read()
+        self.truncate()
+        self.write(sgm)

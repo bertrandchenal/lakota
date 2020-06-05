@@ -10,7 +10,7 @@ from baltic import Registry, Schema, Segment
 
 def insert(args):
     series, schema, year = args
-    ts = date_range(f'{year}-01-01', f'{year+1}-01-01', freq='1H')
+    ts = date_range(f'{year}-01-01', f'{year+1}-01-01', freq='1min')
     df = DataFrame({
         'timestamp': ts,
     })
@@ -18,7 +18,6 @@ def insert(args):
     df['value'] = random(len(ts))
     sgm = Segment.from_df(schema, df)
     series.write(sgm)
-
     return year
 
 def test_insert():
@@ -38,8 +37,8 @@ def test_insert():
     client.gather(fut)
 
     df = series.read(['2015-01-01'], ['2015-01-02']).df()
-    assert len(df) == 24
+    assert len(df) == 1440
 
     df = series.read(['2015-12-31'], ['2016-01-02']).df()
-    assert len(df) == 48
+    assert len(df) == 2880
 
