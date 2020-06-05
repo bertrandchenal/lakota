@@ -12,21 +12,41 @@ banner = '''
 └─┘┴ ┴┴─┘┴ ┴└─┘
 '''
 
+def ascii_table(rows, headers=None, sep='  '):
+    # Convert content as strings
+    rows = [list(map(str, row)) for row in rows]
+    # Compute lengths
+    lengths = (len(h) for h in (headers or rows[0]))
+    for row in rows:
+        lengths = map(max, (len(i) for i in row), lengths)
+    lengths = list(lengths)
+    # Define row formatter
+    fmt = lambda xs: sep.join(x.ljust(l) for x, l in zip(xs, lengths)) + '\n'
+    # Output content
+    if headers:
+        top = fmt(headers)
+        yield top
+        yield fmt('-' * l for l in lengths)
+    for row in rows:
+        yield fmt(row)
+
 def read(args):
     reg = Registry(args.path)
     series = reg.get(args.label)
     columns = args.columns or series.schema.columns
     sgm = series.read()
+    arrays = []
     for column in columns:
         arr = sgm[column][:]
         if args.head:
             arr = arr[:args.head]
         if args.tail:
             arr = arr[-args.tail:]
-        print(column)
-        for item in arr:
-            print('\t', item)
+        arrays.append(arr)
 
+    rows = zip(*arrays)
+    for line in ascii_table(rows, headers=columns):
+        print(line, end='')
 
 def lenght(args):
     reg = Registry(args.path)
