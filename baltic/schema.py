@@ -1,5 +1,7 @@
-from numpy import dtype
 import json
+
+from numpy import dtype, frombuffer
+from numcodecs import Blosc, VLenUTF8
 
 
 class Schema:
@@ -60,3 +62,18 @@ class Schema:
             res.append(val)
         return res
 
+    def encode(self, name, arr):
+        dt = self.dtype(name)
+        codec = VLenUTF8() if dt == 'str' else Blosc()
+        return codec.encode(arr)
+
+    def decode(self, name, data):
+        dt = self.dtype(name)
+        if dt == 'str':
+            try:
+                res = VLenUTF8().decode(data)
+            except:
+                import pdb;pdb.set_trace()
+            return res
+        data = Blosc().decode(data)
+        return frombuffer(data, dtype=dt)

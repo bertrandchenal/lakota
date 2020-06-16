@@ -20,15 +20,16 @@ class Series:
     concurrent management of timeseries.
     '''
 
-    def __init__(self, schema, group):
+    def __init__(self, schema, fs, path):
+        self.fs = fs
         self.schema = schema
-        self.group = group
+        self.path = path
         self.reset()
 
     def reset(self):
-        self.changelog_group = self.group.require_group('changelog')
-        self.changelog = Changelog(self.changelog_group)
-        self.sgm_grp = self.group.require_group('segment')
+        self.chl_path = self.path / 'changelog'
+        self.changelog = Changelog(self.fs, self.chl_path)
+        self.sgm_path = self.path / 'segment'
 
     def read(self, start=[], end=[]):
         '''
@@ -62,7 +63,7 @@ class Series:
                 continue
 
             # instanciate segment
-            sgm = Segment.from_zarr(self.schema, self.sgm_grp,
+            sgm = Segment.from_fs(self.schema, self.fs, self.sgm_path,
                                     info['columns']).slice(*match)
             segments.append(sgm)
 
@@ -82,7 +83,7 @@ class Series:
 
     def write(self, sgm, start=None, end=None):
         # TODO assert that sgm is sorted!
-        col_digests = sgm.save(self.sgm_grp)
+        col_digests = sgm.save(self.fs, self.sgm_path)
         idx_start = start or sgm.start()
         idx_end = end or sgm.end()
 
@@ -97,8 +98,8 @@ class Series:
         self.changelog.commit([content])
 
     def truncate(self):
-        del self.group['changelog']
-        del self.group['segment']
+        self.fs.rm(self.chl_path)
+        self.fs.rm(self.sgm_path)
         self.reset()
 
     def squash(self):

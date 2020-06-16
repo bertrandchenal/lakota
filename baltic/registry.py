@@ -1,6 +1,6 @@
-from urllib.parse import urlsplit, urlunparse
+from pathlib import PurePosixPath
 
-import zarr
+import fsspec
 
 from .segment import Segment
 from .schema import Schema
@@ -18,50 +18,21 @@ class Registry:
 
     schema = Schema(['label:str', 'schema:str'])
 
-    def __init__(self, path=None, cache=False):
-        uri = urlsplit(path)
-        if not uri.scheme:
-            grp = zarr.group(path)
-        elif uri.scheme == 's3':
-            store = self.s3_store(uri, cache)
-            grp = zarr.group(store=store)
-        self.grp = grp
-        self.schema_series = Series(self.schema,
-                                    self.grp.require_group('registry'))
-        self.series_root = self.grp.require_group('series')
+    def __init__(self, uri=None, **fs_kwargs):
+        if not uri:
+            protocol = 'memory'
+            path = '.'
+        else:
+            protocol, path = uri.split('://', 1)
+        self.path = PurePosixPath(path)
+        self.fs = fsspec.filesystem(protocol, **fs_kwargs)
 
-    @classmethod
-    def s3_store(cls, uri, cache):
-        import s3fs
-        # replace scheme with http
-        parts = list(uri)
-        # Change uri
-        parts[0] = 'http'
-        # change netloc
-        hostname = uri.hostname or 'localhost'
-        port = uri.port or 80
-        parts[1] = f'{hostname}:{port}'
-        # Make sure other parts are empty
-        parts[2:] = [''] * 4
-        endpoint_url = urlunparse(parts)
-
-        # Connect to server
-        s3 = s3fs.S3FileSystem(
-            key=uri.username,
-            secret=uri.password,
-            client_kwargs={
-                'endpoint_url': endpoint_url,
-        })
-        store = s3fs.S3Map(root=uri.path.strip('/'), s3=s3, check=False)
-
-        if not cache:
-            return store
-        # Enable in-memory cache limited to 128MB
-        return zarr.LRUStoreCache(store, max_size=128*1024*1014)
+        self.schema_series = Series(self.schema, self.fs, self.path / 'registry' )
+        self.series_root = self.path / 'series'
 
     def clear(self):
-        for key in self.grp:
-            del self.grp[key]
+        for key in self.fs.ls(self.path):
+            self.fs.rm(self.path / key)
 
     def create(self, schema, *labels):
         # FIXME prevent double create (here or in the segment)
@@ -80,8 +51,5 @@ class Registry:
         schema = Schema.loads(sgm['schema'][idx])
         digest = hexdigest(label.encode())
         prefix, suffix = digest[:2], digest[2:]
-        series_group = self.series_root.require_group(prefix)
-        series_group = series_group.require_group(suffix)
-        series = Series(schema, series_group)
+        series = Series(schema, self.fs, self.series_root / prefix / suffix)
         return series
-

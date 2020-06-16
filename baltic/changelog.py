@@ -1,8 +1,11 @@
-from time import sleep
-from random import random
 from collections import defaultdict
+from hashlib import sha1
+from pathlib import Path, PurePath
+from random import random
+from time import sleep
 
-import zarr
+from numcodecs import VLenUTF8
+import numpy
 
 from .utils import tail, head
 
@@ -13,14 +16,19 @@ phi = '0'*40
 # TODO: Use multi-col segment instead of a unique col with a large
 # string in it.
 
+# IDEA: model each rev of the changelog as a segment column (and use
+# segment to do encode/decode and hexdigest)
+
 class Changelog:
 
     '''
     Build a tree over a zarr group to provide concurrent commits
     '''
 
-    def __init__(self, group):
-        self.group = group
+    def __init__(self, fs, path):
+        assert isinstance(path, PurePath)
+        self.fs = fs
+        self.path = path
 
     def commit(self, items, parent=None, _jitter=False):
         # Find parent
@@ -37,15 +45,16 @@ class Changelog:
             sleep(random())
 
         # Create parent.child
-        arr =  zarr.array(items) #, dtype=str FIXME
-        key = arr.hexdigest()
+        arr =  numpy.array(items) #, dtype=str FIXME
+        data = VLenUTF8().encode(arr)
+        key = sha1(arr).hexdigest()
         filename = '.'.join((parent, key))
 
-        zarr.copy(arr, self.group, filename, if_exists='skip')
+        self.fs.open(self.path / filename, 'wb').write(data)  #, if_exists='skip')
         return filename
 
     def __iter__(self):
-        return iter(self.group)
+        yield from self.fs.ls(str(self.path))
 
     def log(self):
         '''
@@ -54,6 +63,10 @@ class Changelog:
         log = defaultdict(list)
         for name in self:
             parent, child = name.split('.')
+            parent = Path(parent).stem # FIXME should be handle by Root object
+            if parent == child:
+                # FIXME Maybe not create parent.child in the first place!
+                continue
             log[parent].append(child)
         return log
 
@@ -83,27 +96,25 @@ class Changelog:
             yield path
             yield from self._walk(log, child)
 
-    # def read(self, revision):
-    #     return self.group[revision]
-
     def read(self, parent=phi):
+        # Read is not the correct name
+        # read should do open / read / decode of a given rev
+        codec = VLenUTF8()
         for rev in self.walk(parent=parent):
-            yield from self.group[rev]
+            content = self.fs.open(str(self.path / rev)).read()
+            yield from codec.decode(content)
 
     def pack(self):
         '''
         Combine the current list of revisions into one array of revision
         '''
         items = []
-        revisions = []
-        for rev in self.walk():
-            revisions.append(rev)
-            items.extend(self.group[rev])
+        revisions = list(self.walk())
         if len(revisions) == 1:
             return
+        items = list(self.read())
         self.commit(items, parent=phi)
 
         # Clean old revisions
         for rev in revisions:
-            del self.group[rev]
-
+            self.fs.rm(str(self.path / rev))
