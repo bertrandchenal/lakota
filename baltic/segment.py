@@ -64,10 +64,13 @@ class Segment:
         categ_like = ('O', 'U') # should be more extensive
         dt = self.schema.dtype(name)
         if dt in categ_like:
+            raise
             categ = zarr.Categorize(unique(arr), dtype=object)
             self.root.array(name, arr, dtype=object, object_codec=categ)
         else:
-            self.root.array(name, arr, dtype=dt) #XXX chunks=500_000
+            if dt == 'str':
+                dt = None
+            self.root.array(name, arr, dtype=dt, chunks=500_000)
 
     def __eq__(self, other):
         return all(

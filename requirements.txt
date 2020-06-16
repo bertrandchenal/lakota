@@ -1,3 +1,5 @@
-dask[distributed]
+pandas
+pytest
 s3fs
+dask[distributed]
 zarr

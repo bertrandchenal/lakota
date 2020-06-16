@@ -37,7 +37,7 @@ class Changelog:
             sleep(random())
 
         # Create parent.child
-        arr =  zarr.array(items, dtype=str)
+        arr =  zarr.array(items) #, dtype=str FIXME
         key = arr.hexdigest()
         filename = '.'.join((parent, key))
 

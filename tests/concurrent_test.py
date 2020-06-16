@@ -1,44 +1,47 @@
-import os
-import shutil
-
 from dask.distributed import Client, LocalCluster
-from numpy.random import random
 from pandas import DataFrame, date_range
+import numpy
 
 from baltic import Registry, Schema, Segment
 
 
+schema = Schema(['timestamp:M8[s]', 'value:int'])
+
+
 def insert(args):
-    series, schema, year = args
+    path, label, year = args
+    registry = Registry(path)
+    series = registry.get(label)
+
     ts = date_range(f'{year}-01-01', f'{year+1}-01-01', freq='1min')
     df = DataFrame({
         'timestamp': ts,
     })
 
-    df['value'] = random(len(ts))
+    df['value'] = numpy.round(numpy.random.random(len(ts)) * 1000, decimals=0)
     sgm = Segment.from_df(schema, df)
     series.write(sgm)
-    return year
+    return len(sgm)
 
-def test_insert():
-    schema = Schema(['timestamp:M8[s]', 'value:f'])
-    test_dir = '/dev/shm/test_data'
-    if os.path.exists(test_dir):
-        shutil.rmtree(test_dir)
-    registry = Registry(test_dir)
-    registry.create(schema, 'my_label')
-    series = registry.get('my_label')
-    years = list(range(2000, 2020))
 
-    cluster = LocalCluster()
+def test_insert(path):
+    # Write with workers
+    label = 'my_label'
+    registry = Registry(path)
+    registry.create(schema, label)
+    cluster = LocalCluster(processes=False)
     client = Client(cluster)
-    args = [(series, schema, y) for y in years]
+    years = list(range(2000, 2020))
+    args = [(path, label, y) for y in years]
     fut = client.map(insert, args)
-    client.gather(fut)
+    assert sum(client.gather(fut)) == 10_519_220
+    client.close()
+    cluster.close()
 
+    # Read it back
+    series = registry.get(label)
     df = series.read(['2015-01-01'], ['2015-01-02']).df()
     assert len(df) == 1440
-
     df = series.read(['2015-12-31'], ['2016-01-02']).df()
     assert len(df) == 2880
 
