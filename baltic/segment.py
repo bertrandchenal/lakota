@@ -49,14 +49,16 @@ class Segment:
         new_len = sum(len(s) for s in segments)
         new_frame = {}
         for name in schema.columns:
-            arr = empty(new_len, dtype=schema.dtype(name))
+            # FIXME we should rely on schema to eval dtype
+            new_arr = empty(new_len, dtype=segments[0][name].dtype)
             idx_start = 0
             for s in segments:
-                arr = s[name]
-                idx_end = idx_start + len(arr)
-                arr[idx_start:idx_end] = arr
+                sub_arr = s[name]
+                idx_end = idx_start + len(s)
+                new_arr[idx_start:idx_end] = sub_arr
                 idx_start = idx_end
-            new_frame[name] = arr
+            new_frame[name] = new_arr
+
         return Segment(schema, new_frame)
 
     def __setitem__(self, name, arr):
@@ -82,13 +84,6 @@ class Segment:
                 arr = arr.values
             self[name] = arr
 
-    def read(self, *names):
-        cols = {}
-        for name in names:
-            arr = self[name]
-            cols[name] = arr
-        return cols
-
     def keys(self):
         return self.frame.keys()
 
@@ -98,7 +93,9 @@ class Segment:
     def hexdigests(self):
         for name in self.schema.columns:
             arr = self.frame[name]
-            yield name, sha1(arr).hexdigest()
+            # XXX tostring is prob. slow
+            res = name, sha1(arr.tostring()).hexdigest()
+            yield res
 
     def size(self):
         return sum(self.frame[n].size for n in self.schema.columns)

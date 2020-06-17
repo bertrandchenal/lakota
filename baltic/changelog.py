@@ -27,6 +27,8 @@ class Changelog:
 
     def __init__(self, fs, path):
         assert isinstance(path, PurePath)
+        print('MKDIR', path)
+        fs.mkdir(str(path))
         self.fs = fs
         self.path = path
 

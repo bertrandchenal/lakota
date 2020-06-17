@@ -21,18 +21,20 @@ class Registry:
     def __init__(self, uri=None, **fs_kwargs):
         if not uri:
             protocol = 'memory'
-            path = '.'
+            path = '/'
         else:
             protocol, path = uri.split('://', 1)
         self.path = PurePosixPath(path)
+        fs_kwargs['auto_mkdir'] = True
         self.fs = fsspec.filesystem(protocol, **fs_kwargs)
-
+        print('MKDIR', path)
+        self.fs.mkdir(path)
         self.schema_series = Series(self.schema, self.fs, self.path / 'registry' )
         self.series_root = self.path / 'series'
 
     def clear(self):
         for key in self.fs.ls(self.path):
-            self.fs.rm(self.path / key)
+            self.fs.rm(self.path / key, recursive=True)
 
     def create(self, schema, *labels):
         # FIXME prevent double create (here or in the segment)

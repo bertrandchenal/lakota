@@ -21,6 +21,8 @@ class Series:
     '''
 
     def __init__(self, schema, fs, path):
+        print('MKDIR', path)
+        fs.mkdir(path)
         self.fs = fs
         self.schema = schema
         self.path = path

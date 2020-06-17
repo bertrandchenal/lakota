@@ -3,14 +3,13 @@ from pandas import DataFrame, date_range
 import numpy
 
 from baltic import Registry, Schema, Segment
-
+from baltic.utils import timeit
 
 schema = Schema(['timestamp:M8[s]', 'value:int'])
 
 
 def insert(args):
-    path, label, year = args
-    registry = Registry(path)
+    registry, label, year = args
     series = registry.get(label)
 
     ts = date_range(f'{year}-01-01', f'{year+1}-01-01', freq='1min')
@@ -24,17 +23,20 @@ def insert(args):
     return len(sgm)
 
 
-def test_insert(path):
+def test_insert():
     # Write with workers
     label = 'my_label'
-    registry = Registry(path)
+    registry = Registry('file://test_dir')
+    # registry.clear() # FIXME should be ok here
     registry.create(schema, label)
+
     cluster = LocalCluster(processes=False)
     client = Client(cluster)
     years = list(range(2000, 2020))
-    args = [(path, label, y) for y in years]
-    fut = client.map(insert, args)
-    assert sum(client.gather(fut)) == 10_519_220
+    args = [(registry, label, y) for y in years]
+    with timeit('INSERT'):
+        fut = client.map(insert, args)
+        assert sum(client.gather(fut)) == 10_519_220
     client.close()
     cluster.close()
 
@@ -44,4 +46,3 @@ def test_insert(path):
     assert len(df) == 1440
     df = series.read(['2015-12-31'], ['2016-01-02']).df()
     assert len(df) == 2880
-

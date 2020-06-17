@@ -1,10 +1,14 @@
-import zarr
+from pathlib import Path
+
+import fsspec
 
 from baltic import Series, Schema, Segment
 
+
 def test_write_series():
+    fs = fsspec.filesystem('memory')
     schema = Schema(['timestamp:int', 'value:float'])
-    series = Series(schema, zarr.group())
+    series = Series(schema, fs, Path('/'))
 
     # Write some values
     sgm = Segment.from_df(schema, {
