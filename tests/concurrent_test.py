@@ -27,7 +27,7 @@ def test_insert():
     # Write with workers
     label = 'my_label'
     registry = Registry('file://test_dir')
-    # registry.clear() # FIXME should be ok here
+    registry.clear() # FIXME should be ok here
     registry.create(schema, label)
 
     cluster = LocalCluster(processes=False)

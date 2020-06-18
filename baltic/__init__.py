@@ -6,7 +6,8 @@ from .segment import Segment
 from .changelog import Changelog
 from .schema import Schema
 from .registry import Registry
-from.series import Series
+from .series import Series
+from .pod import POD
 
 # def warn_with_traceback(message, category, filename, lineno, file=None,
 #                         line=None):

@@ -20,11 +20,11 @@ class Segment:
         return sgm
 
     @classmethod
-    def from_fs(cls, schema, fs, path, digests):
+    def from_pod(cls, schema, pod, digests):
         sgm = cls(schema)
         for name, dig in zip(schema.columns, digests):
             prefix, suffix = dig[:2], dig[2:]
-            data = fs.open(path / prefix / suffix).read()
+            data = (pod /prefix).read(suffix)
             arr = schema.decode(name, data)
             sgm.frame[name] = arr
         return sgm
@@ -124,14 +124,14 @@ class Segment:
             return int(value)
         return value
 
-    def save(self, fs, path):
+    def save(self, pod):
         all_dig = []
         for name, dig in self.hexdigests():
             all_dig.append(dig)
             prefix, suffix = dig[:2], dig[2:]
             arr = self.frame[name]
             data = self.schema.encode(name, arr)
-            fs.open(path / prefix/ suffix, 'wb').write(data) #if_exists='skip')
+            (pod / prefix).write(suffix, data) #if_exists='skip')
         return all_dig
 
     def index(self, *values):

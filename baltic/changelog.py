@@ -1,6 +1,6 @@
 from collections import defaultdict
 from hashlib import sha1
-from pathlib import Path, PurePath
+from pathlib import Path
 from random import random
 from time import sleep
 
@@ -25,12 +25,8 @@ class Changelog:
     Build a tree over a zarr group to provide concurrent commits
     '''
 
-    def __init__(self, fs, path):
-        assert isinstance(path, PurePath)
-        print('MKDIR', path)
-        fs.mkdir(str(path))
-        self.fs = fs
-        self.path = path
+    def __init__(self, pod):
+        self.pod = pod
 
     def commit(self, items, parent=None, _jitter=False):
         # Find parent
@@ -52,11 +48,11 @@ class Changelog:
         key = sha1(arr).hexdigest()
         filename = '.'.join((parent, key))
 
-        self.fs.open(self.path / filename, 'wb').write(data)  #, if_exists='skip')
+        self.pod.write(filename, data)
         return filename
 
     def __iter__(self):
-        yield from self.fs.ls(str(self.path))
+        yield from self.pod.ls(if_missing='pass')
 
     def log(self):
         '''
@@ -65,7 +61,7 @@ class Changelog:
         log = defaultdict(list)
         for name in self:
             parent, child = name.split('.')
-            parent = Path(parent).stem # FIXME should be handle by Root object
+            parent = Path(parent).stem # FIXME should be handle by POD object
             if parent == child:
                 # FIXME Maybe not create parent.child in the first place!
                 continue
@@ -103,7 +99,7 @@ class Changelog:
         # read should do open / read / decode of a given rev
         codec = VLenUTF8()
         for rev in self.walk(parent=parent):
-            content = self.fs.open(str(self.path / rev)).read()
+            content = self.pod.read(rev)
             yield from codec.decode(content)
 
     def pack(self):
@@ -119,4 +115,4 @@ class Changelog:
 
         # Clean old revisions
         for rev in revisions:
-            self.fs.rm(str(self.path / rev))
+            self.pod.rm(rev)

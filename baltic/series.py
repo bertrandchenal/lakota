@@ -20,18 +20,15 @@ class Series:
     concurrent management of timeseries.
     '''
 
-    def __init__(self, schema, fs, path):
-        print('MKDIR', path)
-        fs.mkdir(path)
-        self.fs = fs
+    def __init__(self, schema, pod):
         self.schema = schema
-        self.path = path
+        self.pod = pod
         self.reset()
 
     def reset(self):
-        self.chl_path = self.path / 'changelog'
-        self.changelog = Changelog(self.fs, self.chl_path)
-        self.sgm_path = self.path / 'segment'
+        self.chl_pod = self.pod / 'changelog'
+        self.changelog = Changelog(self.chl_pod)
+        self.sgm_pod = self.pod / 'segment'
 
     def read(self, start=[], end=[]):
         '''
@@ -65,8 +62,7 @@ class Series:
                 continue
 
             # instanciate segment
-            sgm = Segment.from_fs(self.schema, self.fs, self.sgm_path,
-                                    info['columns']).slice(*match)
+            sgm = Segment.from_pod(self.schema, self.sgm_pod, info['columns']).slice(*match)
             segments.append(sgm)
 
             mstart, mend = match
@@ -85,7 +81,7 @@ class Series:
 
     def write(self, sgm, start=None, end=None):
         # TODO assert that sgm is sorted!
-        col_digests = sgm.save(self.fs, self.sgm_path)
+        col_digests = sgm.save(self.sgm_pod)
         idx_start = start or sgm.start()
         idx_end = end or sgm.end()
 
@@ -100,8 +96,8 @@ class Series:
         self.changelog.commit([content])
 
     def truncate(self):
-        self.fs.rm(self.chl_path)
-        self.fs.rm(self.sgm_path)
+        self.chl_pod.rm()
+        self.sgm_pod.rm()
         self.reset()
 
     def squash(self):

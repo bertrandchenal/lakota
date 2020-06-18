@@ -1,8 +1,5 @@
-from pathlib import PurePosixPath
-
-import fsspec
-
 from .segment import Segment
+from .pod import POD
 from .schema import Schema
 from .series import Series
 from .utils import hexdigest
@@ -18,23 +15,14 @@ class Registry:
 
     schema = Schema(['label:str', 'schema:str'])
 
-    def __init__(self, uri=None, **fs_kwargs):
-        if not uri:
-            protocol = 'memory'
-            path = '/'
-        else:
-            protocol, path = uri.split('://', 1)
-        self.path = PurePosixPath(path)
-        fs_kwargs['auto_mkdir'] = True
-        self.fs = fsspec.filesystem(protocol, **fs_kwargs)
-        print('MKDIR', path)
-        self.fs.mkdir(path)
-        self.schema_series = Series(self.schema, self.fs, self.path / 'registry' )
-        self.series_root = self.path / 'series'
+    def __init__(self, uri=None):
+        self.pod = POD.from_uri(uri)
+        self.schema_series = Series(self.schema, self.pod / 'registry' )
+        self.series_root = self.pod / 'series'
 
     def clear(self):
-        for key in self.fs.ls(self.path):
-            self.fs.rm(self.path / key, recursive=True)
+        for key in self.pod.ls():
+            self.pod.rm(key, recursive=True)
 
     def create(self, schema, *labels):
         # FIXME prevent double create (here or in the segment)
@@ -53,5 +41,5 @@ class Registry:
         schema = Schema.loads(sgm['schema'][idx])
         digest = hexdigest(label.encode())
         prefix, suffix = digest[:2], digest[2:]
-        series = Series(schema, self.fs, self.series_root / prefix / suffix)
+        series = Series(schema, self.pod / prefix / suffix)
         return series
