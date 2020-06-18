@@ -1,10 +1,12 @@
 from tempfile import TemporaryDirectory
 
+from moto import mock_s3
 import pytest
 
 from baltic import POD
 
-@pytest.yield_fixture(scope='function', params=['memory', 'tmp']) #, 's3', 
+
+@pytest.yield_fixture(scope='function', params=['memory', 's3', 'tmp'])
 def pod(request):
     if request.param == 'memory':
         yield POD.from_uri('memory://')
@@ -14,12 +16,15 @@ def pod(request):
         with TemporaryDirectory() as tdir:
             yield POD.from_uri(f'file://{tdir}')
 
-    # elif request.param == 's3':
-    #     # Minio
-    #     uri = 's3://minioadmin:minioadmin@127.0.0.1:9000/baltic-test/'
-    #     registry = Registry(uri)
-    #     registry.clear()
-    #     yield uri
+    elif request.param == 's3':
+        # S3 tested with moto
+        with mock_s3():
+            uri = 's3://test-bucket/'
+            pod = POD.from_uri(uri)
+            # Make sur bucket exists
+            pod.fs.mkdir('test-bucket')
+            yield pod
+
     else:
         raise
 

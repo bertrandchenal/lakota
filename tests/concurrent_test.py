@@ -23,11 +23,15 @@ def insert(args):
     return len(sgm)
 
 
-def test_insert():
+def test_insert(pod):
+    if pod.protocol == 'memory':
+        # Does not work with in-memory pod
+        return
+
     # Write with workers
     label = 'my_label'
-    registry = Registry('file://test_dir')
-    registry.clear() # FIXME should be ok here
+    registry = Registry(pod=pod)
+    registry.clear() # FIXME shouldn't be needed
     registry.create(schema, label)
 
     cluster = LocalCluster(processes=False)

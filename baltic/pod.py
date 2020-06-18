@@ -1,3 +1,5 @@
+import s3fs
+
 from pathlib import Path, PurePosixPath
 import shutil
 
@@ -18,6 +20,8 @@ class POD:
         fs_kwargs.setdefault('auto_mkdir', True)
         if protocol == 'file':
             return FilePOD(path)
+        elif protocol == 's3':
+            return S3POD(path)
         elif protocol == 'memory':
             return MemPOD(path)
         else:
@@ -26,8 +30,14 @@ class POD:
     def __truediv__(self, relpath):
         return self.cd(relpath)
 
+    def clear(self):
+        for key in self.ls():
+            self.rm(key, recursive=True)
+
 
 class FilePOD(POD):
+
+    protocol = 'file'
 
     def __init__(self, path):
         self.path = Path(path)
@@ -67,12 +77,10 @@ class FilePOD(POD):
         else:
             path.unlink()
 
-    def clear(self):
-        for key in self.ls():
-            self.rm(key, recursive=True)
-
 
 class MemPOD(POD):
+
+    protocol = 'memory'
 
     def __init__(self, path):
         self.path = PurePosixPath(path)
@@ -160,5 +168,39 @@ class MemPOD(POD):
         else:
             del pod.store[leaf]
 
-    def clear(self):
-        self.store = {}
+
+class S3POD(POD):
+
+    protocol = 's3'
+
+    def __init__(self, path, fs=None):
+        self.path = path
+        self.fs = fs or s3fs.S3FileSystem(anon=False)
+        # client_kwargs={'endpoint_url': 'http://192.168.0.104:9000'},
+        # key='minioadmin',
+        # secret='minioadmin')
+
+    def cd(self, relpath):
+        path = self.path / relpath
+        return S3POD(path, fs=self.fs)
+
+    def ls(self, relpath='.', raise_on_missing=True):
+        path = str(self.path / relpath)
+        try:
+            return [Path(p).name  for p in self.fs.ls(path)]
+        except FileNotFoundError:
+            if raise_on_missing:
+                raise
+            return []
+
+    def read(self, relpath, mode='rb'):
+        path = str(self.path / relpath)
+        return self.fs.open(path, mode).read()
+
+    def write(self, relpath, data, mode='wb'):
+        path = str(self.path / relpath)
+        return self.fs.open(path, mode).write(data)
+
+    def rm(self, relpath='.', recursive=False):
+        path = str(self.path / relpath)
+        return self.fs.rm(path, recursive=recursive)

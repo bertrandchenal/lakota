@@ -15,8 +15,8 @@ class Registry:
 
     schema = Schema(['label:str', 'schema:str'])
 
-    def __init__(self, uri=None):
-        self.pod = POD.from_uri(uri)
+    def __init__(self, uri=None, pod=None):
+        self.pod = pod or POD.from_uri(uri)
         self.schema_series = Series(self.schema, self.pod / 'registry' )
         self.series_root = self.pod / 'series'
 
