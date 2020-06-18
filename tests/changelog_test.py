@@ -1,25 +1,9 @@
-from tempfile import TemporaryDirectory
 from concurrent.futures import ThreadPoolExecutor
-from uuid import uuid4
-
-import pytest
 
 from baltic import Changelog
-from baltic import POD
+
 from baltic.utils import hexdigest
 
-
-
-@pytest.yield_fixture(scope='function', params=[None, 'tmp'])
-def pod(request):
-    if request.param is None:
-        # We use random path to force fsspec to give us distinct
-        # in-memory instances
-        uuid = uuid4()
-        yield POD.from_uri(f'memory://{uuid}')
-    else:
-        with TemporaryDirectory() as tdir:
-            yield POD.from_uri(f'file://{tdir}')
 
 
 def populate(changelog, datum):
@@ -46,6 +30,10 @@ def test_commit(pod):
 
 
 def test_concurrent_commit(pod):
+
+    # XXX
+    pod.clear()
+
     datum = b'ham spam foo bar baz'.split()
     changelogs = [Changelog(pod) for _ in range(len(datum))]
     contents = []

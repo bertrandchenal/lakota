@@ -52,7 +52,7 @@ class Changelog:
         return filename
 
     def __iter__(self):
-        yield from self.pod.ls(if_missing='pass')
+        yield from self.pod.ls(raise_on_missing=False)
 
     def log(self):
         '''

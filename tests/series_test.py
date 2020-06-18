@@ -1,14 +1,10 @@
-from pathlib import Path
-
-import fsspec
-
-from baltic import Series, Schema, Segment
+from baltic import Series, Schema, Segment, POD
 
 
 def test_write_series():
-    fs = fsspec.filesystem('memory')
+    pod = POD.from_uri('memory://')
     schema = Schema(['timestamp:int', 'value:float'])
-    series = Series(schema, fs, Path('/'))
+    series = Series(schema, pod)
 
     # Write some values
     sgm = Segment.from_df(schema, {

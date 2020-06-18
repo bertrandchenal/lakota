@@ -1,11 +1,11 @@
-from pathlib import Path
+
 from uuid import uuid4
 from numpy import array, append
 
-import fsspec
+
 import pytest
 
-from baltic import Segment, Schema
+from baltic import Segment, Schema, POD
 
 
 @pytest.fixture
@@ -28,11 +28,11 @@ def sgm(frame):
 
 
 def test_copy_segment(sgm):
-    fs = fsspec.filesystem('memory')
-    digests = sgm.save(fs, Path('/'))
+    pod = POD.from_uri('memory://')
+    digests = sgm.save(pod)
     for col, dig in zip(sgm.schema.columns, digests):
         prefix, suffix = dig[:2], dig[2:]
-        data = fs.open(f'/{prefix}/{suffix}').read()
+        data = pod.read(f'{prefix}/{suffix}')
         arr = sgm.schema.decode(col, data)
         assert (sgm[col] == arr).all()
 

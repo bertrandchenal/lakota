@@ -21,8 +21,7 @@ class Registry:
         self.series_root = self.pod / 'series'
 
     def clear(self):
-        for key in self.pod.ls():
-            self.pod.rm(key, recursive=True)
+        self.pod.clear()
 
     def create(self, schema, *labels):
         # FIXME prevent double create (here or in the segment)
