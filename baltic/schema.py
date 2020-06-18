@@ -1,16 +1,15 @@
 import json
 
-from numpy import dtype, frombuffer
 from numcodecs import Blosc, VLenUTF8
+from numpy import dtype, frombuffer
 
 
 class Schema:
-
     def __init__(self, columns, idx_len=0):
         self.columns = []
         self._dtype = {}
         for col in columns:
-            name, dt = col.split(':', 1)
+            name, dt = col.split(":", 1)
             self.columns.append(name)
             # Make sure dtype is valid
             dtype(dt)
@@ -26,28 +25,29 @@ class Schema:
     @classmethod
     def loads(self, content):
         d = json.loads(content)
-        return Schema(
-            columns=d['columns'],
-            idx_len=d['idx_len'],
-        )
+        return Schema(columns=d["columns"], idx_len=d["idx_len"],)
 
     def dumps(self):
-        return json.dumps({
-            'columns': [f'{c}:{self._dtype[c]}' for c in self.columns],
-            'idx_len': len(self.idx),
-            'fmt': 'TODO CODEC',
-        })
+        return json.dumps(
+            {
+                "columns": [f"{c}:{self._dtype[c]}" for c in self.columns],
+                "idx_len": len(self.idx),
+                "fmt": "TODO CODEC",
+            }
+        )
 
     def __repr__(self):
-        cols = [f'{c}:{self._dtype[c]}' for c in self.columns]
-        return '<Schema {}>'.format(' '.join(cols))
+        cols = [f"{c}:{self._dtype[c]}" for c in self.columns]
+        return "<Schema {}>".format(" ".join(cols))
 
     def __eq__(self, other):
-        return all((
-            self.idx == other.idx,
-            self.columns == other.columns,
-            self._dtype == other._dtype,
-        ))
+        return all(
+            (
+                self.idx == other.idx,
+                self.columns == other.columns,
+                self._dtype == other._dtype,
+            )
+        )
 
     def serialize(self, values):
         res = []
@@ -64,12 +64,12 @@ class Schema:
 
     def encode(self, name, arr):
         dt = self.dtype(name)
-        codec = VLenUTF8() if dt == 'str' else Blosc()
+        codec = VLenUTF8() if dt == "str" else Blosc()
         return codec.encode(arr)
 
     def decode(self, name, data):
         dt = self.dtype(name)
-        if dt == 'str':
+        if dt == "str":
             res = VLenUTF8().decode(data)
             return res
         data = Blosc().decode(data)

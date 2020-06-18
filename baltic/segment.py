@@ -5,9 +5,9 @@ from numpy import array_equal, asarray, empty
 
 
 class Segment:
-    '''
+    """
     In-memory storage for one or more dataframe
-    '''
+    """
 
     def __init__(self, schema, frame=None):
         self.schema = schema
@@ -24,19 +24,20 @@ class Segment:
         sgm = cls(schema)
         for name, dig in zip(schema.columns, digests):
             prefix, suffix = dig[:2], dig[2:]
-            data = (pod /prefix).read(suffix)
+            data = (pod / prefix).read(suffix)
             arr = schema.decode(name, data)
             sgm.frame[name] = arr
         return sgm
 
     def df(self):
         from pandas import DataFrame
+
         return DataFrame(dict(self))
 
     def slice(self, start, end):
-        '''
+        """
         Slice between two index value
-        '''
+        """
         new_frame = {}
         idx_start = self.index(*start)
         idx_end = self.index(*end)
@@ -71,9 +72,7 @@ class Segment:
         self.frame[name] = arr
 
     def __eq__(self, other):
-        return all(
-            array_equal(self[c][:], other[c][:])
-            for c in self.schema.columns)
+        return all(array_equal(self[c][:], other[c][:]) for c in self.schema.columns)
 
     def __len__(self):
         name = self.schema.columns[0]
@@ -83,7 +82,7 @@ class Segment:
         # TODO check no column is missing (at least in the index)
         for name in self.schema.columns:
             arr = df[name]
-            if hasattr(arr, 'values'):
+            if hasattr(arr, "values"):
                 arr = arr.values
             self[name] = arr
 
@@ -104,10 +103,10 @@ class Segment:
         return sum(self.frame[n].size for n in self.schema.columns)
 
     def read_at(self, pos):
-        '''
+        """
         Return a json serializable (monotonic) representation of the value
         at the given position in the (sorted) index.
-        '''
+        """
         res = []
         for n in self.schema.idx:
             arr = self.frame[n]
@@ -122,7 +121,7 @@ class Segment:
 
     def serialize(self, column, value):
         dt = self.schema.dtype(column)
-        if dt in ('int', 'int64'):
+        if dt in ("int", "int64"):
             # json does not like int64
             return int(value)
         return value
@@ -134,7 +133,7 @@ class Segment:
             prefix, suffix = dig[:2], dig[2:]
             arr = self.frame[name]
             data = self.schema.encode(name, arr)
-            (pod / prefix).write(suffix, data) #if_exists='skip')
+            (pod / prefix).write(suffix, data)  # if_exists='skip')
         return all_dig
 
     def index(self, *values):

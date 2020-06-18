@@ -6,19 +6,19 @@ from .segment import Segment
 
 
 def intersect(info, start, end):
-    ok_start = not end or info['start'] <= end
-    ok_end = not start or info['end'] >= start
+    ok_start = not end or info["start"] <= end
+    ok_end = not start or info["end"] >= start
     if not (ok_start and ok_end):
         return None
     # return reduced range
-    return (max(info['start'], start), min(info['end'], end))
+    return (max(info["start"], start), min(info["end"], end))
 
 
 class Series:
-    '''
+    """
     Combine a zarr group and a changelog to provide a versioned and
     concurrent management of timeseries.
-    '''
+    """
 
     def __init__(self, schema, pod):
         self.schema = schema
@@ -26,14 +26,14 @@ class Series:
         self.reset()
 
     def reset(self):
-        self.chl_pod = self.pod / 'changelog'
+        self.chl_pod = self.pod / "changelog"
         self.changelog = Changelog(self.chl_pod)
-        self.sgm_pod = self.pod / 'segment'
+        self.sgm_pod = self.pod / "segment"
 
     def read(self, start=[], end=[], limit=None):
-        '''
+        """
         Read all matching segment and combine them
-        '''
+        """
         start = self.schema.deserialize(start)
         end = self.schema.deserialize(end)
 
@@ -41,8 +41,8 @@ class Series:
         series_info = []
         for content in self.changelog.read():
             info = json.loads(content)
-            info['start'] = self.schema.deserialize(info['start'])
-            info['end'] = self.schema.deserialize(info['end'])
+            info["start"] = self.schema.deserialize(info["start"])
+            info["end"] = self.schema.deserialize(info["end"])
             if intersect(info, start, end):
                 series_info.append(info)
         # Order revision backward
@@ -62,8 +62,9 @@ class Series:
                 continue
 
             # instanciate segment
-            sgm = Segment.from_pod(
-                self.schema, self.sgm_pod, info['columns']).slice(*match)
+            sgm = Segment.from_pod(self.schema, self.sgm_pod, info["columns"]).slice(
+                *match
+            )
             segments.append(sgm)
             if limit is not None:
                 limit = limit - len(sgm)
@@ -73,12 +74,14 @@ class Series:
             mstart, mend = match
             # recurse left
             if mstart > start:
-                left_sgm = self._read(series_info[pos+1:], start, mstart, limit=limit)
+                left_sgm = self._read(
+                    series_info[pos + 1 :], start, mstart, limit=limit
+                )
                 segments = left_sgm + segments
 
             # recurse right
             if mend < end:
-                right_sgm = self._read(series_info[pos+1:], mend, end)
+                right_sgm = self._read(series_info[pos + 1 :], mend, end)
                 segments = segments + right_sgm
 
             break
@@ -91,11 +94,11 @@ class Series:
         idx_end = end or sgm.end()
 
         info = {
-            'start': self.schema.serialize(idx_start),
-            'end': self.schema.serialize(idx_end),
-            'size': sgm.size(), # needed to implement squashing strategies
-            'timestamp': time.time(),
-            'columns': col_digests,
+            "start": self.schema.serialize(idx_start),
+            "end": self.schema.serialize(idx_end),
+            "size": sgm.size(),  # needed to implement squashing strategies
+            "timestamp": time.time(),
+            "columns": col_digests,
         }
         content = json.dumps(info)
         self.changelog.commit([content])
@@ -106,9 +109,9 @@ class Series:
         self.reset()
 
     def squash(self):
-        '''
+        """
         Remove all the revisions, collapse all segments into one
-        '''
+        """
 
         # FIXME: it would make more sense to create a snapshot and
         # keep historical content in an archive group. (and have
