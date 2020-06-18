@@ -30,7 +30,7 @@ class Series:
         self.changelog = Changelog(self.chl_pod)
         self.sgm_pod = self.pod / 'segment'
 
-    def read(self, start=[], end=[]):
+    def read(self, start=[], end=[], limit=None):
         '''
         Read all matching segment and combine them
         '''
@@ -48,13 +48,13 @@ class Series:
         # Order revision backward
         series_info = list(reversed(series_info))
         # Recursive discovery of matching segments
-        segments = self._read(series_info, start, end)
+        segments = self._read(series_info, start, end, limit=limit)
 
         if not segments:
             return Segment(self.schema)
         return Segment.concat(self.schema, *segments)
 
-    def _read(self, series_info, start, end):
+    def _read(self, series_info, start, end, limit=None):
         segments = []
         for pos, info in enumerate(series_info):
             match = intersect(info, start, end)
@@ -62,13 +62,18 @@ class Series:
                 continue
 
             # instanciate segment
-            sgm = Segment.from_pod(self.schema, self.sgm_pod, info['columns']).slice(*match)
+            sgm = Segment.from_pod(
+                self.schema, self.sgm_pod, info['columns']).slice(*match)
             segments.append(sgm)
+            if limit is not None:
+                limit = limit - len(sgm)
+                if limit < 1:
+                    break
 
             mstart, mend = match
             # recurse left
             if mstart > start:
-                left_sgm = self._read(series_info[pos+1:], start, mstart)
+                left_sgm = self._read(series_info[pos+1:], start, mstart, limit=limit)
                 segments = left_sgm + segments
 
             # recurse right

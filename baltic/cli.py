@@ -34,14 +34,10 @@ def read(args):
     reg = Registry(args.path)
     series = reg.get(args.label)
     columns = args.columns or series.schema.columns
-    sgm = series.read()
+    sgm = series.read(limit=args.limit)
     arrays = []
     for column in columns:
-        arr = sgm[column][:]
-        if args.head:
-            arr = arr[:args.head]
-        if args.tail:
-            arr = arr[-args.tail:]
+        arr = sgm[column][:args.limit]
         arrays.append(arr)
 
     rows = zip(*arrays)
@@ -83,7 +79,7 @@ def run():
         prog='baltic', description=banner,
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
-    parser.add_argument('--path', '-p', default='.')
+    parser.add_argument('--path', '-p', default='file://.')
     parser.add_argument('--timing', '-t', action='store_true',
                         help='Enable timing')
     subparsers = parser.add_subparsers(dest='command')
@@ -92,8 +88,7 @@ def run():
     parser_read = subparsers.add_parser('read')
     parser_read.add_argument('label')
     parser_read.add_argument('columns', nargs='*')
-    parser_read.add_argument('--head', '-H', type=int)
-    parser_read.add_argument('--tail', '-T', type=int)
+    parser_read.add_argument('--limit', '-l', type=int, default=1000)
     parser_read.set_defaults(func=read)
 
     # Add len command

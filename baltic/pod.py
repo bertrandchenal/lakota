@@ -6,9 +6,12 @@ class POD:
 
     @classmethod
     def from_uri(cls, uri=None, **fs_kwargs):
+        # Default protocol
+        protocol = 'file'
         if not uri:
-            protocol = 'file'
             path = '.'
+        elif not '://' in uri:
+            path = uri
         else:
             protocol, path = uri.split('://', 1)
         path = PurePosixPath(path)

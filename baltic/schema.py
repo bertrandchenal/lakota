@@ -70,10 +70,7 @@ class Schema:
     def decode(self, name, data):
         dt = self.dtype(name)
         if dt == 'str':
-            try:
-                res = VLenUTF8().decode(data)
-            except:
-                import pdb;pdb.set_trace()
+            res = VLenUTF8().decode(data)
             return res
         data = Blosc().decode(data)
         return frombuffer(data, dtype=dt)

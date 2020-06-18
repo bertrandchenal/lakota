@@ -34,6 +34,9 @@ class Segment:
         return DataFrame(dict(self))
 
     def slice(self, start, end):
+        '''
+        Slice between two index value
+        '''
         new_frame = {}
         idx_start = self.index(*start)
         idx_end = self.index(*end)
