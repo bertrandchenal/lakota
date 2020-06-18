@@ -2,4 +2,3 @@ pandas
 pytest
 s3fs
 dask[distributed]
-fsspec
