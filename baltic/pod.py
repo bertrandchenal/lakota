@@ -174,10 +174,12 @@ class S3POD(POD):
 
     def __init__(self, path, fs=None):
         self.path = path
-        self.fs = fs or s3fs.S3FileSystem(anon=False)
-        # client_kwargs={'endpoint_url': 'http://192.168.0.104:9000'},
-        # key='minioadmin',
-        # secret='minioadmin')
+        self.fs = fs or s3fs.S3FileSystem(
+            anon=False,
+            # client_kwargs={'endpoint_url': 'http://127.0.0.1:9000'},
+            # key='minioadmin',
+            # secret='minioadmin'
+        )
 
     def cd(self, relpath):
         path = self.path / relpath

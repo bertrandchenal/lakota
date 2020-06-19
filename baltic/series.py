@@ -1,6 +1,8 @@
 import json
 import time
 
+from numpy import arange, lexsort
+
 from .changelog import Changelog
 from .segment import Segment
 
@@ -66,10 +68,6 @@ class Series:
                 *match
             )
             segments.append(sgm)
-            if limit is not None:
-                limit = limit - len(sgm)
-                if limit < 1:
-                    break
 
             mstart, mend = match
             # recurse left
@@ -81,14 +79,21 @@ class Series:
 
             # recurse right
             if mend < end:
-                right_sgm = self._read(series_info[pos + 1 :], mend, end)
+                if limit is not None:
+                    limit = limit - len(sgm)
+                    if limit < 1:
+                        break
+                right_sgm = self._read(series_info[pos + 1 :], mend, end, limit=limit)
                 segments = segments + right_sgm
 
             break
         return segments
 
     def write(self, sgm, start=None, end=None):
-        # TODO assert that sgm is sorted!
+        # Make sure segment is sorted
+        sort_mask = lexsort([sgm[n] for n in sgm.schema.idx])
+        assert (sort_mask == arange(len(sgm))).all()
+
         col_digests = sgm.save(self.sgm_pod)
         idx_start = start or sgm.start()
         idx_end = end or sgm.end()
@@ -104,8 +109,8 @@ class Series:
         self.changelog.commit([content])
 
     def truncate(self):
-        self.chl_pod.rm()
-        self.sgm_pod.rm()
+        self.chl_pod.clear()
+        self.sgm_pod.clear()
         self.reset()
 
     def squash(self):

@@ -4,8 +4,8 @@ from .segment import Segment
 from .series import Series
 from .utils import hexdigest
 
-# Idea: "package" a bunch of writes in a ZipStore and send the
-# zipstore on s3
+# Idea: "package" a bunch of writes in a Zip/Tar and send the
+# archive on s3
 
 
 class Registry:
@@ -31,7 +31,7 @@ class Registry:
         self.schema_series.write(sgm)  # SQUASH ?
 
     def get(self, label):
-        sgm = self.schema_series.read()
+        sgm = self.schema_series.read()  # TODO use filters!
         idx = sgm.index(label)
         assert sgm["label"][idx] == label
         schema = Schema.loads(sgm["schema"][idx])

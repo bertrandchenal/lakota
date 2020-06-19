@@ -36,7 +36,7 @@ def test_insert(pod):
     client = Client(cluster)
     years = list(range(2000, 2020))
     args = [(registry, label, y) for y in years]
-    with timeit("INSERT"):
+    with timeit(f"INSERT ({pod.protocol})"):
         fut = client.map(insert, args)
         assert sum(client.gather(fut)) == 10_519_220
     client.close()

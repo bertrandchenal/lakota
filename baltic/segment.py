@@ -40,9 +40,8 @@ class Segment:
         """
         new_frame = {}
         idx_start = self.index(*start)
-        idx_end = self.index(*end)
+        idx_end = self.index(*end, right=True)
         for name in self.schema.columns:
-            # FIXME DECODE
             sl = self.frame[name][idx_start:idx_end]
             new_frame[name] = sl
 
@@ -136,7 +135,7 @@ class Segment:
             (pod / prefix).write(suffix, data)  # if_exists='skip')
         return all_dig
 
-    def index(self, *values):
+    def index(self, *values, right=False):
         if not values:
             return None
         lo = 0
@@ -145,4 +144,6 @@ class Segment:
             arr = self.frame[name]
             lo = bisect_left(arr, val, lo=lo, hi=hi)
             hi = bisect_right(arr, val, lo=lo, hi=hi)
+        if right:
+            return hi
         return lo
