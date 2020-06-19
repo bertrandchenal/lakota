@@ -1,7 +1,6 @@
-from uuid import uuid4
-
 import shutil
 from pathlib import Path, PurePosixPath
+from uuid import uuid4
 
 import s3fs
 
@@ -93,6 +92,7 @@ class FilePOD(POD):
 class MemPOD(POD):
 
     protocol = "memory"
+
     def __init__(self, path):
         self.path = PurePosixPath(path)
         # store keys are path, values are either bytes (aka a file)

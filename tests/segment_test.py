@@ -41,3 +41,22 @@ def test_concat(sgm):
     val = sgm["value"]
     eq = val2 == append(val, val)
     assert all(eq)
+
+
+def test_slice(sgm):
+
+    schema = Schema(["x:int"])
+    sgm = Segment(schema)
+    sgm.write({"x": [1, 2, 3, 4, 5]})
+
+    # include both side
+    res = sgm.slice([2], [4], closed="both")["x"]
+    assert all(res == [2, 3, 4])
+
+    # include only left
+    res = sgm.slice([2], [4], closed="left")["x"]
+    assert all(res == [2, 3])
+
+    # include only right
+    res = sgm.slice([2], [4], closed="right")["x"]
+    assert all(res == [3, 4])

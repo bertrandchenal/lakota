@@ -34,13 +34,13 @@ class Segment:
 
         return DataFrame(dict(self))
 
-    def slice(self, start, end):
+    def slice(self, start, end, closed="left"):
         """
         Slice between two index value
         """
         new_frame = {}
-        idx_start = self.index(*start)
-        idx_end = self.index(*end, right=True)
+        idx_start = self.index(*start, right=closed == "right")
+        idx_end = self.index(*end, right=closed in ("both", "right"))
         for name in self.schema.columns:
             sl = self.frame[name][idx_start:idx_end]
             new_frame[name] = sl

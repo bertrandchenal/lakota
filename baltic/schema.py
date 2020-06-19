@@ -16,7 +16,7 @@ class Schema:
             self._dtype[name] = dt
 
         # All but last column is the default index
-        idx_len = idx_len or len(columns) - 1
+        idx_len = idx_len or len(columns) - 1 or 1
         self.idx = self.columns[:idx_len]
 
     def dtype(self, name):

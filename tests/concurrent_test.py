@@ -2,7 +2,7 @@ import numpy
 from dask.distributed import Client, LocalCluster
 from pandas import DataFrame, date_range
 
-from baltic import Registry, Schema, Segment, POD
+from baltic import POD, Registry, Schema, Segment
 from baltic.utils import timeit
 
 schema = Schema(["timestamp:M8[s]", "value:int"])
@@ -14,7 +14,7 @@ def insert(args):
     registry = Registry(pod=pod)
     series = registry.get(label)
 
-    ts = date_range(f"{year}-01-01", f"{year+1}-01-01", freq="1min", closed='left')
+    ts = date_range(f"{year}-01-01", f"{year+1}-01-01", freq="1min", closed="left")
     df = DataFrame({"timestamp": ts,})
 
     df["value"] = numpy.round(numpy.random.random(len(ts)) * 1000, decimals=0)

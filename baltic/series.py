@@ -64,10 +64,8 @@ class Series:
                 continue
 
             # instanciate segment
-            sgm = Segment.from_pod(self.schema, self.sgm_pod, info["columns"]).slice(
-                *match
-            )
-            segments.append(sgm)
+            sgm = Segment.from_pod(self.schema, self.sgm_pod, info["columns"])
+            segments.append(sgm.slice(*match, closed="both"))
 
             mstart, mend = match
             # recurse left
