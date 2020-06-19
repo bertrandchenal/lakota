@@ -1,3 +1,5 @@
+from uuid import uuid4
+
 import shutil
 from pathlib import Path, PurePosixPath
 
@@ -5,6 +7,16 @@ import s3fs
 
 
 class POD:
+    _by_token = {}
+
+    def __init__(self):
+        self.token = str(uuid4())
+        POD._by_token[self.token] = self
+
+    @classmethod
+    def from_token(cls, token):
+        return cls._by_token[token]
+
     @classmethod
     def from_uri(cls, uri=None, **fs_kwargs):
         # Default protocol
@@ -40,6 +52,7 @@ class FilePOD(POD):
 
     def __init__(self, path):
         self.path = Path(path)
+        super().__init__()
 
     def cd(self, relpath):
         path = self.path / relpath
@@ -80,12 +93,12 @@ class FilePOD(POD):
 class MemPOD(POD):
 
     protocol = "memory"
-
     def __init__(self, path):
         self.path = PurePosixPath(path)
         # store keys are path, values are either bytes (aka a file)
         # either another dict (aka a directory)
         self.store = {}
+        super().__init__()
 
     def cd(self, relpath):
         pod = self.find_pod(relpath)
@@ -180,6 +193,7 @@ class S3POD(POD):
             # key='minioadmin',
             # secret='minioadmin'
         )
+        super().__init__()
 
     def cd(self, relpath):
         path = self.path / relpath

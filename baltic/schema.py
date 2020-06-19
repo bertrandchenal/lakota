@@ -63,6 +63,7 @@ class Schema:
         return res
 
     def encode(self, name, arr):
+        # TODO add support for per-colon codec(s) (in the schema)
         dt = self.dtype(name)
         codec = VLenUTF8() if dt == "str" else Blosc()
         return codec.encode(arr)

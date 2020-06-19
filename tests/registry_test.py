@@ -4,7 +4,6 @@ from uuid import uuid4
 import pytest
 
 from baltic import Registry, Schema
-from baltic.utils import timeit
 
 
 def test_create_labels():
