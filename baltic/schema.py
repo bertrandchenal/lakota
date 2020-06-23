@@ -1,7 +1,9 @@
 import json
 
 from numcodecs import Blosc, VLenUTF8
-from numpy import dtype, frombuffer
+from numpy import array, dtype, frombuffer
+
+DTYPES = ["M8[s]", "i8", "f8"]
 
 
 class Schema:
@@ -75,3 +77,9 @@ class Schema:
             return res
         data = Blosc().decode(data)
         return frombuffer(data, dtype=dt)
+
+    def cast(self, df):
+        for name, col in df.items():
+            dt = self.dtype(name)
+            df[name] = array(col).astype(dt)
+        return df

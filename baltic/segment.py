@@ -1,6 +1,7 @@
 from bisect import bisect_left, bisect_right
 from hashlib import sha1
 
+import numexpr
 from numpy import array_equal, asarray, empty
 
 
@@ -11,7 +12,7 @@ class Segment:
 
     def __init__(self, schema, frame=None):
         self.schema = schema
-        self.frame = frame or {}
+        self.frame = frame or {c: [] for c in schema.columns}
 
     @classmethod
     def from_df(cls, schema, df):
@@ -33,6 +34,14 @@ class Segment:
         from pandas import DataFrame
 
         return DataFrame(dict(self))
+
+    def mask(self, mask_arr):
+        new_frame = {n: arr[mask_arr] for n, arr in self.frame.items()}
+        return Segment(self.schema, new_frame)
+
+    def eval(self, expr):
+        res = numexpr.evaluate(expr, local_dict=self.frame)
+        return res
 
     def slice(self, start, end, closed="left"):
         """

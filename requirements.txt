@@ -3,3 +3,4 @@ pytest
 s3fs
 dask[distributed]
 moto
+tabulate

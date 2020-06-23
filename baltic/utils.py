@@ -1,3 +1,4 @@
+import bisect
 import sys
 from collections import deque
 from contextlib import contextmanager
@@ -12,12 +13,24 @@ tail = lambda it, n: deque(it, maxlen=n)
 skip = lambda it, n: list(islice(it, n, None))
 
 
+def pretty_nb(number):
+    prefixes = "yzafpnum_kMGTPEZY"
+    factors = [1000 ** i for i in range(-8, 8)]
+    if number == 0:
+        return 0
+    if number < 0:
+        return "-" + pretty_nb(-number)
+    idx = bisect.bisect_right(factors, number) - 1
+    prefix = prefixes[idx]
+    return "%.2f%s" % (number / factors[idx], "" if prefix == "_" else prefix)
+
+
 @contextmanager
 def timeit(title=""):
     start = perf_counter()
     yield
     delta = perf_counter() - start
-    print(title, delta, file=sys.stderr)
+    print(title, pretty_nb(delta) + "s", file=sys.stderr)
 
 
 # def read_schema(schema_string):

@@ -18,9 +18,11 @@ def intersect(info, start, end):
 
 class Series:
     """
-    Combine a zarr group and a changelog to provide a versioned and
-    concurrent management of timeseries.
+    Combine a pod and a changelog to provide a versioned and
+    concurrent management of series.
     """
+
+    # TODO implement per-series copy of changelog (+ extra option to copy related segments
 
     def __init__(self, schema, pod):
         self.schema = schema
@@ -30,7 +32,9 @@ class Series:
     def reset(self):
         self.chl_pod = self.pod / "changelog"
         self.changelog = Changelog(self.chl_pod)
-        self.sgm_pod = self.pod / "segment"
+        self.sgm_pod = (
+            self.pod / "segment"
+        )  # FIXME segment should be global (aka pod /..)
 
     def read(self, start=[], end=[], limit=None):
         """
@@ -87,7 +91,11 @@ class Series:
             break
         return segments
 
-    def write(self, sgm, start=None, end=None):
+    def write(self, df, start=None, end=None, cast=False):
+        if cast:
+            df = self.schema.cast(df)
+
+        sgm = Segment.from_df(self.schema, df)
         # Make sure segment is sorted
         sort_mask = lexsort([sgm[n] for n in sgm.schema.idx])
         assert (sort_mask == arange(len(sgm))).all()

@@ -1,6 +1,11 @@
 import argparse
+import csv
+import sys
+
+from tabulate import tabulate
 
 from .registry import Registry
+from .schema import Schema
 from .utils import timeit
 
 # generated from http://www.patorjk.com/software/taag/
@@ -12,38 +17,24 @@ banner = """
 """
 
 
-def ascii_table(rows, headers=None, sep="  "):
-    # Convert content as strings
-    rows = [list(map(str, row)) for row in rows]
-    # Compute lengths
-    lengths = (len(h) for h in (headers or rows[0]))
-    for row in rows:
-        lengths = map(max, (len(i) for i in row), lengths)
-    lengths = list(lengths)
-    # Define row formatter
-    fmt = lambda xs: sep.join(x.ljust(l) for x, l in zip(xs, lengths)) + "\n"
-    # Output content
-    if headers:
-        top = fmt(headers)
-        yield top
-        yield fmt("-" * l for l in lengths)
-    for row in rows:
-        yield fmt(row)
-
-
 def read(args):
     reg = Registry(args.path)
     series = reg.get(args.label)
     columns = args.columns or series.schema.columns
     sgm = series.read(limit=args.limit)
+
+    # FIXME mask should be pushed down to Series._read
+    if args.mask:
+        cond = sgm.eval(args.mask)
+        sgm = sgm.mask(cond)
+
     arrays = []
     for column in columns:
         arr = sgm[column][: args.limit]
         arrays.append(arr)
-
+    arr = arrays[1]
     rows = zip(*arrays)
-    for line in ascii_table(rows, headers=columns):
-        print(line, end="")
+    print(tabulate(rows, headers=columns))
 
 
 def lenght(args):
@@ -51,6 +42,28 @@ def lenght(args):
     series = reg.get(args.label)
     sgm = series.read()
     print(len(sgm))
+
+
+def ls(args):
+    reg = Registry(args.path)
+    rows = [[label] for label in reg.ls()]
+    print(tabulate(rows, headers=["label"]))
+
+
+def create(args):
+    reg = Registry(args.path)
+    schema = Schema(args.columns, idx_len=args.idx_len)
+    reg.create(schema, args.label)
+
+
+def write(args):
+    reg = Registry(args.path)
+    series = reg.get(args.label)
+    reader = csv.reader(sys.stdin)
+    columns = zip(*reader)
+    schema = series.schema
+    df = dict(zip(schema.columns, columns))
+    series.write(df)
 
 
 def squash(args):
@@ -65,10 +78,9 @@ def pack(args):
     series.changelog.pack()
 
 
-def tree(args):
+def clear(args):
     reg = Registry(args.path)
-    series = reg.get(args.label)
-    print(series.group.tree())
+    reg.clear()
 
 
 def print_help(parser, args):
@@ -92,12 +104,17 @@ def run():
     parser_read.add_argument("label")
     parser_read.add_argument("columns", nargs="*")
     parser_read.add_argument("--limit", "-l", type=int, default=1000)
+    parser_read.add_argument("--mask", "-m", help="Apply expression as mask")
     parser_read.set_defaults(func=read)
 
     # Add len command
     parser_len = subparsers.add_parser("len")
     parser_len.add_argument("label")
     parser_len.set_defaults(func=lenght)
+
+    # Add len command
+    parser_len = subparsers.add_parser("ls")
+    parser_len.set_defaults(func=ls)
 
     # Add squash command
     parser_squash = subparsers.add_parser("squash")
@@ -109,10 +126,21 @@ def run():
     parser_pack.add_argument("label")
     parser_pack.set_defaults(func=pack)
 
-    # Add tree command
-    parser_tree = subparsers.add_parser("tree")
-    parser_tree.add_argument("label")
-    parser_tree.set_defaults(func=tree)
+    # Add create command
+    parser_create = subparsers.add_parser("create")
+    parser_create.add_argument("label")
+    parser_create.add_argument("columns", nargs="+")
+    parser_create.add_argument("--idx-len", type=int)
+    parser_create.set_defaults(func=create)
+
+    # Add write command
+    parser_write = subparsers.add_parser("write")
+    parser_write.add_argument("label")
+    parser_write.set_defaults(func=write)
+
+    # Add clear command
+    parser_clear = subparsers.add_parser("clear")
+    parser_clear.set_defaults(func=clear)
 
     # Add help command
     parser_help = subparsers.add_parser("help")

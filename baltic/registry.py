@@ -24,11 +24,16 @@ class Registry:
         self.pod.clear()
 
     def create(self, schema, *labels):
-        # FIXME prevent double create (here or in the segment)
+        current = set(self.ls())
+        assert not current.intersection(labels)
         sgm = Segment.from_df(
             self.schema, {"label": labels, "schema": [schema.dumps()] * len(labels)}
         )
         self.schema_series.write(sgm)  # SQUASH ?
+
+    def ls(self):
+        sgm = self.schema_series.read()  # TODO use filters!
+        return sgm["label"]
 
     def get(self, label):
         sgm = self.schema_series.read()  # TODO use filters!
