@@ -24,17 +24,12 @@ class Series:
 
     # TODO implement per-series copy of changelog (+ extra option to copy related segments
 
-    def __init__(self, schema, pod):
+    def __init__(self, schema, pod, segment_pod=None):
         self.schema = schema
         self.pod = pod
-        self.reset()
-
-    def reset(self):
+        self.segment_pod = segment_pod or pod / "segment"
         self.chl_pod = self.pod / "changelog"
         self.changelog = Changelog(self.chl_pod)
-        self.sgm_pod = (
-            self.pod / "segment"
-        )  # FIXME segment should be global (aka pod /..)
 
     def read(self, start=[], end=[], limit=None):
         """
@@ -68,7 +63,7 @@ class Series:
                 continue
 
             # instanciate segment
-            sgm = Segment.from_pod(self.schema, self.sgm_pod, info["columns"])
+            sgm = Segment.from_pod(self.schema, self.segment_pod, info["columns"])
             segments.append(sgm.slice(*match, closed="both"))
 
             mstart, mend = match
@@ -100,7 +95,7 @@ class Series:
         sort_mask = lexsort([sgm[n] for n in sgm.schema.idx])
         assert (sort_mask == arange(len(sgm))).all()
 
-        col_digests = sgm.save(self.sgm_pod)
+        col_digests = sgm.save(self.segment_pod)
         idx_start = start or sgm.start()
         idx_end = end or sgm.end()
 
@@ -116,8 +111,6 @@ class Series:
 
     def truncate(self):
         self.chl_pod.clear()
-        self.sgm_pod.clear()
-        self.reset()
 
     def squash(self):
         """

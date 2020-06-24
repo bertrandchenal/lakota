@@ -17,8 +17,11 @@ class Registry:
 
     def __init__(self, uri=None, pod=None):
         self.pod = pod or POD.from_uri(uri)
-        self.schema_series = Series(self.schema, self.pod / "registry")
-        self.series_root = self.pod / "series"
+        self.segment_pod = self.pod / "segment"
+        self.schema_series = Series(
+            self.schema, self.pod / "registry", self.segment_pod
+        )
+        self.series_pod = self.pod / "series"
 
     def clear(self):
         self.pod.clear()
@@ -42,5 +45,5 @@ class Registry:
         schema = Schema.loads(sgm["schema"][idx])
         digest = hexdigest(label.encode())
         prefix, suffix = digest[:2], digest[2:]
-        series = Series(schema, self.pod / prefix / suffix)
+        series = Series(schema, self.series_pod / prefix / suffix, self.segment_pod)
         return series

@@ -47,7 +47,6 @@ class Changelog:
         data = VLenUTF8().encode(arr)
         key = sha1(arr).hexdigest()
         filename = ".".join((parent, key))
-
         self.pod.write(filename, data)
         return filename
 
