@@ -102,7 +102,7 @@ class Series:
         info = {
             "start": self.schema.serialize(idx_start),
             "end": self.schema.serialize(idx_end),
-            "size": sgm.size(),  # needed to implement squashing strategies
+            "size": sgm.size(),
             "timestamp": time.time(),
             "columns": col_digests,
         }

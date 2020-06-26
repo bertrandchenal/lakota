@@ -2,7 +2,7 @@ from bisect import bisect_left, bisect_right
 from hashlib import sha1
 
 import numexpr
-from numpy import array_equal, asarray, empty
+from numpy import array_equal, asarray, empty, concatenate
 
 
 class Segment:
@@ -32,7 +32,6 @@ class Segment:
 
     def df(self):
         from pandas import DataFrame
-
         return DataFrame(dict(self))
 
     def mask(self, mask_arr):
@@ -58,19 +57,10 @@ class Segment:
 
     @classmethod
     def concat(cls, schema, *segments):
-        new_len = sum(len(s) for s in segments)
         new_frame = {}
         for name in schema.columns:
-            # FIXME we should rely on schema to eval dtype
-            new_arr = empty(new_len, dtype=segments[0][name].dtype)
-            idx_start = 0
-            for s in segments:
-                sub_arr = s[name]
-                idx_end = idx_start + len(s)
-                new_arr[idx_start:idx_end] = sub_arr
-                idx_start = idx_end
-            new_frame[name] = new_arr
-
+            new_arr = concatenate([s[name] for s in segments])
+            new_frame[name] = new_arr.astype(schema.dtype(name))
         return Segment(schema, new_frame)
 
     def __setitem__(self, name, arr):
@@ -87,7 +77,6 @@ class Segment:
         return len(self.frame[name])
 
     def write(self, df, reverse_idx=False):
-        # TODO check no column is missing (at least in the index)
         for name in self.schema.columns:
             arr = df[name]
             if hasattr(arr, "values"):
@@ -103,7 +92,6 @@ class Segment:
     def hexdigests(self):
         for name in self.schema.columns:
             arr = self.frame[name]
-            # XXX tostring is prob. slow
             res = name, sha1(arr.tostring()).hexdigest()
             yield res
 

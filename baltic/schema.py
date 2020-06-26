@@ -3,7 +3,7 @@ import json
 from numcodecs import Blosc, VLenUTF8
 from numpy import array, dtype, frombuffer
 
-DTYPES = ["M8[s]", "i8", "f8"]
+DTYPES = [dtype(s) for s in ("<M8[s]", "int64", "float64", "<U")]
 
 
 class Schema:
@@ -14,7 +14,9 @@ class Schema:
             name, dt = col.split(":", 1)
             self.columns.append(name)
             # Make sure dtype is valid
-            dtype(dt)
+            dt = dtype(dt)
+            if dt not in DTYPES:
+                raise ValueError("Column type '{dt}' not supported")
             self._dtype[name] = dt
 
         # All but last column is the default index
@@ -22,7 +24,8 @@ class Schema:
         self.idx = self.columns[:idx_len]
 
     def dtype(self, name):
-        return self._dtype[name]
+        dt = self._dtype[name]
+        return dt
 
     @classmethod
     def loads(self, content):
@@ -67,12 +70,12 @@ class Schema:
     def encode(self, name, arr):
         # TODO add support for per-colon codec(s) (in the schema)
         dt = self.dtype(name)
-        codec = VLenUTF8() if dt == "str" else Blosc()
+        codec = VLenUTF8() if dt == dtype('<U') else Blosc()
         return codec.encode(arr)
 
     def decode(self, name, data):
         dt = self.dtype(name)
-        if dt == "str":
+        if dt == str:
             res = VLenUTF8().decode(data)
             return res
         data = Blosc().decode(data)
