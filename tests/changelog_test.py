@@ -9,11 +9,11 @@ def populate(changelog, datum):
         key = hexdigest(data)
         timestamp = 1234
         author = "Doe"
-        info = f"{key} {timestamp} {author}".encode()
-        changelog.commit([info.decode()])
+        info = f"{key} {timestamp} {author}"
+        changelog.commit([info])
 
 
-def test_commit(pod):
+def test_simple_commit(pod):
     # Create 5 changeset in series
     datum = b"ham spam foo bar baz".split()
     changelog = Changelog(pod)
@@ -25,6 +25,18 @@ def test_commit(pod):
     # Read commits
     for data, expected in zip(changelog.extract(), datum):
         assert data.startswith(hexdigest(expected))
+
+def test_double_commit(pod):
+    # Create 5 changeset in series
+    datum = "ham spam foo bar baz".split()
+    changelog = Changelog(pod)
+    key = changelog.commit(datum)
+    # New revision created:
+    assert key is not None
+
+    key = changelog.commit(datum)
+    # No new revision
+    assert key is None
 
 
 def test_concurrent_commit(pod):

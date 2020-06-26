@@ -46,6 +46,9 @@ class Changelog:
         arr = numpy.array(items)  # , dtype=str FIXME
         data = VLenUTF8().encode(arr)
         key = sha1(arr).hexdigest()
+        # Preven double commit
+        if key == parent:
+            return
         filename = ".".join((parent, key))
         self.pod.write(filename, data)
         return filename
@@ -62,7 +65,6 @@ class Changelog:
             parent, child = name.split(".")
             parent = Path(parent).stem  # FIXME should be handle by POD object
             if parent == child:
-                # FIXME do not create parent.child in the first place!
                 continue
             log[parent].append(child)
         return log
