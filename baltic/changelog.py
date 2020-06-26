@@ -62,7 +62,7 @@ class Changelog:
             parent, child = name.split(".")
             parent = Path(parent).stem  # FIXME should be handle by POD object
             if parent == child:
-                # FIXME Maybe not create parent.child in the first place!
+                # FIXME do not create parent.child in the first place!
                 continue
             log[parent].append(child)
         return log
@@ -89,27 +89,37 @@ class Changelog:
         """
         children = log.get(parent, [])
         for child in children:
-            path = "{}.{}".format(parent, child)
+            path = f"{parent}.{child}"
             yield path
             yield from self._walk(log, child)
 
-    def read(self, parent=phi):
+    def extract(self, revs=None):
+        if not revs:
+            revs = self.walk()
         # Read is not the correct name
         # read should do open / read / decode of a given rev
         codec = VLenUTF8()
-        for rev in self.walk(parent=parent):
+        for rev in revs:
             content = self.pod.read(rev)
             yield from codec.decode(content)
+
+    def pull(self, remote):
+        # TODO should return list of new revs
+        local_revs = list(self)
+        for rev in remote:
+            if rev in local_revs:
+                continue
+            payload = remote.pod.read(rev)
+            self.pod.write(rev, payload)
 
     def pack(self):
         """
         Combine the current list of revisions into one array of revision
         """
-        items = []
         revisions = list(self.walk())
         if len(revisions) == 1:
             return
-        items = list(self.read())
+        items = list(self.extract(revisions))
         self.commit(items, parent=phi)
 
         # Clean old revisions

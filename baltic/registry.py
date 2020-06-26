@@ -26,6 +26,15 @@ class Registry:
     def clear(self):
         self.pod.clear()
 
+    def clone(self, remote, label, shallow=False):
+        # XXX define remote in init and simply do registry.clone(label) ?
+
+        assert not shallow, "Shallow clone not supported yet"
+        rseries = remote.get(label)
+        self.create(rseries.schema, label)
+        series = self.get(label)
+        series.clone(rseries, shallow=shallow)
+
     def create(self, schema, *labels):
         current = set(self.ls())
         assert not current.intersection(labels)

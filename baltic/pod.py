@@ -18,14 +18,17 @@ class POD:
 
     @classmethod
     def from_uri(cls, uri=None, **fs_kwargs):
-        # Default protocol
-        protocol = "file"
+        # Define protocal and path
         if not uri:
+            protocol = "memory"
             path = "."
         elif not "://" in uri:
+            protocol = "file"
             path = uri
         else:
             protocol, path = uri.split("://", 1)
+
+        # Instatiate pod object
         path = PurePosixPath(path)
         fs_kwargs.setdefault("auto_mkdir", True)
         if protocol == "file":
