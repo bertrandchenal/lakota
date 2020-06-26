@@ -82,6 +82,11 @@ def clear(args):
     reg = Registry(args.path)
     reg.clear()
 
+def gc(args):
+    reg = Registry(args.path)
+    cnt = reg.gc()
+    print(f'{cnt} segments deleted')
+
 
 def print_help(parser, args):
     parser.parse_args([args.help_cmd, "-h"])
@@ -141,6 +146,11 @@ def run():
     # Add clear command
     parser_clear = subparsers.add_parser("clear")
     parser_clear.set_defaults(func=clear)
+
+
+    # Add gc command
+    parser_gc = subparsers.add_parser("gc")
+    parser_gc.set_defaults(func=gc)
 
     # Add help command
     parser_help = subparsers.add_parser("help")

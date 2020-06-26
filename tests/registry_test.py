@@ -88,3 +88,28 @@ def test_clone():
 
     lseries = local_reg.get(label)
     assert lseries.read() == expected
+
+
+def test_gc():
+    schema = Schema(["timestamp:int", "value:float"])
+    reg = Registry()
+    reg.create(schema, 'label_a', 'label_b')
+    for offset, label in enumerate(('label_a', 'label_b')):
+        series = reg.get(label)
+        for i in range(offset, offset+10):
+            series.write({
+                'timestamp': range(i, i+10),
+                'value': range(i+100, i+110),
+            })
+
+    # Squash label_a
+    series = reg.get('label_a')
+    series.squash()
+
+    # Launch garbage collection
+    count = reg.gc()
+
+    # Count must be 2 because the two series are identical except for
+    # two data segments (the last write is offseted and contains two
+    # columns)
+    assert count == 2

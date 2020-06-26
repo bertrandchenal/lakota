@@ -1,3 +1,5 @@
+from itertools import chain
+
 from .pod import POD
 from .schema import Schema
 from .segment import Segment
@@ -56,3 +58,26 @@ class Registry:
         prefix, suffix = digest[:2], digest[2:]
         series = Series(schema, self.series_pod / prefix / suffix, self.segment_pod)
         return series
+
+    def gc(self, soft=True):
+        '''
+        Loop on all series, collect all used digests, and delete obsolete
+        ones. If soft if true, obsolete revision are moved to an
+        archive location. If soft is false, obsolete revisions are deleted.
+        '''
+
+        labels = self.ls()
+        # TODO repeated calls to self.get method are inefficient
+        series = (self.get(l) for l in labels)
+        per_series = (s.digests() for s in series)
+        active_digests = set(chain.from_iterable(per_series))
+        active_digests.update(self.schema_series.digests())
+        count = 0
+        for folder in self.segment_pod.ls():
+            for filename in self.segment_pod.ls(folder):
+                digest = folder + filename
+                if digest not in active_digests:
+                    count += 1
+                    self.segment_pod.rm(f'{folder}/{filename}')
+
+        return count

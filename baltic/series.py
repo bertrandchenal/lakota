@@ -132,3 +132,8 @@ class Series:
         sgm = self.read()
         self.truncate()
         self.write(sgm)
+
+    def digests(self):
+        for content in self.changelog.extract():
+            info = json.loads(content)
+            yield from info["columns"]
