@@ -24,6 +24,7 @@ class Segment:
     def from_pod(cls, schema, pod, digests):
         sgm = cls(schema)
         for name, dig in zip(schema.columns, digests):
+            # TODO abstract somewhere the prefix/suffix hashing
             prefix, suffix = dig[:2], dig[2:]
             data = (pod / prefix).read(suffix)
             arr = schema.decode(name, data)
@@ -70,7 +71,7 @@ class Segment:
         self.frame[name] = arr
 
     def __eq__(self, other):
-        return all(array_equal(self[c][:], other[c][:]) for c in self.schema.columns)
+        return all(array_equal(self[c], other[c]) for c in self.schema.columns)
 
     def __len__(self):
         name = self.schema.columns[0]

@@ -31,6 +31,18 @@ class Series:
         self.chl_pod = self.pod / "changelog"
         self.changelog = Changelog(self.chl_pod)
 
+    def clone(self, remote, shallow=False):
+        # TODO pull should return only new revs
+        self.changelog.pull(remote.changelog)
+        for content in self.changelog.extract():
+            info = json.loads(content)
+            for dig in info["columns"]:
+                prefix, suffix = dig[:2], dig[2:]
+                path = f"{prefix}/{suffix}"
+                payload = remote.segment_pod.read(path)
+                # TODO skip already existing segments!
+                self.segment_pod.write(path, payload)
+
     def read(self, start=[], end=[], limit=None):
         """
         Read all matching segment and combine them
@@ -40,7 +52,7 @@ class Series:
 
         # Collect all rev info
         series_info = []
-        for content in self.changelog.read():
+        for content in self.changelog.extract():
             info = json.loads(content)
             info["start"] = self.schema.deserialize(info["start"])
             info["end"] = self.schema.deserialize(info["end"])

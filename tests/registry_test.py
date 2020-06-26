@@ -68,3 +68,23 @@ def test_create_labels_chunks(pod):
     for label in labels:
         series = reg.get(label)
         assert series.schema == schema
+
+
+def test_clone():
+    schema = Schema(["timestamp:int", "value:float"])
+    label = 'LABEL'
+    remote_reg = Registry()
+    remote_reg.create(schema, label)
+    rseries = remote_reg.get(label)
+    for i in range(10):
+        rseries.write({
+            'timestamp': range(i, i+10),
+            'value': range(i+100, i+110),
+        })
+    expected = rseries.read()
+
+    local_reg = Registry()
+    local_reg.clone(remote_reg, label)
+
+    lseries = local_reg.get(label)
+    assert lseries.read() == expected
