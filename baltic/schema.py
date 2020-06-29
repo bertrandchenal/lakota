@@ -1,23 +1,29 @@
 import json
 
-from numcodecs import Blosc, VLenUTF8
+from numcodecs import Blosc, VLenUTF8, registry
 from numpy import array, dtype, frombuffer
 
 DTYPES = [dtype(s) for s in ("<M8[s]", "int64", "float64", "<U")]
-
+FILTERS = ['blosc', 'gzip', 'categorize']
 
 class Schema:
     def __init__(self, columns, idx_len=0):
         self.columns = []
         self._dtype = {}
+        self._codecs = {}
         for col in columns:
             name, dt = col.split(":", 1)
+            dt, *codecs = dt.split('|')
             self.columns.append(name)
             # Make sure dtype is valid
             dt = dtype(dt)
             if dt not in DTYPES:
                 raise ValueError("Column type '{dt}' not supported")
             self._dtype[name] = dt
+
+            if not codecs:
+                codecs = ['vlen-utf8', 'gzip'] if dt == dtype('<U') else ['blosc']
+            self._codecs[name] = codecs
 
         # All but last column is the default index
         idx_len = idx_len or len(columns) - 1 or 1
@@ -26,6 +32,9 @@ class Schema:
     def dtype(self, name):
         dt = self._dtype[name]
         return dt
+
+    def codecs(self, name):
+        return self._codecs[name]
 
     @classmethod
     def loads(self, content):
@@ -68,18 +77,20 @@ class Schema:
         return res
 
     def encode(self, name, arr):
-        # TODO add support for per-colon codec(s) (in the schema)
-        dt = self.dtype(name)
-        codec = VLenUTF8() if dt == dtype('<U') else Blosc()
-        return codec.encode(arr)
+        for codec_name in self.codecs(name):
+            codec = registry.codec_registry[codec_name]
+            arr = codec().encode(arr)
+        return arr
 
-    def decode(self, name, data):
+    def decode(self, name, arr):
         dt = self.dtype(name)
-        if dt == str:
-            res = VLenUTF8().decode(data)
-            return res
-        data = Blosc().decode(data)
-        return frombuffer(data, dtype=dt)
+
+        for codec_name in reversed(self.codecs(name)):
+            codec = registry.codec_registry[codec_name]
+            arr = codec().decode(arr)
+        if self.dtype(name) == '<U':
+            return arr.astype(dt)
+        return frombuffer(arr, dtype=dt)
 
     def cast(self, df):
         for name, col in df.items():
