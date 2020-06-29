@@ -60,11 +60,11 @@ class Registry:
         return series
 
     def gc(self, soft=True):
-        '''
+        """
         Loop on all series, collect all used digests, and delete obsolete
         ones. If soft if true, obsolete revision are moved to an
         archive location. If soft is false, obsolete revisions are deleted.
-        '''
+        """
 
         labels = self.ls()
         # TODO repeated calls to self.get method are inefficient
@@ -78,6 +78,6 @@ class Registry:
                 digest = folder + filename
                 if digest not in active_digests:
                     count += 1
-                    self.segment_pod.rm(f'{folder}/{filename}')
+                    self.segment_pod.rm(f"{folder}/{filename}")
 
         return count

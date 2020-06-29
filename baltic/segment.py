@@ -33,6 +33,7 @@ class Segment:
 
     def df(self):
         from pandas import DataFrame
+
         return DataFrame(dict(self))
 
     def mask(self, mask_arr):

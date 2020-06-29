@@ -26,6 +26,7 @@ def test_simple_commit(pod):
     for data, expected in zip(changelog.extract(), datum):
         assert data.startswith(hexdigest(expected))
 
+
 def test_double_commit(pod):
     # Create 5 changeset in series
     datum = "ham spam foo bar baz".split()

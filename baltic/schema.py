@@ -4,7 +4,8 @@ from numcodecs import Blosc, VLenUTF8, registry
 from numpy import array, dtype, frombuffer
 
 DTYPES = [dtype(s) for s in ("<M8[s]", "int64", "float64", "<U")]
-FILTERS = ['blosc', 'gzip', 'categorize']
+FILTERS = ["blosc", "gzip", "categorize"]
+
 
 class Schema:
     def __init__(self, columns, idx_len=0):
@@ -13,7 +14,7 @@ class Schema:
         self._codecs = {}
         for col in columns:
             name, dt = col.split(":", 1)
-            dt, *codecs = dt.split('|')
+            dt, *codecs = dt.split("|")
             self.columns.append(name)
             # Make sure dtype is valid
             dt = dtype(dt)
@@ -22,7 +23,7 @@ class Schema:
             self._dtype[name] = dt
 
             if not codecs:
-                codecs = ['vlen-utf8', 'gzip'] if dt == dtype('<U') else ['blosc']
+                codecs = ["vlen-utf8", "gzip"] if dt == dtype("<U") else ["blosc"]
             self._codecs[name] = codecs
 
         # All but last column is the default index
@@ -88,7 +89,7 @@ class Schema:
         for codec_name in reversed(self.codecs(name)):
             codec = registry.codec_registry[codec_name]
             arr = codec().decode(arr)
-        if self.dtype(name) == '<U':
+        if self.dtype(name) == "<U":
             return arr.astype(dt)
         return frombuffer(arr, dtype=dt)
 

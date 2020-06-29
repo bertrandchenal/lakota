@@ -25,7 +25,6 @@ def test_create_labels(pod):
     schema = Schema(["timestamp:int", "value:float"])
     reg.create(schema, *labels)
 
-
     # Test that we can get back those series
     for label in labels:
         series = reg.get(label)
@@ -72,15 +71,14 @@ def test_create_labels_chunks(pod):
 
 def test_clone():
     schema = Schema(["timestamp:int", "value:float"])
-    label = 'LABEL'
+    label = "LABEL"
     remote_reg = Registry()
     remote_reg.create(schema, label)
     rseries = remote_reg.get(label)
     for i in range(10):
-        rseries.write({
-            'timestamp': range(i, i+10),
-            'value': range(i+100, i+110),
-        })
+        rseries.write(
+            {"timestamp": range(i, i + 10), "value": range(i + 100, i + 110),}
+        )
     expected = rseries.read()
 
     local_reg = Registry()
@@ -93,17 +91,16 @@ def test_clone():
 def test_gc():
     schema = Schema(["timestamp:int", "value:float"])
     reg = Registry()
-    reg.create(schema, 'label_a', 'label_b')
-    for offset, label in enumerate(('label_a', 'label_b')):
+    reg.create(schema, "label_a", "label_b")
+    for offset, label in enumerate(("label_a", "label_b")):
         series = reg.get(label)
-        for i in range(offset, offset+10):
-            series.write({
-                'timestamp': range(i, i+10),
-                'value': range(i+100, i+110),
-            })
+        for i in range(offset, offset + 10):
+            series.write(
+                {"timestamp": range(i, i + 10), "value": range(i + 100, i + 110),}
+            )
 
     # Squash label_a
-    series = reg.get('label_a')
+    series = reg.get("label_a")
     series.squash()
 
     # Launch garbage collection
