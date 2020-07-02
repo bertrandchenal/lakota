@@ -1,13 +1,14 @@
 import json
 
-from numcodecs import Blosc, VLenUTF8, registry
+from numcodecs import registry
 from numpy import array, dtype, frombuffer
 
-DTYPES = [dtype(s) for s in ("<M8[s]", "int64", "float64", "<U")]
+DTYPES = [dtype(s) for s in ("<M8[s]", "int64", "float64", "<U", "O")]
 FILTERS = ["blosc", "gzip", "categorize"]
 
 
 class Schema:
+
     def __init__(self, columns, idx_len=0):
         self.columns = []
         self._dtype = {}
@@ -17,14 +18,19 @@ class Schema:
             dt, *codecs = dt.split("|")
             self.columns.append(name)
             # Make sure dtype is valid
-            dt = dtype(dt)
             if dt not in DTYPES:
                 raise ValueError("Column type '{dt}' not supported")
-            self._dtype[name] = dt
 
-            if not codecs:
-                codecs = ["vlen-utf8", "gzip"] if dt == dtype("<U") else ["blosc"]
-            self._codecs[name] = codecs
+            # Adapt dtypes and codecs
+            default_codecs = ["blosc"]
+            if dt == dtype("<U"):
+                default_codecs = ["vlen-utf8", "gzip"]
+            elif dt == 'O':
+                default_codecs = ["json", "gzip"]
+
+            dt = dtype(dt)
+            self._dtype[name] = dt
+            self._codecs[name] = codecs or default_codecs
 
         # All but last column is the default index
         idx_len = idx_len or len(columns) - 1 or 1
@@ -89,7 +95,7 @@ class Schema:
         for codec_name in reversed(self.codecs(name)):
             codec = registry.codec_registry[codec_name]
             arr = codec().decode(arr)
-        if self.dtype(name) == "<U":
+        if self.dtype(name) in ("<U", "O"):
             return arr.astype(dt)
         return frombuffer(arr, dtype=dt)
 

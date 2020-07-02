@@ -8,6 +8,7 @@ import numpy
 from numcodecs import VLenUTF8
 
 from .utils import head, tail
+from .schema import Schema
 
 phi = "0" * 40
 
@@ -24,6 +25,8 @@ class Changelog:
     """
     Build a tree over a zarr group to provide concurrent commits
     """
+
+    schema = Schema(["info:O|json|zstd"])
 
     def __init__(self, pod):
         self.pod = pod
@@ -44,9 +47,10 @@ class Changelog:
 
         # Create parent.child
         arr = numpy.array(items)  # , dtype=str FIXME
-        data = VLenUTF8().encode(arr)
+        data = self.schema.encode('info', arr)
+
         key = sha1(arr).hexdigest()
-        # Preven double commit
+        # Prevent double commit
         if key == parent:
             return
         filename = ".".join((parent, key))
@@ -100,10 +104,10 @@ class Changelog:
             revs = self.walk()
         # Read is not the correct name
         # read should do open / read / decode of a given rev
-        codec = VLenUTF8()
         for rev in revs:
             content = self.pod.read(rev)
-            yield from codec.decode(content)
+            items = self.schema.decode('info', content)
+            yield from items
 
     def pull(self, remote):
         # TODO should return list of new revs
