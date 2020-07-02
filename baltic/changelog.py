@@ -67,7 +67,6 @@ class Changelog:
         log = defaultdict(list)
         for name in self:
             parent, child = name.split(".")
-            parent = Path(parent).stem  # FIXME should be handle by POD object
             if parent == child:
                 continue
             log[parent].append(child)
