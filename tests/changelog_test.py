@@ -41,10 +41,6 @@ def test_double_commit(pod):
 
 
 def test_concurrent_commit(pod):
-
-    # XXX
-    pod.clear()
-
     datum = b"ham spam foo bar baz".split()
     changelogs = [Changelog(pod) for _ in range(len(datum))]
     contents = []
