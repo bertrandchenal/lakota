@@ -4,7 +4,6 @@ from numcodecs import registry
 from numpy import array, dtype, frombuffer
 
 DTYPES = [dtype(s) for s in ("<M8[s]", "int64", "float64", "<U", "O")]
-FILTERS = ["blosc", "gzip", "categorize"]
 
 
 class Schema:
