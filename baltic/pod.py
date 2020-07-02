@@ -43,8 +43,10 @@ class POD:
     def __truediv__(self, relpath):
         return self.cd(relpath)
 
-    def clear(self):
+    def clear(self, skip=None):
         for key in self.ls():
+            if skip and key in skip:
+                continue
             self.rm(key, recursive=True)
 
 

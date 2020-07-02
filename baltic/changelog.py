@@ -1,11 +1,9 @@
 from collections import defaultdict
 from hashlib import sha1
-from pathlib import Path
 from random import random
 from time import sleep
 
 import numpy
-from numcodecs import VLenUTF8
 
 from .utils import head, tail
 from .schema import Schema
@@ -46,7 +44,7 @@ class Changelog:
             sleep(random())
 
         # Create parent.child
-        arr = numpy.array(items)  # , dtype=str FIXME
+        arr = numpy.array(items)
         data = self.schema.encode('info', arr)
 
         key = sha1(arr).hexdigest()

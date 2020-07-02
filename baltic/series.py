@@ -3,7 +3,7 @@ import time
 
 from numpy import arange, lexsort
 
-from .changelog import Changelog
+from .changelog import Changelog, phi
 from .segment import Segment
 
 
@@ -95,7 +95,7 @@ class Series:
             break
         return segments
 
-    def write(self, df, start=None, end=None, cast=False):
+    def write(self, df, start=None, end=None, cast=False, parent_commit=None):
         if cast:
             df = self.schema.cast(df)
 
@@ -116,22 +116,18 @@ class Series:
             "columns": col_digests,
         }
         content = json.dumps(info)
-        self.changelog.commit([content])
+        return self.changelog.commit([content], parent=parent_commit)
 
-    def truncate(self):
-        self.chl_pod.clear()
+    def truncate(self, skip=None):
+        self.chl_pod.clear(skip=skip)
 
     def squash(self):
         """
         Remove all the revisions, collapse all segments into one
         """
-
-        # FIXME: it would make more sense to create a snapshot and
-        # keep historical content in an archive group. (and have
-        # another command that remove archives)
         sgm = self.read()
-        self.truncate()
-        self.write(sgm)
+        key = self.write(sgm, parent_commit=phi)
+        self.truncate(skip=[key])
 
     def digests(self):
         for content in self.changelog.extract():
