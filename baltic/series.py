@@ -30,6 +30,9 @@ class Series:
         self.changelog = Changelog(self.chl_pod)
 
     def clone(self, remote, shallow=False):
+        '''
+        Clone remote series into self
+        '''
         self.changelog.pull(remote.changelog)
         for content in self.changelog.extract():
             info = json.loads(content)

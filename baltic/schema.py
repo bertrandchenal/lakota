@@ -24,7 +24,7 @@ class Schema:
             default_codecs = ["blosc"]
             if dt == dtype("<U"):
                 default_codecs = ["vlen-utf8", "gzip"]
-            elif dt == 'O':
+            elif dt == dtype('O'):
                 default_codecs = ["json", "gzip"]
 
             dt = dtype(dt)

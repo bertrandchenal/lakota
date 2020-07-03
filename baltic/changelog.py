@@ -46,7 +46,6 @@ class Changelog:
         # Create parent.child
         arr = numpy.array(items)
         data = self.schema.encode('info', arr)
-
         key = sha1(arr).hexdigest()
         # Prevent double commit
         if key == parent:

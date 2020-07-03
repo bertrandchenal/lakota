@@ -43,7 +43,9 @@ class Registry:
         sgm = Segment.from_df(
             self.schema, {"label": labels, "schema": [schema.dumps()] * len(labels)}
         )
-        self.schema_series.write(sgm)  # SQUASH ?
+        # TODO write unique seed in series pod (and use it for the
+        # checksum of the first changelog
+        self.schema_series.write(sgm)
 
     def ls(self):
         sgm = self.schema_series.read()  # TODO use filters!
