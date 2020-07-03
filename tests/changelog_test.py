@@ -2,6 +2,7 @@ from concurrent.futures import ThreadPoolExecutor
 
 from baltic import Changelog
 from baltic.utils import hexdigest
+from baltic.changelog import phi
 
 
 def populate(changelog, datum):
@@ -35,7 +36,7 @@ def test_double_commit(pod):
     # New revision created:
     assert key is not None
 
-    key = changelog.commit(datum)
+    key = changelog.commit(datum, parent=phi)
     # No new revision
     assert key is None
 

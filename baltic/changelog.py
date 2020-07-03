@@ -50,6 +50,8 @@ class Changelog:
         sha1_hash.update(parent.encode())
         key = sha1_hash.hexdigest()
         filename = ".".join((parent, key))
+        if filename in self.pod.ls():
+            return
         self.pod.write(filename, data)
         return filename
 
