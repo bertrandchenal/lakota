@@ -38,7 +38,6 @@ class Series:
                 prefix, suffix = dig[:2], dig[2:]
                 path = f"{prefix}/{suffix}"
                 payload = remote.segment_pod.read(path)
-                # TODO skip already existing segments!
                 self.segment_pod.write(path, payload)
 
     def read(self, start=[], end=[], limit=None):

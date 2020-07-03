@@ -14,9 +14,6 @@ phi = "0" * 40
 # TODO: Use multi-col segment instead of a unique col with a large
 # string in it.
 
-# IDEA: model each rev of the changelog as a segment column (and use
-# segment to do encode/decode and hexdigest)
-
 
 class Changelog:
 
@@ -50,9 +47,9 @@ class Changelog:
         sha1_hash.update(parent.encode())
         key = sha1_hash.hexdigest()
         filename = ".".join((parent, key))
-        if filename in self.pod.ls():
+        nb_bytes = self.pod.write(filename, data)
+        if nb_bytes is None:
             return
-        self.pod.write(filename, data)
         return filename
 
     def __iter__(self):
@@ -107,13 +104,15 @@ class Changelog:
             yield from revisions
 
     def pull(self, remote):
-        # TODO should return list of new revs
-        local_revs = list(self)
+        new_revs = []
+        local_revs = set(self)
         for rev in remote:
             if rev in local_revs:
                 continue
+            new_revs.append(rev)
             payload = remote.pod.read(rev)
             self.pod.write(rev, payload)
+        return new_revs
 
     def pack(self):
         """

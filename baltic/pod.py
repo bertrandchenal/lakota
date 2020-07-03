@@ -76,7 +76,8 @@ class FilePOD(POD):
         return path.open(mode).read()
 
     def write(self, relpath, data, mode="wb"):
-        # XXX skip write if file exist ? mode=cb ?
+        if relpath in self.ls(raise_on_missing=False):
+            return
         path = self.path / relpath
         path.parent.mkdir(parents=True, exist_ok=True)
         return path.open(mode).write(data)
@@ -167,10 +168,13 @@ class MemPOD(POD):
         return pod.store[leaf]
 
     def write(self, relpath, data, mode="wb"):
+        if relpath in self.ls(raise_on_missing=False):
+            return
         pod, leaf = self.find_parent_pod(relpath, auto_mkdir=True)
         if not pod:
             raise FileNotFoundError(f"{relpath} not found")
         pod.store[leaf] = data
+        return len(data)
 
     def rm(self, relpath, recursive=False):
         pod, leaf = self.find_parent_pod(relpath)
@@ -218,6 +222,8 @@ class S3POD(POD):
         return self.fs.open(path, mode).read()
 
     def write(self, relpath, data, mode="wb"):
+        if relpath in self.ls(raise_on_missing=False):
+            return
         path = str(self.path / relpath)
         return self.fs.open(path, mode).write(data)
 
