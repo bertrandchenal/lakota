@@ -24,12 +24,12 @@ class Changelog:
     Build a tree over a zarr group to provide concurrent commits
     """
 
-    schema = Schema(["info:O|json|zstd"])
+    schema = Schema(["revision:O|json|zstd"])
 
     def __init__(self, pod):
         self.pod = pod
 
-    def commit(self, items, parent=None, _jitter=False):
+    def commit(self, revisions, parent=None, _jitter=False):
         # Find parent
         if parent is None:
             # Find parent
@@ -44,12 +44,11 @@ class Changelog:
             sleep(random())
 
         # Create parent.child
-        arr = numpy.array(items)
-        data = self.schema.encode('info', arr)
-        key = sha1(arr).hexdigest()
-        # Prevent double commit
-        if key == parent:
-            return
+        arr = numpy.array(revisions)
+        data = self.schema.encode('revision', arr)
+        sha1_hash = sha1(data)
+        sha1_hash.update(parent.encode())
+        key = sha1_hash.hexdigest()
         filename = ".".join((parent, key))
         self.pod.write(filename, data)
         return filename
@@ -102,8 +101,8 @@ class Changelog:
         # read should do open / read / decode of a given rev
         for rev in revs:
             content = self.pod.read(rev)
-            items = self.schema.decode('info', content)
-            yield from items
+            revisions = self.schema.decode('revision', content)
+            yield from revisions
 
     def pull(self, remote):
         # TODO should return list of new revs
@@ -118,12 +117,12 @@ class Changelog:
         """
         Combine the current list of revisions into one array of revision
         """
-        revisions = list(self.walk())
-        if len(revisions) == 1:
+        keys = list(self.walk())
+        if len(keys) == 1:
             return
-        items = list(self.extract(revisions))
-        self.commit(items, parent=phi)
+        revisions = list(self.extract(keys))
+        self.commit(revisions, parent=phi)
 
         # Clean old revisions
-        for rev in revisions:
-            self.pod.rm(rev)
+        for key in keys:
+            self.pod.rm(key)

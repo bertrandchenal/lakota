@@ -33,3 +33,6 @@ def test_column_types():
 
         for name in names:
             assert all(sgm[name] == df[name])
+
+
+# TODO implement push & pull

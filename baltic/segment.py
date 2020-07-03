@@ -2,7 +2,7 @@ from bisect import bisect_left, bisect_right
 from hashlib import sha1
 
 import numexpr
-from numpy import array_equal, asarray, empty, concatenate
+from numpy import array_equal, asarray, concatenate
 
 
 class Segment:
