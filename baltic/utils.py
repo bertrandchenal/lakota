@@ -7,10 +7,17 @@ from itertools import islice
 from time import perf_counter
 
 default_hash = sha1
-hexdigest = lambda data: sha1(data).hexdigest()
 head = lambda it, n: list(islice(it, 0, n))
 tail = lambda it, n: deque(it, maxlen=n)
 skip = lambda it, n: list(islice(it, n, None))
+FLAGS = {}
+
+
+def hexdigest(*data):
+    digest = default_hash()
+    for datum in data:
+        digest.update(datum)
+    return digest.hexdigest()
 
 
 def pretty_nb(number):

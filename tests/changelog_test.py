@@ -1,8 +1,8 @@
 from concurrent.futures import ThreadPoolExecutor
 
 from baltic import Changelog
-from baltic.utils import hexdigest
 from baltic.changelog import phi
+from baltic.utils import hexdigest
 
 
 def populate(changelog, datum):

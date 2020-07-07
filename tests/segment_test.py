@@ -47,7 +47,7 @@ def test_slice(sgm):
 
     schema = Schema(["x:int"])
     sgm = Segment(schema)
-    sgm.write({"x": [1, 2, 3, 4, 5]})
+    sgm.write({"x": [1, 2, 3, 4, 5, 5, 5, 6]})
 
     # include both side
     res = sgm.slice([2], [4], closed="both")["x"]
@@ -60,3 +60,13 @@ def test_slice(sgm):
     # include only right
     res = sgm.slice([2], [4], closed="right")["x"]
     assert all(res == [3, 4])
+
+    # implict right
+    res = sgm.slice([5])["x"]
+    assert all(res == [5, 5, 5])
+
+    res = sgm.slice([1])["x"]
+    assert all(res == [1])
+
+    res = sgm.slice([6])["x"]
+    assert all(res == [6])

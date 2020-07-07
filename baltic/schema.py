@@ -1,5 +1,3 @@
-import json
-
 from numcodecs import registry
 from numpy import array, dtype, frombuffer
 
@@ -7,7 +5,6 @@ DTYPES = [dtype(s) for s in ("<M8[s]", "int64", "float64", "<U", "O")]
 
 
 class Schema:
-
     def __init__(self, columns, idx_len=0):
         self.columns = []
         self._dtype = {}
@@ -24,7 +21,7 @@ class Schema:
             default_codecs = ["blosc"]
             if dt == dtype("<U"):
                 default_codecs = ["vlen-utf8", "gzip"]
-            elif dt == dtype('O'):
+            elif dt == dtype("O"):
                 default_codecs = ["json", "gzip"]
 
             dt = dtype(dt)
@@ -43,18 +40,15 @@ class Schema:
         return self._codecs[name]
 
     @classmethod
-    def loads(self, content):
-        d = json.loads(content)
+    def loads(self, d):
         return Schema(columns=d["columns"], idx_len=d["idx_len"],)
 
-    def dumps(self):
-        return json.dumps(
-            {
-                "columns": [f"{c}:{self._dtype[c]}" for c in self.columns],
-                "idx_len": len(self.idx),
-                "fmt": "TODO CODEC",
-            }
-        )
+    def as_dict(self):
+        return {
+            "columns": [f"{c}:{self._dtype[c]}" for c in self.columns],
+            "idx_len": len(self.idx),
+            "fmt": "TODO CODEC",
+        }
 
     def __repr__(self):
         cols = [f"{c}:{self._dtype[c]}" for c in self.columns]
@@ -70,17 +64,17 @@ class Schema:
         )
 
     def serialize(self, values):
-        res = []
-        for col, val in zip(self.columns, values):
-            res.append(str(val))
-        return res
+        if not values:
+            return tuple()
+        # TODO implement column type based repr
+        return tuple(str(val) for col, val in zip(self.columns, values))
 
-    def deserialize(self, values):
-        res = []
-        for col, val in zip(self.columns, values):
-            val = dtype(self.dtype(col)).type(val)
-            res.append(val)
-        return res
+    def deserialize(self, values=tuple()):
+        if not values:
+            return tuple()
+        return tuple(
+            dtype(self.dtype(col)).type(val) for col, val in zip(self.columns, values)
+        )
 
     def encode(self, name, arr):
         for codec_name in self.codecs(name):

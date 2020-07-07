@@ -1,8 +1,9 @@
 from bisect import bisect_left, bisect_right
-from hashlib import sha1
 
 import numexpr
 from numpy import array_equal, asarray, concatenate
+
+from .utils import hexdigest
 
 
 class Segment:
@@ -44,10 +45,20 @@ class Segment:
         res = numexpr.evaluate(expr, local_dict=self.frame)
         return res
 
-    def slice(self, start, end, closed="left"):
+    def empty(self):
+        return len(self) == 0
+
+    def slice(self, start, end=None, closed=None):
         """
-        Slice between two index value
+        Slice between two index value. `closed` can be "left" (default),
+        "right" or "both". If end is None, the code will use `start`
+        as value and enforce "both" as value for `closed`
         """
+        if end is None:
+            end = start
+            closed = "both"
+        else:
+            closed = closed or "left"
         new_frame = {}
         idx_start = self.index(*start, right=closed == "right")
         idx_end = self.index(*end, right=closed in ("both", "right"))
@@ -94,7 +105,7 @@ class Segment:
     def hexdigests(self):
         for name in self.schema.columns:
             arr = self.frame[name]
-            res = name, sha1(arr.tostring()).hexdigest()
+            res = name, hexdigest(arr.tostring())
             yield res
 
     def size(self):
@@ -105,11 +116,7 @@ class Segment:
         Return a json serializable (monotonic) representation of the value
         at the given position in the (sorted) index.
         """
-        res = []
-        for n in self.schema.idx:
-            arr = self.frame[n]
-            res.append(self.serialize(n, arr[pos]))
-        return res
+        return tuple(self.serialize(n, self.frame[n][pos]) for n in self.schema.idx)
 
     def start(self):
         return self.read_at(0)

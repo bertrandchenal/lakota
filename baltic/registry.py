@@ -1,4 +1,6 @@
 from itertools import chain
+from time import time
+from uuid import uuid4
 
 from .pod import POD
 from .schema import Schema
@@ -15,7 +17,7 @@ class Registry:
     Use a Series object to store all the series labels
     """
 
-    schema = Schema(["label:str", "schema:str"])
+    schema = Schema(["label:str", "key:str", "schema:O"])
 
     def __init__(self, uri=None, pod=None):
         self.pod = pod or POD.from_uri(uri)
@@ -30,7 +32,6 @@ class Registry:
 
     def clone(self, remote, label, shallow=False):
         # XXX define remote in init and simply do registry.clone(label) ?
-
         assert not shallow, "Shallow clone not supported yet"
         rseries = remote.get(label)
         self.create(rseries.schema, label)
@@ -38,24 +39,34 @@ class Registry:
         series.clone(rseries, shallow=shallow)
 
     def create(self, schema, *labels):
-        current = set(self.ls())
-        assert not current.intersection(labels)
-        sgm = Segment.from_df(
-            self.schema, {"label": labels, "schema": [schema.dumps()] * len(labels)}
-        )
-        # TODO write unique seed in series pod (and use it for the
-        # checksum of the first changelog
-        self.schema_series.write(sgm)
+        for label in sorted(labels):
+            current = self.search(label)
+            assert current.empty
+            key = ".".join(
+                (
+                    hex(int(time() * 1000))[2:],  # time-based prefix
+                    uuid4().hex,  # random suffix to avoid overwriting concurrent creation
+                )
+            )
+            # Create a segment of size one
+            sgm = Segment.from_df(
+                self.schema,
+                {"label": [label], "key": [key], "schema": [schema.as_dict()]},
+            )
+            self.schema_series.write(sgm)
 
-    def ls(self):
-        sgm = self.schema_series.read()  # TODO use filters!
-        return sgm["label"]
+    def search(self, label=None):
+        if label:
+            start = end = (label,)
+        else:
+            start = end = None
+        sgm = self.schema_series.read(start=start, end=end)
+        return sgm
 
     def get(self, label):
-        sgm = self.schema_series.read()  # TODO use filters!
-        idx = sgm.index(label)
-        assert sgm["label"][idx] == label
-        schema = Schema.loads(sgm["schema"][idx])
+        sgm = self.search(label)
+        assert not sgm.empty()
+        schema = Schema.loads(sgm["schema"][0])
         digest = hexdigest(label.encode())
         prefix, suffix = digest[:2], digest[2:]
         series = Series(schema, self.series_pod / prefix / suffix, self.segment_pod)
@@ -67,8 +78,7 @@ class Registry:
         ones. If soft if true, obsolete revision are moved to an
         archive location. If soft is false, obsolete revisions are deleted.
         """
-
-        labels = self.ls()
+        labels = set(self.search()["label"])
         # TODO repeated calls to self.get method are inefficient
         series = (self.get(l) for l in labels)
         per_series = (s.digests() for s in series)

@@ -34,15 +34,16 @@ def test_insert(pod):
     client = Client(cluster)
     years = list(range(2000, 2020))
     args = [(token, label, y) for y in years]
-    with timeit(f"INSERT ({pod.protocol})"):
+    with timeit(f"\nWRITE ({pod.protocol})"):
         fut = client.map(insert, args)
         assert sum(client.gather(fut)) == 10_519_200
     client.close()
     cluster.close()
 
     # Read it back
-    series = registry.get(label)
-    df = series.read(["2015-01-01"], ["2015-01-02"]).df()
-    assert len(df) == 1441
-    df = series.read(["2015-12-31"], ["2016-01-02"]).df()
-    assert len(df) == 2881
+    with timeit(f"\nREAD ({pod.protocol})"):
+        series = registry.get(label)
+        df = series.read(["2015-01-01"], ["2015-01-02"]).df()
+        assert len(df) == 1441
+        df = series.read(["2015-12-31"], ["2016-01-02"]).df()
+        assert len(df) == 2881

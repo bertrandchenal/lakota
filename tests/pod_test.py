@@ -23,6 +23,7 @@ def test_read_write(pod):
     res = pod.read("key")
     assert res == data
 
+
 def test_multi_write(pod):
     data = bytes.fromhex("DEADBEEF")
     # First write
@@ -31,6 +32,7 @@ def test_multi_write(pod):
     # second one
     res = pod.write("key", data)
     assert res is None
+
 
 def test_write_delete(pod):
     data = bytes.fromhex("DEADBEEF")

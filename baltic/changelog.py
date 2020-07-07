@@ -1,12 +1,11 @@
 from collections import defaultdict
-from hashlib import sha1
 from random import random
 from time import sleep
 
 import numpy
 
-from .utils import head, tail
 from .schema import Schema
+from .utils import head, hexdigest, tail
 
 phi = "0" * 40
 
@@ -42,10 +41,8 @@ class Changelog:
 
         # Create parent.child
         arr = numpy.array(revisions)
-        data = self.schema.encode('revision', arr)
-        sha1_hash = sha1(data)
-        sha1_hash.update(parent.encode())
-        key = sha1_hash.hexdigest()
+        data = self.schema.encode("revision", arr)
+        key = hexdigest(data, parent.encode())
         filename = ".".join((parent, key))
         nb_bytes = self.pod.write(filename, data)
         if nb_bytes is None:
@@ -100,7 +97,7 @@ class Changelog:
         # read should do open / read / decode of a given rev
         for rev in revs:
             content = self.pod.read(rev)
-            revisions = self.schema.decode('revision', content)
+            revisions = self.schema.decode("revision", content)
             yield from revisions
 
     def pull(self, remote):
