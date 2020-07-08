@@ -63,11 +63,15 @@ class Registry:
         sgm = self.schema_series.read(start=start, end=end)
         return sgm
 
-    def get(self, label):
-        sgm = self.search(label)
+    def get(self, label, from_sgm=None):
+        if from_sgm:
+            sgm = from_sgm.slice(label)
+        else:
+            sgm = self.search(label)
         assert not sgm.empty()
-        schema = Schema.loads(sgm["schema"][0])
-        digest = hexdigest(label.encode())
+        schema = Schema.loads(sgm["schema"][-1])
+        key = sgm["key"][-1]
+        digest = hexdigest(label.encode(), key.encode())
         prefix, suffix = digest[:2], digest[2:]
         series = Series(schema, self.series_pod / prefix / suffix, self.segment_pod)
         return series
@@ -78,7 +82,8 @@ class Registry:
         ones. If soft if true, obsolete revision are moved to an
         archive location. If soft is false, obsolete revisions are deleted.
         """
-        labels = set(self.search()["label"])
+        sgm = self.search()
+        labels = set(sgm["label"])
         # TODO repeated calls to self.get method are inefficient
         series = (self.get(l) for l in labels)
         per_series = (s.digests() for s in series)

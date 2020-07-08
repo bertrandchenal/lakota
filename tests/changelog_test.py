@@ -11,7 +11,7 @@ def populate(changelog, datum):
         timestamp = 1234
         author = "Doe"
         info = f"{key} {timestamp} {author}"
-        changelog.commit([info])
+        changelog.commit(info)
 
 
 def test_simple_commit(pod):
@@ -24,21 +24,8 @@ def test_simple_commit(pod):
     assert len(res) == len(datum)
 
     # Read commits
-    for data, expected in zip(changelog.extract(), datum):
+    for data, expected in zip(changelog.walk(), datum):
         assert data.startswith(hexdigest(expected))
-
-
-def test_double_commit(pod):
-    # Create 5 changeset in series
-    datum = "ham spam foo bar baz".split()
-    changelog = Changelog(pod)
-    key = changelog.commit(datum)
-    # New revision created:
-    assert key is not None
-
-    key = changelog.commit(datum, parent=phi)
-    # No new revision
-    assert key is None
 
 
 def test_concurrent_commit(pod):
@@ -56,7 +43,7 @@ def test_concurrent_commit(pod):
     with ThreadPoolExecutor() as executor:
         futs = []
         for changelog, info in zip(changelogs, contents):
-            f = executor.submit(changelog.commit, [info.decode()], _jitter=True)
+            f = executor.submit(changelog.commit, info.decode(), _jitter=True)
             futs.append(f)
         executor.shutdown()
 
@@ -69,7 +56,7 @@ def test_concurrent_commit(pod):
     # As we inserted datum in a random fashion we have no order
     # garantee
     expected = set(map(hexdigest, datum))
-    for item in changelog.extract():
+    for item in changelog.walk():
         key, _ = item.split(" ", 1)
         expected.remove(key)
     assert not expected
@@ -84,5 +71,5 @@ def test_pack(pod):
     changelog.pack()
 
     # Read commits
-    for data, expected in zip(changelog.extract(), datum):
+    for data, expected in zip(changelog.walk(), datum):
         assert data.startswith(hexdigest(expected))

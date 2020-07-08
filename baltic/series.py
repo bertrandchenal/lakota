@@ -1,5 +1,3 @@
-import time
-
 from numpy import arange, lexsort
 
 from .changelog import Changelog, phi
@@ -35,7 +33,7 @@ class Series:
         Clone remote series into self
         """
         self.changelog.pull(remote.changelog)
-        for revision in self.changelog.extract():
+        for revision in self.changelog.walk():
             for dig in revision["columns"]:
                 prefix, suffix = dig[:2], dig[2:]
                 path = f"{prefix}/{suffix}"
@@ -51,7 +49,7 @@ class Series:
 
         # Collect all rev revision
         all_revision = []
-        for revision in self.changelog.extract():
+        for revision in self.changelog.walk():
             revision["start"] = self.schema.deserialize(revision["start"])
             revision["end"] = self.schema.deserialize(revision["end"])
             if intersect(revision, start, end):
@@ -119,10 +117,9 @@ class Series:
             "start": self.schema.serialize(idx_start),
             "end": self.schema.serialize(idx_end),
             "size": sgm.size(),
-            "timestamp": time.time(),
             "columns": col_digests,
         }
-        return self.changelog.commit([revision], parent=parent_commit)
+        return self.changelog.commit(revision, parent=parent_commit)
 
     def truncate(self, skip=None):
         self.chl_pod.clear(skip=skip)
@@ -136,5 +133,5 @@ class Series:
         self.truncate(skip=[key])
 
     def digests(self):
-        for revision in self.changelog.extract():
+        for revision in self.changelog.walk():
             yield from revision["columns"]

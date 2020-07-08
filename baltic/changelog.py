@@ -1,11 +1,11 @@
 from collections import defaultdict
 from random import random
-from time import sleep
+from time import sleep, time
 
 import numpy
 
 from .schema import Schema
-from .utils import head, hexdigest, tail
+from .utils import hexdigest, tail
 
 phi = "0" * 40
 
@@ -17,7 +17,7 @@ phi = "0" * 40
 class Changelog:
 
     """
-    Build a tree over a zarr group to provide concurrent commits
+    Build a tree over a pod to provide concurrent commits
     """
 
     schema = Schema(["revision:O|json|zstd"])
@@ -25,19 +25,23 @@ class Changelog:
     def __init__(self, pod):
         self.pod = pod
 
-    def commit(self, revisions, parent=None, _jitter=False):
+    def commit(self, content, parent=None, _jitter=False):
+        # Debug helper
+        if _jitter:
+            sleep(random())
+
         # Find parent
         if parent is None:
-            # Find parent
             parent = self.leaf()
             if parent is None:
                 parent = phi
             else:
                 parent = parent.split(".", 1)[1]
 
-        # Debug helper
-        if _jitter:
-            sleep(random())
+        revision = {'timestamp': time(), 'content': content}
+        return self.write([revision], parent=parent)
+
+    def write(self, revisions, parent):
 
         # Create parent.child
         arr = numpy.array(revisions)
@@ -65,40 +69,38 @@ class Changelog:
         return log
 
     def leaf(self):
-        res = tail(self.walk(), 1)
+        res = tail(self._walk(), 1)
         if not res:
             return None
-        return res[0]
-
-    def head(self, count):
-        return head(self.walk(), count)
+        return res[0]['path']
 
     def walk(self, parent=phi):
         """
-        Depth-first traversal of the three
+        Depth-first traversal of the tree
+        """
+        for revision in self._walk(parent=parent):
+            yield revision['content']
+
+    def _walk(self, parent=phi):
+        """
+        Low-level version of walk
         """
         log = self.log()
-        yield from self._walk(log, parent=parent)
 
-    def _walk(self, log, parent=phi):
-        """
-        Depth-first traversal of the changelog tree
-        """
-        children = log.get(parent, [])
-        for child in children:
-            path = f"{parent}.{child}"
-            yield path
-            yield from self._walk(log, child)
+        revs = [(parent, child) for child in log[parent]]
+        while revs:
+            # Yield first all siblings
+            yield from self.extract((f"{p}.{c}" for p, c in revs))
+            # Build next level
+            revs = [(c, grand_child) for _, c in revs for grand_child in log[c]]
 
-    def extract(self, revs=None):
-        if not revs:
-            revs = self.walk()
-        # Read is not the correct name
-        # read should do open / read / decode of a given rev
-        for rev in revs:
-            content = self.pod.read(rev)
+    def extract(self, paths):
+        for p in paths:
+            content = self.pod.read(p)
             revisions = self.schema.decode("revision", content)
-            yield from revisions
+            for rev in revisions:
+                rev['path'] = p
+                yield rev
 
     def pull(self, remote):
         new_revs = []
@@ -115,12 +117,11 @@ class Changelog:
         """
         Combine the current list of revisions into one array of revision
         """
-        keys = list(self.walk())
-        if len(keys) == 1:
+        revisions = list(self._walk())
+        if len(revisions) == 1:
             return
-        revisions = list(self.extract(keys))
-        self.commit(revisions, parent=phi)
+        self.write(revisions, parent=phi)
 
         # Clean old revisions
-        for key in keys:
-            self.pod.rm(key)
+        for rev in revisions:
+            self.pod.rm(rev['path'])
