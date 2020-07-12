@@ -4,7 +4,7 @@ from collections import deque
 from contextlib import contextmanager
 from hashlib import sha1
 from itertools import islice
-from time import perf_counter
+from time import perf_counter, time
 
 default_hash = sha1
 head = lambda it, n: list(islice(it, 0, n))
@@ -18,6 +18,17 @@ def hexdigest(*data):
     for datum in data:
         digest.update(datum)
     return digest.hexdigest()
+
+def timedigest(*data, timestamp=None):
+    '''
+    Create a digest of data, prefixed with current time in milliseconds (hex-encoded)
+    '''
+    timestamp = timestamp or time()
+    prefix = hex(int(timestamp * 1000))[2:]
+    digest = default_hash()
+    for datum in data:
+        digest.update(datum)
+    return prefix + '-' + digest.hexdigest()[len(prefix)+1:]
 
 
 def pretty_nb(number):

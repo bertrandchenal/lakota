@@ -5,7 +5,7 @@ from time import sleep, time
 import numpy
 
 from .schema import Schema
-from .utils import hexdigest, tail
+from .utils import hexdigest, tail, timedigest
 
 phi = "0" * 40
 
@@ -25,32 +25,28 @@ class Changelog:
     def __init__(self, pod):
         self.pod = pod
 
-    def commit(self, content, parent=None, _jitter=False):
-        # Debug helper
-        if _jitter:
-            sleep(random())
-
-        # Find parent
-        if parent is None:
+    def commit(self, content, _jitter=False, force_parent=None):
+        # Find parent & write revisions
+        if force_parent:
+            parent = force_parent
+        else:
             parent = self.leaf()
             if parent is None:
                 parent = phi
             else:
                 parent = parent.split(".", 1)[1]
 
+        # Debug helper
+        if _jitter:
+            sleep(random())
+
         revision = {'timestamp': time(), 'content': content}
-        return self.write([revision], parent=parent)
-
-    def write(self, revisions, parent):
-
-        # Create parent.child
-        arr = numpy.array(revisions)
+        arr = numpy.array([revision])
         data = self.schema.encode("revision", arr)
-        key = hexdigest(data, parent.encode())
+        key = timedigest(data, parent.encode())
+
         filename = ".".join((parent, key))
-        nb_bytes = self.pod.write(filename, data)
-        if nb_bytes is None:
-            return
+        self.pod.write(filename, data)
         return filename
 
     def __iter__(self):
@@ -61,7 +57,7 @@ class Changelog:
         Create a parent:[child] dict of all the revisions
         """
         log = defaultdict(list)
-        for name in self:
+        for name in sorted(self):
             parent, child = name.split(".")
             if parent == child:
                 continue
@@ -85,22 +81,26 @@ class Changelog:
         """
         Low-level version of walk
         """
+        # see DFS in https://stackoverflow.com/a/5278667
         log = self.log()
-
-        revs = [(parent, child) for child in log[parent]]
+        revs = [(parent, c) for c in reversed(log[parent])]
         while revs:
-            # Yield first all siblings
-            yield from self.extract((f"{p}.{c}" for p, c in revs))
-            # Build next level
-            revs = [(c, grand_child) for _, c in revs for grand_child in log[c]]
+            rev = revs.pop()
+            parent, child = rev
+            # Yield from first child
+            yield from self.extract(f"{parent}.{child}" )
+            # Append children
+            revs.extend((child, c) for c in reversed(log[child]))
 
-    def extract(self, paths):
-        for p in paths:
-            content = self.pod.read(p)
-            revisions = self.schema.decode("revision", content)
-            for rev in revisions:
-                rev['path'] = p
-                yield rev
+    def extract(self, path):
+        try:
+            content = self.pod.read(path)
+        except FileNotFoundError:
+            return
+        revisions = self.schema.decode("revision", content)
+        for rev in revisions:
+            rev['path'] = path
+            yield rev
 
     def pull(self, remote):
         new_revs = []
@@ -120,7 +120,13 @@ class Changelog:
         revisions = list(self._walk())
         if len(revisions) == 1:
             return
-        self.write(revisions, parent=phi)
+
+        parent = phi
+        arr = numpy.array(revisions)
+        data = self.schema.encode("revision", arr)
+        key = hexdigest(data, parent.encode())
+        filename = ".".join((parent, key))
+        self.pod.write(filename, data)
 
         # Clean old revisions
         for rev in revisions:

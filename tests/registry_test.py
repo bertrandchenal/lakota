@@ -1,5 +1,4 @@
 from itertools import islice
-from uuid import uuid4
 
 from baltic import Registry, Schema
 

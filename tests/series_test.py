@@ -21,6 +21,11 @@ def test_write_series():
     assert sgm_copy == sgm
 
 
+    # Double write
+    series.write(sgm)
+    sgm_copy = series.read()
+    assert sgm_copy == sgm
+
 def test_column_types():
     names = [dt.name for dt in DTYPES]
     cols = [f"{n}:{n}" for n in names]

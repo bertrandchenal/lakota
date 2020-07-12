@@ -1,12 +1,11 @@
 from itertools import chain
 from time import time
-from uuid import uuid4
 
 from .pod import POD
 from .schema import Schema
 from .segment import Segment
 from .series import Series
-from .utils import hexdigest
+from .utils import hexdigest, timedigest
 
 # Idea: "package" a bunch of writes in a Zip/Tar and send the
 # archive on s3
@@ -17,7 +16,10 @@ class Registry:
     Use a Series object to store all the series labels
     """
 
-    schema = Schema(["label:str", "key:str", "schema:O"])
+    schema = Schema(["label:str", "timestamp:f8", "schema:O"])
+
+    # TODO key should become the "keyspace" aka the registry generation that should be created upront
+
 
     def __init__(self, uri=None, pod=None):
         self.pod = pod or POD.from_uri(uri)
@@ -42,16 +44,10 @@ class Registry:
         for label in sorted(labels):
             current = self.search(label)
             assert current.empty
-            key = ".".join(
-                (
-                    hex(int(time() * 1000))[2:],  # time-based prefix
-                    uuid4().hex,  # random suffix to avoid overwriting concurrent creation
-                )
-            )
             # Create a segment of size one
             sgm = Segment.from_df(
                 self.schema,
-                {"label": [label], "key": [key], "schema": [schema.as_dict()]},
+                {"label": [label], "timestamp": [time()], "schema": [schema.as_dict()]},
             )
             self.schema_series.write(sgm)
 
@@ -65,13 +61,13 @@ class Registry:
 
     def get(self, label, from_sgm=None):
         if from_sgm:
-            sgm = from_sgm.slice(label)
+            sgm = from_sgm.slice([label])
         else:
             sgm = self.search(label)
-        assert not sgm.empty()
+        assert not sgm.empty(), f"Label '{label}' not found"
         schema = Schema.loads(sgm["schema"][-1])
-        key = sgm["key"][-1]
-        digest = hexdigest(label.encode(), key.encode())
+        timestamp = sgm["timestamp"][-1]
+        digest = hexdigest(label.encode(), str(timestamp).encode())
         prefix, suffix = digest[:2], digest[2:]
         series = Series(schema, self.series_pod / prefix / suffix, self.segment_pod)
         return series
@@ -84,8 +80,7 @@ class Registry:
         """
         sgm = self.search()
         labels = set(sgm["label"])
-        # TODO repeated calls to self.get method are inefficient
-        series = (self.get(l) for l in labels)
+        series = (self.get(l, sgm) for l in labels)
         per_series = (s.digests() for s in series)
         active_digests = set(chain.from_iterable(per_series))
         active_digests.update(self.schema_series.digests())

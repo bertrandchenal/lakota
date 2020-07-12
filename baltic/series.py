@@ -67,26 +67,30 @@ class Series:
         segments.sort(key=lambda s: s.start())
         return Segment.concat(self.schema, *segments)
 
-    def _read(self, revisions, start, end, limit=None):
+    def _read(self, revisions, start, end, limit=None, closed="both"):
         segments = []
         for pos, revision in enumerate(revisions):
             match = intersect(revision, start, end)
             if not match:
                 continue
-
             mstart, mend = match
             # instanciate segment
             sgm = Segment.from_pod(self.schema, self.segment_pod, revision["columns"])
-            sgm = sgm.slice(mstart, mend, closed="both")
-            segments.append(sgm)
-
-            # We have found one result and the search range is
-            # collapsed:
-            if start and start == end:
-                return segments
+            # Adapt closed value for extremities
+            if closed == 'right' and mstart != start:
+                closed = 'both'
+            elif closed == 'left' and mend != end :
+                closed = 'both'
+            sgm = sgm.slice(mstart, mend, closed=closed)
+            if not sgm.empty():
+                segments.append(sgm)
+                # We have found one result and the search range is
+                # collapsed, stop recursion:
+                if start and start == end:
+                    return segments
             # recurse left
             if mstart > start:
-                left_sgm = self._read(revisions[pos + 1 :], start, mstart, limit=limit)
+                left_sgm = self._read(revisions[pos + 1 :], start, mstart, limit=limit, closed="left")
                 segments = left_sgm + segments
             # recurse right
             if not end or mend < end:
@@ -94,7 +98,7 @@ class Series:
                     limit = limit - len(sgm)
                     if limit < 1:
                         break
-                right_sgm = self._read(revisions[pos + 1 :], mend, end, limit=limit)
+                right_sgm = self._read(revisions[pos + 1 :], mend, end, limit=limit, closed="right")
                 segments = segments + right_sgm
 
             break
@@ -119,7 +123,7 @@ class Series:
             "size": sgm.size(),
             "columns": col_digests,
         }
-        return self.changelog.commit(revision, parent=parent_commit)
+        return self.changelog.commit(revision, force_parent=parent_commit)
 
     def truncate(self, skip=None):
         self.chl_pod.clear(skip=skip)
@@ -128,6 +132,9 @@ class Series:
         """
         Remove all the revisions, collapse all segments into one
         """
+        # [TODO] flag new segment as "covering" the entiry history
+        # (with extra info in the changelog content or changelog
+        # filename)
         sgm = self.read()
         key = self.write(sgm, parent_commit=phi)
         self.truncate(skip=[key])
