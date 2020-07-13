@@ -7,7 +7,7 @@ from moto import mock_s3
 from baltic import POD
 
 
-@pytest.yield_fixture(scope="function", params=["file", "memory", "s3"])
+@pytest.yield_fixture(scope="function", params=["file", "memory", "s3", "cache"])
 def pod(request):
     if request.param == "memory":
         yield POD.from_uri("memory://")
@@ -16,6 +16,12 @@ def pod(request):
         # Local filesytem
         with TemporaryDirectory() as tdir:
             yield POD.from_uri(f"file://{tdir}")
+
+    elif request.param == "cache":
+        # Local filesytem
+        with TemporaryDirectory() as tdir:
+            pod = POD.from_uri(["memory://", "file://{tdir}"])
+            yield pod
 
     elif request.param == "s3":
         # S3 tested with moto

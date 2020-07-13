@@ -18,6 +18,15 @@ class POD:
 
     @classmethod
     def from_uri(cls, uri=None, **fs_kwargs):
+        # multi-uri -> CachePOD
+        if isinstance(uri, (tuple, list)):
+            if len(uri) > 1:
+                return CachePOD(
+                    local=POD.from_uri(uri[0], **fs_kwargs),
+                    remote=POD.from_uri(uri[1:], **fs_kwargs)
+                )
+            else:
+                return POD.from_uri(uri[0], **fs_kwargs)
         # Define protocal and path
         if not uri:
             protocol = "memory"
@@ -254,3 +263,49 @@ class S3POD(POD):
     def rm(self, relpath=".", recursive=False):
         path = str(self.path / relpath)
         return self.fs.rm(path, recursive=recursive)
+
+
+
+class CachePOD(POD):
+
+    def __init__(self, local, remote):
+        self.local = local
+        self.remote = remote
+        self.protocol = f'{local.protocol}+{remote.protocol}'
+        super().__init__()
+
+    @property
+    def path(self):
+        return self.local.path
+
+    def cd(self, *others):
+        local = self.local.cd(*others)
+        remote = self.remote.cd(*others)
+        return CachePOD(local, remote)
+
+    def ls(self, relpath=".", raise_on_missing=True):
+        return self.remote.ls(relpath, raise_on_missing=raise_on_missing)
+
+    def read(self, relpath, mode="rb"):
+        try:
+            return self.local.read(relpath, mode=mode)
+        except FileNotFoundError:
+            pass
+
+        data = self.remote.remote(relpath, mode=mode)
+        self.local.write(relpath, data)
+        return data
+
+    def write(self, relpath, data, mode="wb"):
+        self.local.write(relpath, data, mode=mode)
+        return self.remote.write(relpath, data, mode=mode)
+
+    def isdir(self, relpath):
+        return self.remote.isdir(relpath)
+
+    def rm(self, relpath, recursive=False):
+        self.remote.rm(relpath, recursive=recursive)
+        try:
+            self.local.rm(relpath, recursive=recursive)
+        except FileNotFoundError:
+            pass
