@@ -20,7 +20,7 @@ setup(name='baltic',
       url='https://github.com/bertrandchenal/baltic',
       license='MIT',
       packages=['baltic'],
-      install_requires=['numpy', 'zarr'],
+      install_requires=['numpy', 's3fs'],
       # py_modules=['baltic'],
       entry_points={
           'console_scripts': [

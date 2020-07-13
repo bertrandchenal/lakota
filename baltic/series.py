@@ -2,7 +2,7 @@ from numpy import arange, lexsort
 
 from .changelog import Changelog, phi
 from .segment import Segment
-
+from .utils import hashed_path
 
 def intersect(revision, start, end):
     ok_start = not end or revision["start"][: len(end)] <= end
@@ -36,8 +36,8 @@ class Series:
         self.changelog.pull(remote.changelog)
         for revision in self.changelog.walk():
             for dig in revision["columns"]:
-                prefix, suffix = dig[:2], dig[2:]
-                path = f"{prefix}/{suffix}"
+                folder, filename = hashed_path(dig)
+                path = folder / filename
                 payload = remote.segment_pod.read(path)
                 self.segment_pod.write(path, payload)
 

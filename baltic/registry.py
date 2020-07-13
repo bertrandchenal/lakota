@@ -5,7 +5,7 @@ from .pod import POD
 from .schema import Schema
 from .segment import Segment
 from .series import Series
-from .utils import hexdigest, timedigest
+from .utils import hexdigest, hashed_path
 
 # Idea: "package" a bunch of writes in a Zip/Tar and send the
 # archive on s3
@@ -68,8 +68,8 @@ class Registry:
         schema = Schema.loads(sgm["schema"][-1])
         timestamp = sgm["timestamp"][-1]
         digest = hexdigest(label.encode(), str(timestamp).encode())
-        prefix, suffix = digest[:2], digest[2:]
-        series = Series(schema, self.series_pod / prefix / suffix, self.segment_pod)
+        folder, filename = hashed_path(digest)
+        series = Series(schema, self.series_pod / folder / filename, self.segment_pod)
         return series
 
     def gc(self, soft=True):
@@ -85,11 +85,10 @@ class Registry:
         active_digests = set(chain.from_iterable(per_series))
         active_digests.update(self.schema_series.digests())
         count = 0
-        for folder in self.segment_pod.ls():
-            for filename in self.segment_pod.ls(folder):
-                digest = folder + filename
-                if digest not in active_digests:
-                    count += 1
-                    self.segment_pod.rm(f"{folder}/{filename}")
+        for filename in self.segment_pod.walk():
+            digest = filename.replace('/', '')
+            if digest not in active_digests:
+                count += 1
+                self.segment_pod.rm(filename)
 
         return count

@@ -4,7 +4,7 @@ import pytest
 from numpy import append, array
 
 from baltic import POD, Schema, Segment
-
+from baltic.utils import hashed_path
 
 @pytest.fixture
 def frame():
@@ -29,8 +29,8 @@ def test_copy_segment(sgm):
     pod = POD.from_uri("memory://")
     digests = sgm.save(pod)
     for col, dig in zip(sgm.schema.columns, digests):
-        prefix, suffix = dig[:2], dig[2:]
-        data = pod.read(f"{prefix}/{suffix}")
+        folder, filename = hashed_path(dig)
+        data = pod.read(folder / filename)
         arr = sgm.schema.decode(col, data)
         assert (sgm[col] == arr).all()
 

@@ -4,6 +4,7 @@ from collections import deque
 from contextlib import contextmanager
 from hashlib import sha1
 from itertools import islice
+from pathlib import PosixPath
 from time import perf_counter, time
 
 default_hash = sha1
@@ -19,6 +20,7 @@ def hexdigest(*data):
         digest.update(datum)
     return digest.hexdigest()
 
+
 def timedigest(*data, timestamp=None):
     '''
     Create a digest of data, prefixed with current time in milliseconds (hex-encoded)
@@ -30,6 +32,18 @@ def timedigest(*data, timestamp=None):
         digest.update(datum)
     return prefix + '-' + digest.hexdigest()[len(prefix)+1:]
 
+def hashed_path(digest, depth=2):
+    '''
+    Pair-wise hashing of the `digest` string, example:
+    12345678 -> (Path(12/34), "5678") (with depth = 2)
+    '''
+    assert len(digest) > 2 * depth
+    folder = PosixPath('.')
+    for _ in range(depth):
+        prefix, digest = digest[:2], digest[2:]
+        folder = folder / prefix
+
+    return folder, digest
 
 def pretty_nb(number):
     prefixes = "yzafpnum_kMGTPEZY"

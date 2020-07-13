@@ -3,7 +3,7 @@ from bisect import bisect_left, bisect_right
 import numexpr
 from numpy import array_equal, asarray, concatenate
 
-from .utils import hexdigest
+from .utils import hexdigest, hashed_path
 
 
 class Segment:
@@ -26,8 +26,8 @@ class Segment:
         sgm = cls(schema)
         for name, dig in zip(schema.columns, digests):
             # TODO abstract somewhere the prefix/suffix hashing
-            prefix, suffix = dig[:2], dig[2:]
-            data = (pod / prefix).read(suffix)
+            folder, filename = hashed_path(dig)
+            data = pod.cd(folder).read(filename)
             arr = schema.decode(name, data)
             sgm.frame[name] = arr
         return sgm
@@ -135,10 +135,10 @@ class Segment:
         all_dig = []
         for name, dig in self.hexdigests():
             all_dig.append(dig)
-            prefix, suffix = dig[:2], dig[2:]
             arr = self.frame[name]
             data = self.schema.encode(name, arr)
-            (pod / prefix).write(suffix, data)  # if_exists='skip')
+            folder, filename = hashed_path(dig)
+            pod.cd(folder).write(filename, data)  # if_exists='skip')
         return all_dig
 
     def index(self, *values, right=False):

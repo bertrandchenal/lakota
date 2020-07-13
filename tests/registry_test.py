@@ -76,9 +76,9 @@ def test_clone():
     assert lseries.read() == expected
 
 
-def test_gc():
+def test_gc(pod):
     schema = Schema(["timestamp:int", "value:float"])
-    reg = Registry()
+    reg = Registry(pod=pod)
     reg.create(schema, "label_a", "label_b")
     for offset, label in enumerate(("label_a", "label_b")):
         series = reg.get(label)

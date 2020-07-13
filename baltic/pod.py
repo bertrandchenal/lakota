@@ -49,6 +49,18 @@ class POD:
                 continue
             self.rm(key, recursive=True)
 
+    def walk(self, root=''):
+        folders = [(root, f) for f in self.ls(root)]
+        while folders:
+            folder = folders.pop()
+            root, name = folder
+            full_path = str(PurePosixPath(root) / name)
+            if self.isdir(full_path):
+                subfolders = [(full_path, c) for c in reversed(self.ls(full_path))]
+                folders.extend(subfolders)
+            else:
+                yield full_path
+
 
 class FilePOD(POD):
 
@@ -58,8 +70,8 @@ class FilePOD(POD):
         self.path = Path(path)
         super().__init__()
 
-    def cd(self, relpath):
-        path = self.path / relpath
+    def cd(self, *others):
+        path = self.path.joinpath(*others)
         return FilePOD(path)
 
     def ls(self, relpath=".", raise_on_missing=True):
@@ -81,6 +93,9 @@ class FilePOD(POD):
         path = self.path / relpath
         path.parent.mkdir(parents=True, exist_ok=True)
         return path.open(mode).write(data)
+
+    def isdir(self, relpath):
+        return self.path.joinpath(relpath).is_dir()
 
     def rm(self, relpath=".", recursive=False):
         path = self.path / relpath
@@ -106,8 +121,10 @@ class MemPOD(POD):
         self.store = {}
         super().__init__()
 
-    def cd(self, relpath):
-        pod = self.find_pod(relpath)
+    def cd(self, *others):
+        pod = self
+        for o in others:
+            pod = pod.find_pod(o)
         return pod
 
     @classmethod
@@ -154,7 +171,7 @@ class MemPOD(POD):
                 raise FileNotFoundError(f"{relpath} not found")
             return [leaf]
         # "happy" scenario
-        if isinstance(pod.store[leaf], POD):
+        if pod.isdir(leaf):
             return list(pod.store[leaf].store.keys())
         else:
             return [leaf]
@@ -176,14 +193,18 @@ class MemPOD(POD):
         pod.store[leaf] = data
         return len(data)
 
+    def isdir(self, relpath):
+        pod, leaf = self.find_parent_pod(relpath)
+        return isinstance(pod.store[leaf], POD)
+
     def rm(self, relpath, recursive=False):
         pod, leaf = self.find_parent_pod(relpath)
         if not pod:
             raise FileNotFoundError(f"{relpath} not found")
         if recursive:
             del pod.store[leaf]
-        elif isinstance(pod.store[leaf], MemPOD):
-            if not pod.store[leaf].store.empty():
+        elif pod.isdir(leaf):
+            if pod.store[leaf].store:
                 raise FileNotFoundError(f"{relpath} is not empty")
             del pod.store[leaf]
         else:
@@ -204,12 +225,12 @@ class S3POD(POD):
         )
         super().__init__()
 
-    def cd(self, relpath):
-        path = self.path / relpath
+    def cd(self, *others):
+        path = self.path.joinpath(*others)
         return S3POD(path, fs=self.fs)
 
     def ls(self, relpath=".", raise_on_missing=True):
-        path = str(self.path / relpath)
+        path = self.path / relpath
         try:
             return [Path(p).name for p in self.fs.ls(path)]
         except FileNotFoundError:
@@ -226,6 +247,9 @@ class S3POD(POD):
             return
         path = str(self.path / relpath)
         return self.fs.open(path, mode).write(data)
+
+    def isdir(self, relpath):
+        return self.fs.isdir(self.path / relpath)
 
     def rm(self, relpath=".", recursive=False):
         path = str(self.path / relpath)
