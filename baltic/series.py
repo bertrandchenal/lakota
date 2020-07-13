@@ -32,6 +32,7 @@ class Series:
         """
         Clone remote series into self
         """
+        # TODO implement push & pull
         self.changelog.pull(remote.changelog)
         for revision in self.changelog.walk():
             for dig in revision["columns"]:

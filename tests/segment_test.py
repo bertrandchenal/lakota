@@ -34,6 +34,10 @@ def test_copy_segment(sgm):
         arr = sgm.schema.decode(col, data)
         assert (sgm[col] == arr).all()
 
+def test_copy(sgm):
+    sgm2 = Segment.concat(sgm.schema, sgm)
+    assert sgm == sgm2
+
 
 def test_concat(sgm):
     sgm2 = Segment.concat(sgm.schema, sgm, sgm)
