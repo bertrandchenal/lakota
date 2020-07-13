@@ -20,7 +20,7 @@ def pod(request):
     elif request.param == "cache":
         # Local filesytem
         with TemporaryDirectory() as tdir:
-            pod = POD.from_uri(["memory://", "file://{tdir}"])
+            pod = POD.from_uri(["memory://", f"file://{tdir}"])
             yield pod
 
     elif request.param == "s3":
