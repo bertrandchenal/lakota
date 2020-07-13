@@ -23,7 +23,7 @@ class POD:
             if len(uri) > 1:
                 return CachePOD(
                     local=POD.from_uri(uri[0], **fs_kwargs),
-                    remote=POD.from_uri(uri[1:], **fs_kwargs)
+                    remote=POD.from_uri(uri[1:], **fs_kwargs),
                 )
             else:
                 return POD.from_uri(uri[0], **fs_kwargs)
@@ -58,7 +58,7 @@ class POD:
                 continue
             self.rm(key, recursive=True)
 
-    def walk(self, root=''):
+    def walk(self, root=""):
         folders = [(root, f) for f in self.ls(root)]
         while folders:
             folder = folders.pop()
@@ -265,13 +265,11 @@ class S3POD(POD):
         return self.fs.rm(path, recursive=recursive)
 
 
-
 class CachePOD(POD):
-
     def __init__(self, local, remote):
         self.local = local
         self.remote = remote
-        self.protocol = f'{local.protocol}+{remote.protocol}'
+        self.protocol = f"{local.protocol}+{remote.protocol}"
         super().__init__()
 
     @property

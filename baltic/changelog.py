@@ -40,7 +40,7 @@ class Changelog:
         if _jitter:
             sleep(random())
 
-        revision = {'timestamp': time(), 'content': content}
+        revision = {"timestamp": time(), "content": content}
         arr = numpy.array([revision])
         data = self.schema.encode("revision", arr)
         key = timedigest(data, parent.encode())
@@ -68,14 +68,14 @@ class Changelog:
         res = tail(self._walk(), 1)
         if not res:
             return None
-        return res[0]['path']
+        return res[0]["path"]
 
     def walk(self, parent=phi):
         """
         Depth-first traversal of the tree
         """
         for revision in self._walk(parent=parent):
-            yield revision['content']
+            yield revision["content"]
 
     def _walk(self, parent=phi):
         """
@@ -88,7 +88,7 @@ class Changelog:
             rev = revs.pop()
             parent, child = rev
             # Yield from first child
-            yield from self.extract(f"{parent}.{child}" )
+            yield from self.extract(f"{parent}.{child}")
             # Append children
             revs.extend((child, c) for c in reversed(log[child]))
 
@@ -99,7 +99,7 @@ class Changelog:
             return
         revisions = self.schema.decode("revision", content)
         for rev in revisions:
-            rev['path'] = path
+            rev["path"] = path
             yield rev
 
     def pull(self, remote):
@@ -130,4 +130,4 @@ class Changelog:
 
         # Clean old revisions
         for rev in revisions:
-            self.pod.rm(rev['path'])
+            self.pod.rm(rev["path"])

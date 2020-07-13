@@ -4,6 +4,7 @@ from .changelog import Changelog, phi
 from .segment import Segment
 from .utils import hashed_path
 
+
 def intersect(revision, start, end):
     ok_start = not end or revision["start"][: len(end)] <= end
     ok_end = not start or revision["end"][: len(start)] >= start
@@ -82,10 +83,10 @@ class Series:
             # instanciate segment
             sgm = Segment.from_pod(self.schema, self.segment_pod, revision["columns"])
             # Adapt closed value for extremities
-            if closed == 'right' and mstart != start:
-                closed = 'both'
-            elif closed == 'left' and mend != end :
-                closed = 'both'
+            if closed == "right" and mstart != start:
+                closed = "both"
+            elif closed == "left" and mend != end:
+                closed = "both"
             sgm = sgm.slice(mstart, mend, closed=closed)
             if not sgm.empty():
                 segments.append(sgm)
@@ -95,7 +96,9 @@ class Series:
                     return segments
             # recurse left
             if mstart > start:
-                left_sgm = self._read(revisions[pos + 1 :], start, mstart, limit=limit, closed="left")
+                left_sgm = self._read(
+                    revisions[pos + 1 :], start, mstart, limit=limit, closed="left"
+                )
                 segments = left_sgm + segments
             # recurse right
             if not end or mend < end:
@@ -103,7 +106,9 @@ class Series:
                     limit = limit - len(sgm)
                     if limit < 1:
                         break
-                right_sgm = self._read(revisions[pos + 1 :], mend, end, limit=limit, closed="right")
+                right_sgm = self._read(
+                    revisions[pos + 1 :], mend, end, limit=limit, closed="right"
+                )
                 segments = segments + right_sgm
 
             break

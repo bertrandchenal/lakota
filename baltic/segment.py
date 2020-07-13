@@ -3,7 +3,7 @@ from bisect import bisect_left, bisect_right
 import numexpr
 from numpy import array_equal, asarray, concatenate
 
-from .utils import hexdigest, hashed_path
+from .utils import hashed_path, hexdigest
 
 
 class Segment:

@@ -104,8 +104,12 @@ def run():
     parser_read.add_argument("label")
     parser_read.add_argument("columns", nargs="*")
     parser_read.add_argument("--limit", "-l", type=int, default=1000)
-    parser_read.add_argument("--greater-than", "--gt", nargs="+", help="Apply expression as mask")
-    parser_read.add_argument("--less-than", "--lt", nargs="+", help="Apply expression as mask")
+    parser_read.add_argument(
+        "--greater-than", "--gt", nargs="+", help="Apply expression as mask"
+    )
+    parser_read.add_argument(
+        "--less-than", "--lt", nargs="+", help="Apply expression as mask"
+    )
     parser_read.set_defaults(func=read)
 
     # Add len command

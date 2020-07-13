@@ -6,6 +6,7 @@ from numpy import append, array
 from baltic import POD, Schema, Segment
 from baltic.utils import hashed_path
 
+
 @pytest.fixture
 def frame():
     FACTOR = 100_000
@@ -33,6 +34,7 @@ def test_copy_segment(sgm):
         data = pod.read(folder / filename)
         arr = sgm.schema.decode(col, data)
         assert (sgm[col] == arr).all()
+
 
 def test_copy(sgm):
     sgm2 = Segment.concat(sgm.schema, sgm)

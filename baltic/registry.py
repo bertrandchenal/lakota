@@ -5,7 +5,7 @@ from .pod import POD
 from .schema import Schema
 from .segment import Segment
 from .series import Series
-from .utils import hexdigest, hashed_path
+from .utils import hashed_path, hexdigest
 
 # Idea: "package" a bunch of writes in a Zip/Tar and send the
 # archive on s3
@@ -19,7 +19,6 @@ class Registry:
     schema = Schema(["label:str", "timestamp:f8", "schema:O"])
 
     # TODO key should become the "keyspace" aka the registry generation that should be created upront
-
 
     def __init__(self, uri=None, pod=None):
         self.pod = pod or POD.from_uri(uri)
@@ -86,7 +85,7 @@ class Registry:
         active_digests.update(self.schema_series.digests())
         count = 0
         for filename in self.segment_pod.walk():
-            digest = filename.replace('/', '')
+            digest = filename.replace("/", "")
             if digest not in active_digests:
                 count += 1
                 self.segment_pod.rm(filename)
