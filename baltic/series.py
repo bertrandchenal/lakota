@@ -45,6 +45,10 @@ class Series:
         """
         Read all matching segment and combine them
         """
+        if start is not None and not isinstance(start, (list, tuple)):
+            start = (start,)
+        if end is not None and not isinstance(end, (list, tuple)):
+            end = (end,)
         start = self.schema.deserialize(start)
         end = self.schema.deserialize(end)
 

@@ -21,13 +21,7 @@ def read(args):
     reg = Registry(args.path)
     series = reg.get(args.label)
     columns = args.columns or series.schema.columns
-    sgm = series.read(limit=args.limit)
-
-    # FIXME mask should be pushed down to Series._read
-    if args.mask:
-        cond = sgm.eval(args.mask)
-        sgm = sgm.mask(cond)
-
+    sgm = series.read(start=args.greater_than, end=args.less_than, limit=args.limit)
     arrays = []
     for column in columns:
         arr = sgm[column][: args.limit]
@@ -46,7 +40,7 @@ def lenght(args):
 
 def ls(args):
     reg = Registry(args.path)
-    rows = [[label] for label in reg.ls()]
+    rows = [[label] for label in sorted(set(reg.search()["label"]))]
     print(tabulate(rows, headers=["label"]))
 
 
@@ -110,7 +104,8 @@ def run():
     parser_read.add_argument("label")
     parser_read.add_argument("columns", nargs="*")
     parser_read.add_argument("--limit", "-l", type=int, default=1000)
-    parser_read.add_argument("--mask", "-m", help="Apply expression as mask")
+    parser_read.add_argument("--greater-than", "--gt", nargs="+", help="Apply expression as mask")
+    parser_read.add_argument("--less-than", "--lt", nargs="+", help="Apply expression as mask")
     parser_read.set_defaults(func=read)
 
     # Add len command
