@@ -1,7 +1,6 @@
 from concurrent.futures import ThreadPoolExecutor
 
 from baltic import Changelog
-from baltic.pod import MemPOD
 from baltic.utils import hexdigest
 
 

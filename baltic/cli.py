@@ -24,7 +24,7 @@ def read(args):
     sgm = series.read(start=args.greater_than, end=args.less_than, limit=args.limit)
     arrays = []
     for column in columns:
-        arr = sgm[column][: args.limit]
+        arr = sgm[column][:args.limit]
         arrays.append(arr)
     arr = arrays[1]
     rows = zip(*arrays)

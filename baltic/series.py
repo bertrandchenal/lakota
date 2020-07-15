@@ -35,6 +35,8 @@ class Series:
         """
         # TODO implement push & pull
         self.changelog.pull(remote.changelog)
+        # if shallow:
+        #     return
         for revision in self.changelog.walk():
             for dig in revision["columns"]:
                 folder, filename = hashed_path(dig)
@@ -87,7 +89,7 @@ class Series:
                 closed = "both"
             elif closed == "left" and mend != end:
                 closed = "both"
-            sgm = sgm.slice(mstart, mend, closed=closed)
+            sgm = sgm.index_slice(mstart, mend, closed=closed)
             if not sgm.empty():
                 segments.append(sgm)
                 # We have found one result and the search range is

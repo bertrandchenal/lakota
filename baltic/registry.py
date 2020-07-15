@@ -18,8 +18,6 @@ class Registry:
 
     schema = Schema(["label:str", "timestamp:f8", "schema:O"])
 
-    # TODO key should become the "keyspace" aka the registry generation that should be created upront
-
     def __init__(self, uri=None, pod=None):
         self.pod = pod or POD.from_uri(uri)
         self.segment_pod = self.pod / "segment"
@@ -32,8 +30,7 @@ class Registry:
         self.pod.clear()
 
     def clone(self, remote, label, shallow=False):
-        # XXX define remote in init and simply do registry.clone(label) ?
-        assert not shallow, "Shallow clone not supported yet"
+        # TODO if shallow -> should be combined with a lazy cachedpod
         rseries = remote.get(label)
         self.create(rseries.schema, label)
         series = self.get(label)
@@ -60,7 +57,7 @@ class Registry:
 
     def get(self, label, from_sgm=None):
         if from_sgm:
-            sgm = from_sgm.slice([label])
+            sgm = from_sgm.index_slice([label])
         else:
             sgm = self.search(label)
         assert not sgm.empty(), f"Label '{label}' not found"

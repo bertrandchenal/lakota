@@ -266,10 +266,11 @@ class S3POD(POD):
 
 
 class CachePOD(POD):
-    def __init__(self, local, remote):
+    def __init__(self, local, remote, lazy=False):
         self.local = local
         self.remote = remote
         self.protocol = f"{local.protocol}+{remote.protocol}"
+        self.lazy = lazy
         super().__init__()
 
     @property
@@ -279,9 +280,11 @@ class CachePOD(POD):
     def cd(self, *others):
         local = self.local.cd(*others)
         remote = self.remote.cd(*others)
-        return CachePOD(local, remote)
+        return CachePOD(local, remote, lazy=self.lazy)
 
     def ls(self, relpath=".", raise_on_missing=True):
+        # if self.lazy:
+        #     return self.local.ls(relpath, raise_on_missing=raise_on_missing)
         return self.remote.ls(relpath, raise_on_missing=raise_on_missing)
 
     def read(self, relpath, mode="rb"):
@@ -290,7 +293,7 @@ class CachePOD(POD):
         except FileNotFoundError:
             pass
 
-        data = self.remote.remote(relpath, mode=mode)
+        data = self.remote.read(relpath, mode=mode)
         self.local.write(relpath, data)
         return data
 

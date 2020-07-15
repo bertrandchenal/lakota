@@ -48,7 +48,7 @@ class Segment:
     def empty(self):
         return len(self) == 0
 
-    def slice(self, start, end=None, closed=None):
+    def index_slice(self, start, end=None, closed=None):
         """
         Slice between two index value. `closed` can be "left" (default),
         "right" or "both". If end is None, the code will use `start`
@@ -59,13 +59,18 @@ class Segment:
             closed = "both"
         else:
             closed = closed or "left"
-        new_frame = {}
         idx_start = self.index(*start, right=closed == "right")
         idx_end = self.index(*end, right=closed in ("both", "right"))
-        for name in self.schema.columns:
-            sl = self.frame[name][idx_start:idx_end]
-            new_frame[name] = sl
+        return self.slice(idx_start, idx_end)
 
+    def slice(self, start, end):
+        '''
+        Slice between both position start and end
+        '''
+        new_frame = {}
+        for name in self.schema.columns:
+            sl = self.frame[name][start:end]
+            new_frame[name] = sl
         return Segment(self.schema, new_frame)
 
     @classmethod

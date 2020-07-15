@@ -49,30 +49,30 @@ def test_concat(sgm):
     assert all(eq)
 
 
-def test_slice(sgm):
+def test_index_slice(sgm):
 
     schema = Schema(["x:int"])
     sgm = Segment(schema)
     sgm.write({"x": [1, 2, 3, 4, 5, 5, 5, 6]})
 
     # include both side
-    res = sgm.slice([2], [4], closed="both")["x"]
+    res = sgm.index_slice([2], [4], closed="both")["x"]
     assert all(res == [2, 3, 4])
 
     # include only left
-    res = sgm.slice([2], [4], closed="left")["x"]
+    res = sgm.index_slice([2], [4], closed="left")["x"]
     assert all(res == [2, 3])
 
     # include only right
-    res = sgm.slice([2], [4], closed="right")["x"]
+    res = sgm.index_slice([2], [4], closed="right")["x"]
     assert all(res == [3, 4])
 
     # implict right
-    res = sgm.slice([5])["x"]
+    res = sgm.index_slice([5])["x"]
     assert all(res == [5, 5, 5])
 
-    res = sgm.slice([1])["x"]
+    res = sgm.index_slice([1])["x"]
     assert all(res == [1])
 
-    res = sgm.slice([6])["x"]
+    res = sgm.index_slice([6])["x"]
     assert all(res == [6])
