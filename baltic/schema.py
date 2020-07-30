@@ -22,15 +22,15 @@ class Schema:
             if dt == dtype("<U"):
                 default_codecs = ["vlen-utf8", "gzip"]
             elif dt == dtype("O"):
-                default_codecs = ["json", "gzip"]
+                default_codecs = ["msgpack2", "zstd"]
 
             dt = dtype(dt)
             self._dtype[name] = dt
             self._codecs[name] = codecs or default_codecs
 
         # All but last column is the default index
-        idx_len = idx_len or len(columns) - 1 or 1
-        self.idx = self.columns[:idx_len]
+        self.idx_len = idx_len or len(columns) - 1 or 1
+        self.idx = self.columns[:self.idx_len]
 
     def dtype(self, name):
         dt = self._dtype[name]

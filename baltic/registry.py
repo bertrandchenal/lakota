@@ -48,6 +48,7 @@ class Registry:
             self.schema_series.write(sgm)
 
     def search(self, label=None):
+        # TODO use numexp expr to push down filter to Series.read
         if label:
             start = end = (label,)
         else:

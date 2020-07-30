@@ -1,17 +1,13 @@
 from collections import defaultdict
 from random import random
-from time import sleep, time
+from time import sleep
 
 import numpy
 
 from .schema import Schema
-from .utils import hexdigest, tail, timedigest
+from .utils import hexdigest, tail, hextime
 
 phi = "0" * 40
-
-
-# TODO: Use multi-col segment instead of a unique col with a large
-# string in it.
 
 
 class Changelog:
@@ -20,12 +16,12 @@ class Changelog:
     Build a tree over a pod to provide concurrent commits
     """
 
-    schema = Schema(["revision:O|json|zstd"])
+    schema = Schema(["revision:O|msgpack2|zstd"])
 
     def __init__(self, pod):
         self.pod = pod
 
-    def commit(self, content, _jitter=False, force_parent=None):
+    def commit(self, revision, _jitter=False, force_parent=None):
         # Find parent & write revisions
         if force_parent:
             parent = force_parent
@@ -40,12 +36,15 @@ class Changelog:
         if _jitter:
             sleep(random())
 
-        revision = {"timestamp": time(), "content": content}
         arr = numpy.array([revision])
         data = self.schema.encode("revision", arr)
-        key = timedigest(data, parent.encode())
+        key = hexdigest(data)
+        if parent.endswith(key):
+            # Prevent double writes
+            return None
 
-        filename = ".".join((parent, key))
+        # Construct new filename and save content
+        filename = f"{parent}.{hextime()}-{key}"
         self.pod.write(filename, data)
         return filename
 
@@ -68,14 +67,15 @@ class Changelog:
         res = tail(self._walk(), 1)
         if not res:
             return None
-        return res[0]["path"]
+        path, _ = res[0]
+        return path
 
     def walk(self, parent=phi):
         """
         Depth-first traversal of the tree
         """
-        for revision in self._walk(parent=parent):
-            yield revision["content"]
+        for _, revision in self._walk(parent=parent):
+            yield revision
 
     def _walk(self, parent=phi):
         """
@@ -94,13 +94,12 @@ class Changelog:
 
     def extract(self, path):
         try:
-            content = self.pod.read(path)
+            revision = self.pod.read(path)
         except FileNotFoundError:
             return
-        revisions = self.schema.decode("revision", content)
+        revisions = self.schema.decode("revision", revision)
         for rev in revisions:
-            rev["path"] = path
-            yield rev
+            yield path, rev
 
     def pull(self, remote):
         new_revs = []
@@ -117,7 +116,8 @@ class Changelog:
         """
         Combine the current list of revisions into one array of revision
         """
-        revisions = list(self._walk())
+        items = list(self._walk())
+        paths, revisions = zip(*items)
         if len(revisions) == 1:
             return
 
@@ -129,5 +129,5 @@ class Changelog:
         self.pod.write(filename, data)
 
         # Clean old revisions
-        for rev in revisions:
-            self.pod.rm(rev["path"])
+        for path in set(paths):
+            self.pod.rm(path)

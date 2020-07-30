@@ -22,12 +22,7 @@ def read(args):
     series = reg.get(args.label)
     columns = args.columns or series.schema.columns
     sgm = series.read(start=args.greater_than, end=args.less_than, limit=args.limit)
-    arrays = []
-    for column in columns:
-        arr = sgm[column][:args.limit]
-        arrays.append(arr)
-    arr = arrays[1]
-    rows = zip(*arrays)
+    rows = zip(*(sgm[col] for col in columns))
     print(tabulate(rows, headers=columns))
 
 

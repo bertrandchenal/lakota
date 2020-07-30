@@ -20,8 +20,7 @@ setup(name='baltic',
       url='https://github.com/bertrandchenal/baltic',
       license='MIT',
       packages=['baltic'],
-      install_requires=['numpy', 'numcodecs', 's3fs', 'numexpr'],
-      # py_modules=['baltic'],
+      install_requires=['numpy', 'numcodecs', 's3fs', 'numexpr', 'tabulate'],
       entry_points={
           'console_scripts': [
               'baltic = baltic.cli:run',

@@ -67,6 +67,8 @@ class Segment:
         '''
         Slice between both position start and end
         '''
+        if start == 0 and end >= len(self):
+            return self
         new_frame = {}
         for name in self.schema.columns:
             sl = self.frame[name][start:end]

@@ -27,12 +27,13 @@ def test_read_series(series):
     assert sgm_copy == sgm
 
 
-def test_overlaping_write(series):
-    # Double write
+def test_double_write(series):
+    # Test that double write is ignored
+    expected = list(series.changelog.walk())
     series.write(sgm)
     sgm_copy = series.read()
     assert sgm_copy == sgm
-
+    assert list(series.changelog.walk()) == expected
 
 @pytest.mark.parametrize("how", ["left", "right"])
 def test_spill_write(series, how):

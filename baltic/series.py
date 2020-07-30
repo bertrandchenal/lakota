@@ -73,7 +73,10 @@ class Series:
 
         # Sort (non-overlaping segments)
         segments.sort(key=lambda s: s.start())
-        return Segment.concat(self.schema, *segments)
+        sgm = Segment.concat(self.schema, *segments)
+        if limit is not None:
+            sgm = sgm.slice(0, limit)
+        return sgm
 
     def _read(self, revisions, start, end, limit=None, closed="both"):
         segments = []

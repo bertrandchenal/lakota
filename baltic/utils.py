@@ -21,17 +21,12 @@ def hexdigest(*data):
     return digest.hexdigest()
 
 
-def timedigest(*data, timestamp=None):
+def hextime(*data, timestamp=None):
     """
-    Create a digest of data, prefixed with current time in milliseconds (hex-encoded)
+    hex representation of current time (rounded to millisecond)
     """
     timestamp = timestamp or time()
-    prefix = hex(int(timestamp * 1000))[2:]
-    digest = default_hash()
-    for datum in data:
-        digest.update(datum)
-    return prefix + "-" + digest.hexdigest()[len(prefix) + 1 :]
-
+    return hex(int(timestamp * 1000))[2:]
 
 def hashed_path(digest, depth=2):
     """
