@@ -66,7 +66,7 @@ class Series:
         # Order revision backward
         all_revision = list(reversed(all_revision))
         # Recursive discovery of matching segments
-        segments = self._read(all_revision, start, end, limit=limit)
+        segments = list(self._read(all_revision, start, end, limit=limit))
 
         if not segments:
             return Segment(self.schema)
@@ -79,7 +79,6 @@ class Series:
         return sgm
 
     def _read(self, revisions, start, end, limit=None, closed="both"):
-        segments = []
         for pos, revision in enumerate(revisions):
             match = intersect(revision, start, end)
             if not match:
@@ -94,17 +93,17 @@ class Series:
                 closed = "both"
             sgm = sgm.index_slice(mstart, mend, closed=closed)
             if not sgm.empty():
-                segments.append(sgm)
+                yield sgm
                 # We have found one result and the search range is
                 # collapsed, stop recursion:
                 if start and start == end:
-                    return segments
+                    return
             # recurse left
             if mstart > start:
                 left_sgm = self._read(
                     revisions[pos + 1 :], start, mstart, limit=limit, closed="left"
                 )
-                segments = left_sgm + segments
+                yield from left_sgm
             # recurse right
             if not end or mend < end:
                 if limit is not None:
@@ -114,10 +113,9 @@ class Series:
                 right_sgm = self._read(
                     revisions[pos + 1 :], mend, end, limit=limit, closed="right"
                 )
-                segments = segments + right_sgm
+                yield from right_sgm
 
             break
-        return segments
 
     def write(self, df, start=None, end=None, cast=False, parent_commit=None):
         if cast:
