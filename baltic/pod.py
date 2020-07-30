@@ -52,7 +52,7 @@ class POD:
     def __truediv__(self, relpath):
         return self.cd(relpath)
 
-    def clear(self, skip=None):
+    def clear(self, *skip):
         for key in self.ls():
             if skip and key in skip:
                 continue

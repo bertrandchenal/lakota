@@ -140,19 +140,16 @@ class Series:
         }
         return self.changelog.commit(revision, force_parent=parent_commit)
 
-    def truncate(self, skip=None):
-        self.chl_pod.clear(skip=skip)
+    def truncate(self, *skip):
+        self.chl_pod.clear(*skip)
 
     def squash(self):
         """
         Remove all the revisions, collapse all segments into one
         """
-        # [TODO] flag new segment as "covering" the entiry history
-        # (with extra info in the changelog content or changelog
-        # filename)
         sgm = self.read()
         key = self.write(sgm, parent_commit=phi)
-        self.truncate(skip=[key])
+        self.truncate(key)
 
     def digests(self):
         for revision in self.changelog.walk():
