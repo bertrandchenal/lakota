@@ -5,10 +5,10 @@ from baltic import POD, Schema, Frame, Series
 from baltic.schema import DTYPES
 
 schema = Schema(["timestamp:int", "value:float"])
-sgm = Frame.from_df(
-    schema,
-    {"timestamp": [1589455903, 1589455904, 1589455905], "value": [3.3, 4.4, 5.5],},
-)
+frm = {
+    "timestamp": [1589455903, 1589455904, 1589455905],
+    "value": [3.3, 4.4, 5.5],
+}
 
 
 @pytest.fixture
@@ -17,22 +17,22 @@ def series():
     series = Series(schema, pod)
 
     # Write some values
-    series.write(sgm)
+    series.write(frm)
     return series
 
 
 def test_read_series(series):
     # Read those back
-    sgm_copy = series.read()
-    assert sgm_copy == sgm
+    frm_copy = series.read()
+    assert frm_copy == frm
 
 
 def test_double_write(series):
     # Test that double write is ignored
     expected = list(series.changelog.walk())
-    series.write(sgm)
-    sgm_copy = series.read()
-    assert sgm_copy == sgm
+    series.write(frm)
+    frm_copy = series.read()
+    assert frm_copy == frm
     assert list(series.changelog.walk()) == expected
 
 @pytest.mark.parametrize("how", ["left", "right"])
@@ -44,11 +44,11 @@ def test_spill_write(series, how):
         ts = [1589455903, 1589455904, 1589455905, 1589455906]
         vals = [33, 44, 55, 66]
 
-    sgm = Frame.from_df(schema, {"timestamp": ts, "value": vals,},)
-    series.write(sgm)
+    frm = Frame.from_df(schema, {"timestamp": ts, "value": vals,},)
+    series.write(frm)
 
-    sgm_copy = series.read()
-    assert sgm_copy == sgm
+    frm_copy = series.read()
+    assert frm_copy == frm
 
 
 @pytest.mark.parametrize("how", ["left", "right"])
@@ -60,16 +60,16 @@ def test_short_cover(series, how):
         ts = [1589455903, 1589455904]
         vals = [33, 44]
 
-    sgm = Frame.from_df(schema, {"timestamp": ts, "value": vals,},)
-    series.write(sgm)
+    frm = Frame.from_df(schema, {"timestamp": ts, "value": vals},)
+    series.write(frm)
 
-    sgm_copy = series.read()
-    assert all(sgm_copy["timestamp"] == [1589455903, 1589455904, 1589455905])
+    frm_copy = series.read()
+    assert all(frm_copy["timestamp"] == [1589455903, 1589455904, 1589455905])
     if how == "left":
-        assert all(sgm_copy["value"] == [3.3, 44, 55])
+        assert all(frm_copy["value"] == [3.3, 44, 55])
 
     else:
-        assert all(sgm_copy["value"] == [33, 44, 5.5])
+        assert all(frm_copy["value"] == [33, 44, 5.5])
 
 
 @pytest.mark.parametrize("how", ["left", "right"])
@@ -81,42 +81,42 @@ def test_adjacent_write(series, how):
         ts = [1589455906]
         vals = [6.6]
 
-    sgm = Frame.from_df(schema, {"timestamp": ts, "value": vals,},)
-    series.write(sgm)
+    frm = Frame.from_df(schema, {"timestamp": ts, "value": vals,},)
+    series.write(frm)
 
     # Full read
-    sgm_copy = series.read()
+    frm_copy = series.read()
     if how == "left":
         assert all(
-            sgm_copy["timestamp"] == [1589455902, 1589455903, 1589455904, 1589455905]
+            frm_copy["timestamp"] == [1589455902, 1589455903, 1589455904, 1589455905]
         )
-        assert all(sgm_copy["value"] == [2.2, 3.3, 4.4, 5.5])
+        assert all(frm_copy["value"] == [2.2, 3.3, 4.4, 5.5])
 
     else:
         assert all(
-            sgm_copy["timestamp"] == [1589455903, 1589455904, 1589455905, 1589455906]
+            frm_copy["timestamp"] == [1589455903, 1589455904, 1589455905, 1589455906]
         )
-        assert all(sgm_copy["value"] == [3.3, 4.4, 5.5, 6.6])
+        assert all(frm_copy["value"] == [3.3, 4.4, 5.5, 6.6])
 
     # Slice read - left slice
-    sgm_copy = series.read(start=[1589455902], end=[1589455903])
+    frm_copy = series.read(start=[1589455902], end=[1589455903])
     if how == "left":
-        assert all(sgm_copy["timestamp"] == [1589455902, 1589455903])
-        assert all(sgm_copy["value"] == [2.2, 3.3])
+        assert all(frm_copy["timestamp"] == [1589455902, 1589455903])
+        assert all(frm_copy["value"] == [2.2, 3.3])
 
     else:
-        assert all(sgm_copy["timestamp"] == [1589455903])
-        assert all(sgm_copy["value"] == [3.3])
+        assert all(frm_copy["timestamp"] == [1589455903])
+        assert all(frm_copy["value"] == [3.3])
 
     # Slice read - right slice
-    sgm_copy = series.read(start=[1589455905], end=[1589455906])
+    frm_copy = series.read(start=[1589455905], end=[1589455906])
     if how == "left":
-        assert all(sgm_copy["timestamp"] == [1589455905])
-        assert all(sgm_copy["value"] == [5.5])
+        assert all(frm_copy["timestamp"] == [1589455905])
+        assert all(frm_copy["value"] == [5.5])
 
     else:
-        assert all(sgm_copy["timestamp"] == [1589455905, 1589455906])
-        assert all(sgm_copy["value"] == [5.5, 6.6])
+        assert all(frm_copy["timestamp"] == [1589455905, 1589455906])
+        assert all(frm_copy["value"] == [5.5, 6.6])
 
 
 def test_column_types():
@@ -129,7 +129,7 @@ def test_column_types():
         schema = Schema(cols, idx_len)
         series = Series(schema, pod)
         series.write(df)
-        sgm = series.read()
+        frm = series.read()
 
         for name in names:
-            assert all(sgm[name] == df[name])
+            assert all(frm[name] == df[name])

@@ -37,7 +37,7 @@ class Changelog:
             sleep(random())
 
         arr = numpy.array([revision])
-        data = self.schema.encode("revision", arr)
+        data = self.schema["revision"].encode(arr)
         key = hexdigest(data)
         if parent.endswith(key):
             # Prevent double writes
@@ -74,6 +74,10 @@ class Changelog:
         """
         Depth-first traversal of the tree
         """
+        # [XXX] re-executing a full walk all the time is costly, we
+        # could cache the last result and (based on log content)
+        # bootstrap the loop
+
         # see DFS in https://stackoverflow.com/a/5278667
         log = self.log()
         revs = [(parent, c) for c in reversed(log[parent])]
@@ -90,7 +94,7 @@ class Changelog:
             revision = self.pod.read(path)
         except FileNotFoundError:
             return
-        revisions = self.schema.decode("revision", revision)
+        revisions = self.schema["revision"].decode(revision)
         for rev in revisions:
             yield path, rev
 
@@ -116,7 +120,7 @@ class Changelog:
 
         parent = phi
         arr = numpy.array(revisions)
-        data = self.schema.encode("revision", arr)
+        data = self.schema["revision"].encode(arr)
         key = hexdigest(data, parent.encode())
         filename = ".".join((parent, key))
         self.pod.write(filename, data)

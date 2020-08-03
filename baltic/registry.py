@@ -41,13 +41,13 @@ class Registry:
         for label in sorted(labels):
             current = self.search(label)
             assert current.empty()
-            # Create a frame of size one
-            frm = Frame.from_df(
-                self.schema,
-                {"label": [label], "timestamp": [time()], "schema": [schema.as_dict()]},
-            )
-            self.schema_series.write(frm)
-            new_series.append(self.get(label, from_frm=frm))
+            # Save a frame of size one
+            ts = time()
+            self.schema_series.write({
+                "label": [label],
+                "timestamp": [ts],
+                "schema": [schema.as_dict()]})
+            new_series.append(self.series(label, schema, ts))
         return new_series
 
     def search(self, label=None):
@@ -68,6 +68,9 @@ class Registry:
             return None
         schema = Schema.loads(frm["schema"][-1])
         timestamp = frm["timestamp"][-1]
+        return self.series(label, schema, timestamp)
+
+    def series(self, label, schema, timestamp):
         digest = hexdigest(label.encode(), str(timestamp).encode())
         folder, filename = hashed_path(digest)
         series = Series(schema, self.series_pod / folder / filename, self.segment_pod)

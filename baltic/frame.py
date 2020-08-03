@@ -9,26 +9,26 @@ from .utils import hashed_path, hexdigest
 
 class Frame:
     """
-    In-memory storage for one or more dataframe
+    DataFrame-like object
     """
 
-    def __init__(self, schema, frame=None):
+    def __init__(self, schema, columns=None, pod=None):
         self.schema = schema
-        self.frame = frame or {}
+        self.columns = columns or {}
+        self.pod = pod
 
     @classmethod
     def from_df(cls, schema, df):
-        sgm = cls(schema)
-        sgm.write(df)
-        return sgm
+        frm = cls(schema)
+        frm.write(df)
+        return frm
 
     @classmethod
-    def from_pod(cls, schema, pod, digests):
-        # Create a shallow frame that will read content from pod only when a column is accessed
-        digests = dict(zip(schema.columns, digests))
-        frame = {c: Column(c, schema, digests=digests[c], pod=pod) for c in schema.columns}
-        sgm = cls(schema, frame)
-        return sgm
+    def from_pod(cls, schema, pod, digests, length):
+        cols = {}
+        for coldef, dig in zip(schema.columns.values(), digests):
+            cols[coldef.name] = Column(coldef, Segment(digest=dig, pod=pod, length=length))
+        return Frame(schema, columns=cols, pod=pod)
 
     def df(self):
         from pandas import DataFrame
@@ -51,6 +51,10 @@ class Frame:
         "right" or "both". If end is None, the code will use `start`
         as value and enforce "both" as value for `closed`
         """
+        # [TODO] record start and stop when frame is created with
+        # from_pod, and use it to bypass the test hereunder if start
+        # and end are not interesting with frame.start and frame.stop
+
         if end is None:
             end = start
             closed = "both"
@@ -58,42 +62,39 @@ class Frame:
             closed = closed or "left"
         idx_start = self.index(*start, right=closed == "right")
         idx_end = self.index(*end, right=closed in ("both", "right"))
-        return self.slice(idx_start, idx_end)
+        return self.slice(slice(idx_start, idx_end))
 
-    def slice(self, start, end):
+    def slice(self, slc):
         '''
         Slice between both position start and end
         '''
-        if start == 0 and end >= len(self):
+        if slc.start == 0 and slc.stop >= len(self):
             return self
         new_frame = {}
         for name in self.schema.columns:
-            col = self.frame[name].slice(start, end)
-            new_frame[name] = col
+            new_frame[name] = self.columns[name].slice(slc)
         return Frame(self.schema, new_frame)
 
     @classmethod
     def concat(cls, schema, *frames):
         new_frame = {}
         for name in schema.columns:
-            cols = [s.frame[name] for s in frames]
+            cols = [s.columns[name] for s in frames]
             new_col = Column.concat(cols)
             new_frame[name] = new_col
         return Frame(schema, new_frame)
-
-    def __setitem__(self, name, arr):
-        # Make sure we have a numpy array
-        arr = asarray(arr, dtype=self.schema.dtype(name))
-        self.frame[name] = Column(name, self.schema, arr=arr)
 
     def __eq__(self, other):
         return all(array_equal(self[c], other[c]) for c in self.schema.columns)
 
     def __len__(self):
-        if not self.frame:
+        if not self.columns:
             return 0
-        name = self.schema.columns[0]
-        return len(self[name])
+        name = next(iter(self.schema.columns))
+        return len(self.columns[name])
+
+    def keys(self):
+        return self.schema.columns
 
     def write(self, df, reverse_idx=False):
         for name in self.schema.columns:
@@ -102,11 +103,14 @@ class Frame:
                 arr = arr.values
             self[name] = arr
 
-    def keys(self):
-        return self.schema.columns
+    def __setitem__(self, name, arr):
+        # Make sure we have a numpy array
+        arr = asarray(arr, dtype=self.schema[name].dt)
+        sgm = Segment(arr=arr)
+        self.columns[name] = Column(self.schema.columns[name], sgm)
 
     def __getitem__(self, name):
-        return self.frame[name].read()
+        return self.columns[name].read()
 
     def hexdigests(self):
         for name in self.schema.columns:
@@ -128,7 +132,8 @@ class Frame:
         return self.read_at(-1)
 
     def serialize(self, column, value):
-        dt = self.schema.dtype(column)
+        # [TODO] use schema.serialize
+        dt = self.schema[column].dt
         if dt in ("int", "int64"):
             # json does not like int64
             return int(value)
@@ -139,7 +144,7 @@ class Frame:
         for name, dig in self.hexdigests():
             all_dig.append(dig)
             arr = self[name]
-            data = self.schema.encode(name, arr)
+            data = self.schema[name].encode(arr)
             folder, filename = hashed_path(dig)
             pod.cd(folder).write(filename, data)  # if_exists='skip')
         return all_dig
@@ -159,50 +164,63 @@ class Frame:
 
 
 class Column:
-    def __init__(self, name, schema, arr=None, pod=None, digests=None, slice_start=None, slice_end=None):
-        self.schema = schema
-        self.name = name
-        self.arr = arr
-        self.digests = [digests] if isinstance(digests, str) else digests
-        self.pod = pod
-        self.slice_start = slice_start
-        self.slice_end = slice_end
+    def __init__(self, coldef, *segments):
+        self.coldef = coldef
+        self.segments = segments
 
-    def read(self):
-        if self.arr is None:
-            arrays = []
-            # Construct array based on list of digests
-            for dig in self.digests:
-                folder, filename = hashed_path(dig)
-                data = self.pod.cd(folder).read(filename)
-                arrays.append(self.schema.decode(self.name, data))
-            arr = concatenate(arrays)
-            # Apply slice
-            if self.slice_start or self.slice_end:
-                arr = arr[self.slice_start:self.slice_end]
-            self.arr = arr.astype(self.schema.dtype(self.name))
-        return self.arr
+    def slice(self, slc):
+        segments = []
+        for sgm in self.segments:
+            segments.append(sgm.slice(slc))
+            slc = slice(slc.start - len(sgm), slc.stop - len(sgm))
 
-    def slice(self, start, end):
-        if self.arr is not None:
-            return Column(self.name, self.schema, arr=self.arr[start:end])
-
-        return Column(self.name, self.schema, pod=self.pod,
-                      digests=self.digests, slice_start=start,
-                      slice_end=end)
+        return Column(self.coldef, *segments)
 
     @classmethod
     def concat(cls, columns):
-        # TODO assert name and pod are shared
-        name = columns[0].name
-        pod = columns[0].pod
-        schema = columns[0].schema
-        # If at least on column is materialized, whe have to
-        # materialize everyone
-        if any(not c.digests for c in columns):
-            arr = concatenate([c.read() for c in columns])
-            new_col = Column(name, schema, arr=arr)
-        else:
-            digests = list(chain.from_iterable(c.digests for c in columns))
-            new_col = Column(name, schema, pod=pod, digests=digests)
+        coldef = columns[0].coldef
+        assert all(c.coldef == coldef for c in columns[1:])
+        segments = list(chain.from_iterable(c.segments for c in columns))
+        new_col = Column(coldef, *segments)
         return new_col
+
+    def read(self):
+        if len(self.segments) == 1:
+            return self.segments[0].read(self.coldef)
+        arrays = []
+        for sgm in self.segments:
+            arr = sgm.read(self.coldef)
+            arrays.append(arr)
+        return concatenate(arrays)
+
+    def __len__(self):
+        return sum(len(s) for s in self.segments)
+
+
+class Segment:
+    def __init__(self, arr=None, digest=None, pod=None, length=None):
+        assert arr is not None  or digest is not None
+        self.arr = arr
+        self.digest = digest
+        self.pod = pod
+        self.length = length if length is not None else len(arr)
+        self.slc = None
+
+    def read(self, coldef):
+        if self.arr is None:
+            folder, filename = hashed_path(self.digest)
+            data = self.pod.cd(folder).read(filename)
+            self.arr = coldef.decode(data)
+        if self.slc is None:
+            return self.arr
+        return self.arr[self.slc]
+
+    def slice(self, slc):
+        sgm = Segment(self.arr, self.digest, self.pod, self.length)
+        sgm.slc = slc
+        return sgm
+
+    def __len__(self):
+        if self.slc is not None:
+            return self.slc.stop - self.slc.start
+        return self.length

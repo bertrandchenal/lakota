@@ -4,40 +4,74 @@ from numpy import array, dtype, frombuffer
 DTYPES = [dtype(s) for s in ("<M8[s]", "int64", "float64", "<U", "O")]
 
 
-class Schema:
-    def __init__(self, columns, idx_len=0):
-        self.columns = []
-        self._dtype = {}
-        self._codecs = {}
-        for col in columns:
-            name, dt = col.split(":", 1)
-            dt, *codecs = dt.split("|")
-            self.columns.append(name)
-            # Make sure dtype is valid
-            if dt not in DTYPES:
-                raise ValueError("Column type '{dt}' not supported")
-
+class ColumnDefinition:
+    def __init__(self, name, dt, codecs, idx):
+        self.name = name
+        # Make sure dtype is valid
+        if dt not in DTYPES:
+            raise ValueError("Column type '{dt}' not supported")
+        self.dt = dt
+        # Build list of codecs
+        if codecs:
+            self.codecs = codecs
+        else:
             # Adapt dtypes and codecs
             default_codecs = ["blosc"]
             if dt == dtype("<U"):
                 default_codecs = ["vlen-utf8", "gzip"]
             elif dt == dtype("O"):
                 default_codecs = ["msgpack2", "zstd"]
+            self.codecs = default_codecs
+        # Is column part of the index:
+        self.idx = idx
 
+    def encode(self, arr):
+        for codec_name in self.codecs:
+            codec = registry.codec_registry[codec_name]
+            arr = codec().encode(arr)
+        return arr
+
+    def decode(self, arr):
+        for codec_name in reversed(self.codecs):
+            codec = registry.codec_registry[codec_name]
+            arr = codec().decode(arr)
+        if self.dt in ("<U", "O"):
+            return arr.astype(self.dt)
+        return frombuffer(arr, dtype=self.dt)
+
+    def __eq__(self, other):
+        return self.name == other.name and self.dt == other.dt
+
+    def __repr__(self):
+        return f"<ColumnDefinition {self.name}:{self.dt}>"
+
+
+class Schema:
+    def __init__(self, columns, idx_len=0):
+        self.columns = {}
+        self.idx_len = idx_len or len(columns) - 1 or 1
+        for pos, col in enumerate(columns):
+            name, dt = col.split(":", 1)
+            dt, *codecs = dt.split("|")
             dt = dtype(dt)
-            self._dtype[name] = dt
-            self._codecs[name] = codecs or default_codecs
+            col = ColumnDefinition(name, dt, codecs, idx=pos<self.idx_len)
+            self.columns[name] = col
 
         # All but last column is the default index
-        self.idx_len = idx_len or len(columns) - 1 or 1
-        self.idx = self.columns[:self.idx_len]
+        self.idx = {n: c for n, c in self.columns.items() if c.idx}
 
-    def dtype(self, name):
-        dt = self._dtype[name]
-        return dt
+    def serialize(self, values):
+        if not values:
+            return tuple()
+        # TODO implement column type based repr
+        return tuple(str(val) for col, val in zip(self.columns.values(), values))
 
-    def codecs(self, name):
-        return self._codecs[name]
+    def deserialize(self, values=tuple()):
+        if not values:
+            return tuple()
+        return tuple(
+            col.dt.type(val) for col, val in zip(self.columns.values(), values)
+        )
 
     @classmethod
     def loads(self, d):
@@ -45,55 +79,22 @@ class Schema:
 
     def as_dict(self):
         return {
-            "columns": [f"{c}:{self._dtype[c]}" for c in self.columns],
+            "columns": [f"{c.name}:{c.dt}" for c in self.columns.values()],
             "idx_len": len(self.idx),
             "fmt": "TODO CODEC",
         }
 
     def __repr__(self):
-        cols = [f"{c}:{self._dtype[c]}" for c in self.columns]
+        cols = [f"{c.name}:{c.dt}" for c in self.columns.values()]
         return "<Schema {}>".format(" ".join(cols))
 
     def __eq__(self, other):
-        return all(
-            (
-                self.idx == other.idx,
-                self.columns == other.columns,
-                self._dtype == other._dtype,
-            )
-        )
-
-    def serialize(self, values):
-        if not values:
-            return tuple()
-        # TODO implement column type based repr
-        return tuple(str(val) for col, val in zip(self.columns, values))
-
-    def deserialize(self, values=tuple()):
-        if not values:
-            return tuple()
-        return tuple(
-            dtype(self.dtype(col)).type(val) for col, val in zip(self.columns, values)
-        )
-
-    def encode(self, name, arr):
-        for codec_name in self.codecs(name):
-            codec = registry.codec_registry[codec_name]
-            arr = codec().encode(arr)
-        return arr
-
-    def decode(self, name, arr):
-        dt = self.dtype(name)
-
-        for codec_name in reversed(self.codecs(name)):
-            codec = registry.codec_registry[codec_name]
-            arr = codec().decode(arr)
-        if self.dtype(name) in ("<U", "O"):
-            return arr.astype(dt)
-        return frombuffer(arr, dtype=dt)
+        return all(x == y for x, y in zip(self.columns.values(), other.columns.values()))
 
     def cast(self, df):
-        for name, col in df.items():
-            dt = self.dtype(name)
-            df[name] = array(col).astype(dt)
+        for col in self.columns.values():
+            df[col.name] = array(df[col.name]).astype(col.dt)
         return df
+
+    def __getitem__(self, name):
+        return self.columns[name]

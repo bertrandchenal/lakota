@@ -38,7 +38,7 @@ class Series:
         # if shallow:
         #     return
         for _, revision in self.changelog.walk():
-            for dig in revision["columns"]:
+            for dig in revision["digests"]:
                 folder, filename = hashed_path(dig)
                 path = folder / filename
                 payload = remote.segment_pod.read(path)
@@ -75,7 +75,7 @@ class Series:
         frames.sort(key=lambda s: s.start())
         frm = Frame.concat(self.schema, *frames)
         if limit is not None:
-            frm = frm.slice(0, limit)
+            frm = frm.slice(slice(0, limit))
         return frm
 
     def _read(self, revisions, start, end, limit=None, closed="both"):
@@ -86,7 +86,8 @@ class Series:
             mstart, mend = match
 
             # instanciate frame
-            frm = Frame.from_pod(self.schema, self.segment_pod, revision["columns"])
+            frm = Frame.from_pod(self.schema, self.segment_pod, digests=revision["digests"],
+                                 length=revision["len"])
             # Adapt closed value for extremities
             if closed == "right" and mstart != start:
                 closed = "both"
@@ -121,10 +122,10 @@ class Series:
     def write(self, df, start=None, end=None, cast=False, parent_commit=None):
         if cast:
             df = self.schema.cast(df)
-
         frm = Frame.from_df(self.schema, df)
         # Make sure frame is sorted
-        sort_mask = lexsort([frm[n] for n in reversed(frm.schema.idx)])
+        idx_cols = reversed(list(frm.schema.idx))
+        sort_mask = lexsort([frm[n] for n in idx_cols])
         assert (sort_mask == arange(len(frm))).all()
 
         col_digests = frm.save(self.segment_pod)
@@ -135,7 +136,7 @@ class Series:
             "start": self.schema.serialize(idx_start),
             "end": self.schema.serialize(idx_end),
             "len": len(frm),
-            "columns": col_digests,
+            "digests": col_digests,
         }
         return self.changelog.commit(revision, force_parent=parent_commit)
 
@@ -152,4 +153,4 @@ class Series:
 
     def digests(self):
         for _, revision in self.changelog.walk():
-            yield from revision["columns"]
+            yield from revision["digests"]

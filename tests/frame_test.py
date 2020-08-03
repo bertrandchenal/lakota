@@ -32,7 +32,7 @@ def test_copy_frame(sgm):
     for col, dig in zip(sgm.schema.columns, digests):
         folder, filename = hashed_path(dig)
         data = pod.read(folder / filename)
-        arr = sgm.schema.decode(col, data)
+        arr = sgm.schema[col].decode(data)
         assert (sgm[col] == arr).all()
 
 
