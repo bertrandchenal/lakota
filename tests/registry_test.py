@@ -95,6 +95,6 @@ def test_gc(pod):
     count = reg.gc()
 
     # Count must be 2 because the two series are identical except for
-    # two data segments (the last write is offseted and contains two
+    # two data frames (the last write is offseted and contains two
     # columns)
     assert count == 2

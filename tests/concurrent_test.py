@@ -2,7 +2,7 @@ import numpy
 from dask.distributed import Client, LocalCluster
 from pandas import DataFrame, date_range
 
-from baltic import POD, Registry, Schema, Segment
+from baltic import POD, Registry, Schema, Frame
 from baltic.utils import timeit
 
 schema = Schema(["timestamp:M8[s]", "value:int"])
@@ -18,7 +18,7 @@ def insert(args):
     df = DataFrame({"timestamp": ts,})
 
     df["value"] = numpy.round(numpy.random.random(len(ts)) * 1000, decimals=0)
-    sgm = Segment.from_df(schema, df)
+    sgm = Frame.from_df(schema, df)
     series.write(sgm)
     return len(sgm)
 

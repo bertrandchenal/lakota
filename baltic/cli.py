@@ -75,7 +75,7 @@ def clear(args):
 def gc(args):
     reg = Registry(args.path)
     cnt = reg.gc()
-    print(f"{cnt} segments deleted")
+    print(f"{cnt} frames deleted")
 
 
 def print_help(parser, args):

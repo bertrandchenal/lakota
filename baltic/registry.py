@@ -3,7 +3,7 @@ from time import time
 
 from .pod import POD
 from .schema import Schema
-from .segment import Segment
+from .frame import Frame
 from .series import Series
 from .utils import hashed_path, hexdigest
 
@@ -41,13 +41,13 @@ class Registry:
         for label in sorted(labels):
             current = self.search(label)
             assert current.empty()
-            # Create a segment of size one
-            sgm = Segment.from_df(
+            # Create a frame of size one
+            frm = Frame.from_df(
                 self.schema,
                 {"label": [label], "timestamp": [time()], "schema": [schema.as_dict()]},
             )
-            self.schema_series.write(sgm)
-            new_series.append(self.get(label, from_sgm=sgm))
+            self.schema_series.write(frm)
+            new_series.append(self.get(label, from_frm=frm))
         return new_series
 
     def search(self, label=None):
@@ -56,18 +56,18 @@ class Registry:
             start = end = (label,)
         else:
             start = end = None
-        sgm = self.schema_series.read(start=start, end=end)
-        return sgm
+        frm = self.schema_series.read(start=start, end=end)
+        return frm
 
-    def get(self, label, from_sgm=None):
-        if from_sgm:
-            sgm = from_sgm.index_slice([label])
+    def get(self, label, from_frm=None):
+        if from_frm:
+            frm = from_frm.index_slice([label])
         else:
-            sgm = self.search(label)
-        if sgm.empty():
+            frm = self.search(label)
+        if frm.empty():
             return None
-        schema = Schema.loads(sgm["schema"][-1])
-        timestamp = sgm["timestamp"][-1]
+        schema = Schema.loads(frm["schema"][-1])
+        timestamp = frm["timestamp"][-1]
         digest = hexdigest(label.encode(), str(timestamp).encode())
         folder, filename = hashed_path(digest)
         series = Series(schema, self.series_pod / folder / filename, self.segment_pod)
@@ -79,9 +79,9 @@ class Registry:
         ones. If soft if true, obsolete revision are moved to an
         archive location. If soft is false, obsolete revisions are deleted.
         """
-        sgm = self.search()
-        labels = set(sgm["label"])
-        series = (self.get(l, sgm) for l in labels)
+        frm = self.search()
+        labels = set(frm["label"])
+        series = (self.get(l, frm) for l in labels)
         per_series = (s.digests() for s in series)
         active_digests = set(chain.from_iterable(per_series))
         active_digests.update(self.schema_series.digests())

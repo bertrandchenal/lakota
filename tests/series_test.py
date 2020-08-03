@@ -1,11 +1,11 @@
 import pytest
 from numpy import array
 
-from baltic import POD, Schema, Segment, Series
+from baltic import POD, Schema, Frame, Series
 from baltic.schema import DTYPES
 
 schema = Schema(["timestamp:int", "value:float"])
-sgm = Segment.from_df(
+sgm = Frame.from_df(
     schema,
     {"timestamp": [1589455903, 1589455904, 1589455905], "value": [3.3, 4.4, 5.5],},
 )
@@ -44,7 +44,7 @@ def test_spill_write(series, how):
         ts = [1589455903, 1589455904, 1589455905, 1589455906]
         vals = [33, 44, 55, 66]
 
-    sgm = Segment.from_df(schema, {"timestamp": ts, "value": vals,},)
+    sgm = Frame.from_df(schema, {"timestamp": ts, "value": vals,},)
     series.write(sgm)
 
     sgm_copy = series.read()
@@ -60,7 +60,7 @@ def test_short_cover(series, how):
         ts = [1589455903, 1589455904]
         vals = [33, 44]
 
-    sgm = Segment.from_df(schema, {"timestamp": ts, "value": vals,},)
+    sgm = Frame.from_df(schema, {"timestamp": ts, "value": vals,},)
     series.write(sgm)
 
     sgm_copy = series.read()
@@ -81,7 +81,7 @@ def test_adjacent_write(series, how):
         ts = [1589455906]
         vals = [6.6]
 
-    sgm = Segment.from_df(schema, {"timestamp": ts, "value": vals,},)
+    sgm = Frame.from_df(schema, {"timestamp": ts, "value": vals,},)
     series.write(sgm)
 
     # Full read

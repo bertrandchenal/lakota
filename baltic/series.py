@@ -1,7 +1,7 @@
 from numpy import arange, lexsort
 
 from .changelog import Changelog, phi
-from .segment import Segment
+from .frame import Frame
 from .utils import hashed_path
 
 
@@ -46,7 +46,7 @@ class Series:
 
     def read(self, start=None, end=None, limit=None, min_rev=None, max_rev=None):
         """
-        Read all matching segment and combine them
+        Read all matching frame and combine them
         """
         if start is not None and not isinstance(start, (list, tuple)):
             start = (start,)
@@ -65,18 +65,18 @@ class Series:
 
         # Order revision backward
         all_revision = list(reversed(all_revision))
-        # Recursive discovery of matching segments
-        segments = list(self._read(all_revision, start, end, limit=limit))
+        # Recursive discovery of matching frames
+        frames = list(self._read(all_revision, start, end, limit=limit))
 
-        if not segments:
-            return Segment(self.schema)
+        if not frames:
+            return Frame(self.schema)
 
-        # Sort (non-overlaping segments)
-        segments.sort(key=lambda s: s.start())
-        sgm = Segment.concat(self.schema, *segments)
+        # Sort (non-overlaping frames)
+        frames.sort(key=lambda s: s.start())
+        frm = Frame.concat(self.schema, *frames)
         if limit is not None:
-            sgm = sgm.slice(0, limit)
-        return sgm
+            frm = frm.slice(0, limit)
+        return frm
 
     def _read(self, revisions, start, end, limit=None, closed="both"):
         for pos, revision in enumerate(revisions):
@@ -85,36 +85,36 @@ class Series:
                 continue
             mstart, mend = match
 
-            # instanciate segment
-            sgm = Segment.from_pod(self.schema, self.segment_pod, revision["columns"])
+            # instanciate frame
+            frm = Frame.from_pod(self.schema, self.segment_pod, revision["columns"])
             # Adapt closed value for extremities
             if closed == "right" and mstart != start:
                 closed = "both"
             elif closed == "left" and mend != end:
                 closed = "both"
-            sgm = sgm.index_slice(mstart, mend, closed=closed)
-            if not sgm.empty():
-                yield sgm
+            frm = frm.index_slice(mstart, mend, closed=closed)
+            if not frm.empty():
+                yield frm
                 # We have found one result and the search range is
                 # collapsed, stop recursion:
                 if start and start == end:
                     return
             # recurse left
             if mstart > start:
-                left_sgm = self._read(
+                left_frm = self._read(
                     revisions[pos + 1 :], start, mstart, limit=limit, closed="left"
                 )
-                yield from left_sgm
+                yield from left_frm
             # recurse right
             if not end or mend < end:
                 if limit is not None:
-                    limit = limit - len(sgm)
+                    limit = limit - len(frm)
                     if limit < 1:
                         break
-                right_sgm = self._read(
+                right_frm = self._read(
                     revisions[pos + 1 :], mend, end, limit=limit, closed="right"
                 )
-                yield from right_sgm
+                yield from right_frm
 
             break
 
@@ -122,19 +122,19 @@ class Series:
         if cast:
             df = self.schema.cast(df)
 
-        sgm = Segment.from_df(self.schema, df)
-        # Make sure segment is sorted
-        sort_mask = lexsort([sgm[n] for n in reversed(sgm.schema.idx)])
-        assert (sort_mask == arange(len(sgm))).all()
+        frm = Frame.from_df(self.schema, df)
+        # Make sure frame is sorted
+        sort_mask = lexsort([frm[n] for n in reversed(frm.schema.idx)])
+        assert (sort_mask == arange(len(frm))).all()
 
-        col_digests = sgm.save(self.segment_pod)
-        idx_start = start or sgm.start()
-        idx_end = end or sgm.end()
+        col_digests = frm.save(self.segment_pod)
+        idx_start = start or frm.start()
+        idx_end = end or frm.end()
 
         revision = {
             "start": self.schema.serialize(idx_start),
             "end": self.schema.serialize(idx_end),
-            "len": len(sgm),
+            "len": len(frm),
             "columns": col_digests,
         }
         return self.changelog.commit(revision, force_parent=parent_commit)
@@ -144,10 +144,10 @@ class Series:
 
     def squash(self):
         """
-        Remove all the revisions, collapse all segments into one
+        Remove all the revisions, collapse all frames into one
         """
-        sgm = self.read()
-        key = self.write(sgm, parent_commit=phi)
+        frm = self.read()
+        key = self.write(frm, parent_commit=phi)
         self.truncate(key)
 
     def digests(self):
