@@ -64,7 +64,7 @@ class Changelog:
         return log
 
     def leaf(self):
-        res = tail(self._walk(), 1)
+        res = tail(self.walk(), 1)
         if not res:
             return None
         path, _ = res[0]
@@ -73,13 +73,6 @@ class Changelog:
     def walk(self, parent=phi):
         """
         Depth-first traversal of the tree
-        """
-        for _, revision in self._walk(parent=parent):
-            yield revision
-
-    def _walk(self, parent=phi):
-        """
-        Low-level version of walk
         """
         # see DFS in https://stackoverflow.com/a/5278667
         log = self.log()
@@ -116,7 +109,7 @@ class Changelog:
         """
         Combine the current list of revisions into one array of revision
         """
-        items = list(self._walk())
+        items = list(self.walk())
         paths, revisions = zip(*items)
         if len(revisions) == 1:
             return

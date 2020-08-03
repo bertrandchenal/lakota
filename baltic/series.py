@@ -37,14 +37,14 @@ class Series:
         self.changelog.pull(remote.changelog)
         # if shallow:
         #     return
-        for revision in self.changelog.walk():
+        for _, revision in self.changelog.walk():
             for dig in revision["columns"]:
                 folder, filename = hashed_path(dig)
                 path = folder / filename
                 payload = remote.segment_pod.read(path)
                 self.segment_pod.write(path, payload)
 
-    def read(self, start=None, end=None, limit=None):
+    def read(self, start=None, end=None, limit=None, min_rev=None, max_rev=None):
         """
         Read all matching segment and combine them
         """
@@ -57,7 +57,7 @@ class Series:
 
         # Collect all rev revision
         all_revision = []
-        for revision in self.changelog.walk():
+        for _, revision in self.changelog.walk():
             revision["start"] = self.schema.deserialize(revision["start"])
             revision["end"] = self.schema.deserialize(revision["end"])
             if intersect(revision, start, end):
@@ -84,6 +84,7 @@ class Series:
             if not match:
                 continue
             mstart, mend = match
+
             # instanciate segment
             sgm = Segment.from_pod(self.schema, self.segment_pod, revision["columns"])
             # Adapt closed value for extremities
@@ -133,7 +134,7 @@ class Series:
         revision = {
             "start": self.schema.serialize(idx_start),
             "end": self.schema.serialize(idx_end),
-            "size": sgm.size(),
+            "len": len(sgm),
             "columns": col_digests,
         }
         return self.changelog.commit(revision, force_parent=parent_commit)
@@ -150,5 +151,5 @@ class Series:
         self.truncate(key)
 
     def digests(self):
-        for revision in self.changelog.walk():
+        for _, revision in self.changelog.walk():
             yield from revision["columns"]

@@ -37,15 +37,18 @@ class Registry:
         series.clone(rseries, shallow=shallow)
 
     def create(self, schema, *labels):
+        new_series = []
         for label in sorted(labels):
             current = self.search(label)
-            assert current.empty
+            assert current.empty()
             # Create a segment of size one
             sgm = Segment.from_df(
                 self.schema,
                 {"label": [label], "timestamp": [time()], "schema": [schema.as_dict()]},
             )
             self.schema_series.write(sgm)
+            new_series.append(self.get(label, from_sgm=sgm))
+        return new_series
 
     def search(self, label=None):
         # TODO use numexp expr to push down filter to Series.read
@@ -61,7 +64,8 @@ class Registry:
             sgm = from_sgm.index_slice([label])
         else:
             sgm = self.search(label)
-        assert not sgm.empty(), f"Label '{label}' not found"
+        if sgm.empty():
+            return None
         schema = Schema.loads(sgm["schema"][-1])
         timestamp = sgm["timestamp"][-1]
         digest = hexdigest(label.encode(), str(timestamp).encode())
