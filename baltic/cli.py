@@ -26,7 +26,7 @@ def read(args):
     print(tabulate(rows, headers=columns))
 
 
-def lenght(args):
+def length(args):
     reg = Registry(args.path)
     series = reg.get(args.label)
     sgm = series.read()
@@ -56,10 +56,17 @@ def write(args):
 
 
 def squash(args):
+    '''
+    Squash changelog of given series. If not series is given, squash
+    registry changelog.
+    '''
     reg = Registry(args.path)
-    series = reg.get(args.label)
-    series.squash()
-
+    if args.labels:
+        for label in args.labels:
+            series = reg.get(label)
+            series.squash()
+    else:
+        reg.schema_series.squash()
 
 def pack(args):
     reg = Registry(args.path)
@@ -110,7 +117,7 @@ def run():
     # Add len command
     parser_len = subparsers.add_parser("len")
     parser_len.add_argument("label")
-    parser_len.set_defaults(func=lenght)
+    parser_len.set_defaults(func=length)
 
     # Add len command
     parser_len = subparsers.add_parser("ls")
@@ -118,7 +125,7 @@ def run():
 
     # Add squash command
     parser_squash = subparsers.add_parser("squash")
-    parser_squash.add_argument("label")
+    parser_squash.add_argument("labels", nargs="*")
     parser_squash.set_defaults(func=squash)
 
     # Add pack command
