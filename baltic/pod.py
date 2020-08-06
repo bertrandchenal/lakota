@@ -29,7 +29,7 @@ class POD:
                 )
             else:
                 return POD.from_uri(uri[0], **fs_kwargs)
-        elif '+' in uri:
+        elif uri and '+' in uri:
             return POD.from_uri(uri.split('+'), lazy=lazy, **fs_kwargs)
 
         # Define protocal and path
