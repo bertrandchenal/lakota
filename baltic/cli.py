@@ -97,7 +97,7 @@ def run():
         description=banner,
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
-    parser.add_argument("--path", "-p", default="file://.")
+    parser.add_argument("--path", "-p", default=["file://."])
     parser.add_argument("--timing", "-t", action="store_true", help="Enable timing")
     subparsers = parser.add_subparsers(dest="command")
 

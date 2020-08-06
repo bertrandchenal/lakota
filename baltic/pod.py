@@ -27,6 +27,9 @@ class POD:
                 )
             else:
                 return POD.from_uri(uri[0], **fs_kwargs)
+        elif '+' in uri:
+            return POD.from_uri(uri.split('+'), **fs_kwargs)
+
         # Define protocal and path
         if not uri:
             protocol = "memory"
