@@ -1,12 +1,11 @@
 # import sys
 # import traceback
 # import warnings
-
 from .changelog import Changelog
+from .frame import Frame
 from .pod import POD
 from .registry import Registry
 from .schema import Schema
-from .frame import Frame
 from .series import Series
 
 # def warn_with_traceback(message, category, filename, lineno, file=None,

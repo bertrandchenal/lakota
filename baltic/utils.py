@@ -14,7 +14,7 @@ tail = lambda it, n: deque(it, maxlen=n)
 skip = lambda it, n: list(islice(it, n, None))
 FLAGS = {}
 
-fmt = '%(levelname)s:%(asctime).19s: %(message)s'
+fmt = "%(levelname)s:%(asctime).19s: %(message)s"
 logging.basicConfig(format=fmt)
 logger = logging.getLogger("baltic")
 
@@ -32,6 +32,7 @@ def hextime(*data, timestamp=None):
     """
     timestamp = timestamp or time()
     return hex(int(timestamp * 1000))[2:]
+
 
 def hashed_path(digest, depth=2):
     """

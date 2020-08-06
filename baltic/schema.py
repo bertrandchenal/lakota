@@ -54,7 +54,7 @@ class Schema:
             name, dt = col.split(":", 1)
             dt, *codecs = dt.split("|")
             dt = dtype(dt)
-            col = ColumnDefinition(name, dt, codecs, idx=pos<self.idx_len)
+            col = ColumnDefinition(name, dt, codecs, idx=pos < self.idx_len)
             self.columns[name] = col
 
         # All but last column is the default index
@@ -89,7 +89,9 @@ class Schema:
         return "<Schema {}>".format(" ".join(cols))
 
     def __eq__(self, other):
-        return all(x == y for x, y in zip(self.columns.values(), other.columns.values()))
+        return all(
+            x == y for x, y in zip(self.columns.values(), other.columns.values())
+        )
 
     def cast(self, df):
         for col in self.columns.values():

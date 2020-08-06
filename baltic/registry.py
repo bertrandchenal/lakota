@@ -42,10 +42,9 @@ class Registry:
             assert current.empty()
             # Save a frame of size one
             ts = time()
-            self.schema_series.write({
-                "label": [label],
-                "timestamp": [ts],
-                "schema": [schema.as_dict()]})
+            self.schema_series.write(
+                {"label": [label], "timestamp": [ts], "schema": [schema.as_dict()]}
+            )
             new_series.append(self.series(label, schema, ts))
         return new_series
 

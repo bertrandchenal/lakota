@@ -3,7 +3,7 @@ from uuid import uuid4
 import pytest
 from numpy import append, array
 
-from baltic import POD, Schema, Frame
+from baltic import POD, Frame, Schema
 from baltic.utils import hashed_path
 
 

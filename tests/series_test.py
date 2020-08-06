@@ -1,7 +1,7 @@
 import pytest
 from numpy import array
 
-from baltic import POD, Schema, Frame, Series
+from baltic import POD, Frame, Schema, Series
 from baltic.schema import DTYPES
 
 schema = Schema(["timestamp:int", "value:float"])
@@ -34,6 +34,7 @@ def test_double_write(series):
     frm_copy = series.read()
     assert frm_copy == frm
     assert list(series.changelog.walk()) == expected
+
 
 @pytest.mark.parametrize("how", ["left", "right"])
 def test_spill_write(series, how):

@@ -5,7 +5,7 @@ from time import sleep
 import numpy
 
 from .schema import Schema
-from .utils import hexdigest, tail, hextime, memoize
+from .utils import hexdigest, hextime, memoize, tail
 
 phi = "0" * 40
 

@@ -86,8 +86,12 @@ class Series:
             mstart, mend = match
 
             # instanciate frame
-            frm = Frame.from_pod(self.schema, self.segment_pod, digests=revision["digests"],
-                                 length=revision["len"])
+            frm = Frame.from_pod(
+                self.schema,
+                self.segment_pod,
+                digests=revision["digests"],
+                length=revision["len"],
+            )
             # Adapt closed value for extremities
             if closed == "right" and mstart != start:
                 closed = "both"

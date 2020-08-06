@@ -27,11 +27,14 @@ class Frame:
     def from_pod(cls, schema, pod, digests, length):
         cols = {}
         for coldef, dig in zip(schema.columns.values(), digests):
-            cols[coldef.name] = Column(coldef, Segment(digest=dig, pod=pod, length=length))
+            cols[coldef.name] = Column(
+                coldef, Segment(digest=dig, pod=pod, length=length)
+            )
         return Frame(schema, columns=cols, pod=pod)
 
     def df(self):
         from pandas import DataFrame
+
         return DataFrame(dict(self))
 
     def mask(self, mask_arr):
@@ -65,9 +68,9 @@ class Frame:
         return self.slice(slice(idx_start, idx_end))
 
     def slice(self, slc):
-        '''
+        """
         Slice between both position start and end
-        '''
+        """
         if slc.start == 0 and slc.stop >= len(self):
             return self
         new_frame = {}
@@ -199,7 +202,7 @@ class Column:
 
 class Segment:
     def __init__(self, arr=None, digest=None, pod=None, length=None):
-        assert arr is not None  or digest is not None
+        assert arr is not None or digest is not None
         self.arr = arr
         self.digest = digest
         self.pod = pod

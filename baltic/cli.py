@@ -7,7 +7,7 @@ from tabulate import tabulate
 
 from .registry import Registry
 from .schema import Schema
-from .utils import timeit, logger
+from .utils import logger, timeit
 
 # generated from http://www.patorjk.com/software/taag/
 # With fond "Calvin S"
@@ -21,12 +21,14 @@ banner = """
 def get_registry(args):
     return Registry(args.uri, lazy=args.lazy)
 
+
 def get_series(args):
     reg = get_registry(args)
     series = reg.get(args.label)
     if series is None:
         exit(f"Series '{args.label}' not found")
     return series
+
 
 def read(args):
     series = get_series(args)
@@ -67,10 +69,10 @@ def write(args):
 
 
 def squash(args):
-    '''
+    """
     Squash changelog of given series. If not series is given, squash
     registry changelog.
-    '''
+    """
     reg = get_registry(args)
     if args.labels:
         for label in args.labels:
@@ -78,6 +80,7 @@ def squash(args):
             series.squash()
     else:
         reg.schema_series.squash()
+
 
 def pack(args):
     series = get_series(args)
@@ -102,7 +105,7 @@ def print_help(parser, args):
 def run():
 
     # Take default uri from env variable, fallback to current dir
-    default_uri = os.environ.get('BALTIC_URI', 'file://.')
+    default_uri = os.environ.get("BALTIC_URI", "file://.")
 
     # top-level parser
     parser = argparse.ArgumentParser(
@@ -110,10 +113,14 @@ def run():
         description=banner,
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
-    parser.add_argument("--uri", "-u", default=default_uri, help=f"Baltic URI (default: {default_uri}")
+    parser.add_argument(
+        "--uri", "-u", default=default_uri, help=f"Baltic URI (default: {default_uri}"
+    )
     parser.add_argument("--timing", "-t", action="store_true", help="Enable timing")
     parser.add_argument("--verbose", "-v", action="count", help="Increase verbosity")
-    parser.add_argument("--lazy", "-L", action="store_true", help="Rely only on local cache")
+    parser.add_argument(
+        "--lazy", "-L", action="store_true", help="Rely only on local cache"
+    )
     subparsers = parser.add_subparsers(dest="command")
 
     # Add read command
@@ -180,7 +187,7 @@ def run():
         return
     # Enable logging
     if args.verbose:
-        logger.setLevel('DEBUG')
+        logger.setLevel("DEBUG")
 
     # Execute command
     try:
