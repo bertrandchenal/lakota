@@ -4,6 +4,7 @@ from uuid import uuid4
 
 import s3fs
 
+from .utils import logger
 
 class POD:
     _by_token = {}
@@ -17,18 +18,19 @@ class POD:
         return cls._by_token[token]
 
     @classmethod
-    def from_uri(cls, uri=None, **fs_kwargs):
+    def from_uri(cls, uri=None, lazy=False, **fs_kwargs):
         # multi-uri -> CachePOD
         if isinstance(uri, (tuple, list)):
             if len(uri) > 1:
                 return CachePOD(
                     local=POD.from_uri(uri[0], **fs_kwargs),
                     remote=POD.from_uri(uri[1:], **fs_kwargs),
+                    lazy=lazy,
                 )
             else:
                 return POD.from_uri(uri[0], **fs_kwargs)
         elif '+' in uri:
-            return POD.from_uri(uri.split('+'), **fs_kwargs)
+            return POD.from_uri(uri.split('+'), lazy=lazy, **fs_kwargs)
 
         # Define protocal and path
         if not uri:
@@ -87,6 +89,7 @@ class FilePOD(POD):
         return FilePOD(path)
 
     def ls(self, relpath=".", raise_on_missing=True):
+        logger.debug('LIST %s %s', self.path, relpath)
         path = self.path / relpath
         try:
             return list(p.name for p in path.iterdir())
@@ -96,10 +99,12 @@ class FilePOD(POD):
             return []
 
     def read(self, relpath, mode="rb"):
+        logger.debug('READ %s %s', self.path, relpath)
         path = self.path / relpath
         return path.open(mode).read()
 
     def write(self, relpath, data, mode="wb"):
+        logger.debug('WRITE %s %s', self.path, relpath)
         if relpath in self.ls(raise_on_missing=False):
             return
         path = self.path / relpath
@@ -110,6 +115,7 @@ class FilePOD(POD):
         return self.path.joinpath(relpath).is_dir()
 
     def rm(self, relpath=".", recursive=False):
+        logger.debug('REMOVE %s %s', self.path, relpath)
         path = self.path / relpath
         if recursive:
             if path.is_dir():
@@ -170,6 +176,7 @@ class MemPOD(POD):
         return pod, fragments[-1]
 
     def ls(self, relpath=".", raise_on_missing=True):
+        logger.debug('LIST memory://%s %s', self.path, relpath)
         pod, leaf = self.find_parent_pod(relpath)
         # Handle pathological cases
         if not pod:
@@ -189,6 +196,7 @@ class MemPOD(POD):
             return [leaf]
 
     def read(self, relpath, mode="rb"):
+        logger.debug('READ memory://%s %s', self.path, relpath)
         pod, leaf = self.find_parent_pod(relpath)
         if not pod:
             raise FileNotFoundError(f"{relpath} not found")
@@ -197,6 +205,7 @@ class MemPOD(POD):
         return pod.store[leaf]
 
     def write(self, relpath, data, mode="wb"):
+        logger.debug('WRITE memory://%s %s', self.path, relpath)
         if relpath in self.ls(raise_on_missing=False):
             return
         pod, leaf = self.find_parent_pod(relpath, auto_mkdir=True)
@@ -210,6 +219,7 @@ class MemPOD(POD):
         return isinstance(pod.store[leaf], POD)
 
     def rm(self, relpath, recursive=False):
+        logger.debug('REMOVE memory://%s %s', self.path, relpath)
         pod, leaf = self.find_parent_pod(relpath)
         if not pod:
             raise FileNotFoundError(f"{relpath} not found")
@@ -242,6 +252,7 @@ class S3POD(POD):
         return S3POD(path, fs=self.fs)
 
     def ls(self, relpath=".", raise_on_missing=True):
+        logger.debug('LIST s3://%s %s', self.path, relpath)
         path = self.path / relpath
         try:
             return [Path(p).name for p in self.fs.ls(path)]
@@ -251,10 +262,12 @@ class S3POD(POD):
             return []
 
     def read(self, relpath, mode="rb"):
+        logger.debug('READ s3://%s %s', self.path, relpath)
         path = str(self.path / relpath)
         return self.fs.open(path, mode).read()
 
     def write(self, relpath, data, mode="wb"):
+        logger.debug('WRITE s3://%s %s', self.path, relpath)
         if relpath in self.ls(raise_on_missing=False):
             return
         path = str(self.path / relpath)
@@ -264,6 +277,7 @@ class S3POD(POD):
         return self.fs.isdir(self.path / relpath)
 
     def rm(self, relpath=".", recursive=False):
+        logger.debug('REMOVE s3://%s %s', self.path, relpath)
         path = str(self.path / relpath)
         return self.fs.rm(path, recursive=recursive)
 
@@ -286,8 +300,8 @@ class CachePOD(POD):
         return CachePOD(local, remote, lazy=self.lazy)
 
     def ls(self, relpath=".", raise_on_missing=True):
-        # if self.lazy:
-        #     return self.local.ls(relpath, raise_on_missing=raise_on_missing)
+        if self.lazy:
+            return self.local.ls(relpath, raise_on_missing=raise_on_missing)
         return self.remote.ls(relpath, raise_on_missing=raise_on_missing)
 
     def read(self, relpath, mode="rb"):

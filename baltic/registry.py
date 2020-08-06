@@ -3,7 +3,6 @@ from time import time
 
 from .pod import POD
 from .schema import Schema
-from .frame import Frame
 from .series import Series
 from .utils import hashed_path, hexdigest
 
@@ -18,8 +17,8 @@ class Registry:
 
     schema = Schema(["label:str", "timestamp:f8", "schema:O"])
 
-    def __init__(self, uri=None, pod=None):
-        self.pod = pod or POD.from_uri(uri)
+    def __init__(self, uri=None, pod=None, lazy=False):
+        self.pod = pod or POD.from_uri(uri, lazy=lazy)
         self.segment_pod = self.pod / "segment"
         self.schema_series = Series(
             self.schema, self.pod / "registry", self.segment_pod

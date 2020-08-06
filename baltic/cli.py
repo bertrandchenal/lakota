@@ -1,12 +1,13 @@
 import argparse
 import csv
+import os
 import sys
 
 from tabulate import tabulate
 
 from .registry import Registry
 from .schema import Schema
-from .utils import timeit
+from .utils import timeit, logger
 
 # generated from http://www.patorjk.com/software/taag/
 # With fond "Calvin S"
@@ -17,37 +18,47 @@ banner = """
 """
 
 
-def read(args):
-    reg = Registry(args.path)
+def get_registry(args):
+    return Registry(args.uri, lazy=args.lazy)
+
+def get_series(args):
+    reg = get_registry(args)
     series = reg.get(args.label)
+    if series is None:
+        exit(f"Series '{args.label}' not found")
+    return series
+
+def read(args):
+    series = get_series(args)
     columns = args.columns or series.schema.columns
-    sgm = series.read(start=args.greater_than, end=args.less_than, limit=args.limit)
-    rows = zip(*(sgm[col] for col in columns))
-    print(tabulate(rows, headers=columns))
+    frm = series.read(start=args.greater_than, end=args.less_than, limit=args.limit)
+    if len(frm) == 0:
+        print(tabulate([], headers=columns))
+    else:
+        rows = zip(*(frm[col] for col in columns))
+        print(tabulate(rows, headers=columns))
 
 
 def length(args):
-    reg = Registry(args.path)
-    series = reg.get(args.label)
-    sgm = series.read()
-    print(len(sgm))
+    series = get_series(args)
+    frm = series.read()
+    print(len(frm))
 
 
 def ls(args):
-    reg = Registry(args.path)
+    reg = get_registry(args)
     rows = [[label] for label in sorted(set(reg.search()["label"]))]
     print(tabulate(rows, headers=["label"]))
 
 
 def create(args):
-    reg = Registry(args.path)
+    reg = get_registry(args)
     schema = Schema(args.columns, idx_len=args.idx_len)
     reg.create(schema, args.label)
 
 
 def write(args):
-    reg = Registry(args.path)
-    series = reg.get(args.label)
+    series = get_series(args)
     reader = csv.reader(sys.stdin)
     columns = zip(*reader)
     schema = series.schema
@@ -60,7 +71,7 @@ def squash(args):
     Squash changelog of given series. If not series is given, squash
     registry changelog.
     '''
-    reg = Registry(args.path)
+    reg = get_registry(args)
     if args.labels:
         for label in args.labels:
             series = reg.get(label)
@@ -69,18 +80,17 @@ def squash(args):
         reg.schema_series.squash()
 
 def pack(args):
-    reg = Registry(args.path)
-    series = reg.get(args.label)
+    series = get_series(args)
     series.changelog.pack()
 
 
 def clear(args):
-    reg = Registry(args.path)
+    reg = get_registry(args)
     reg.clear()
 
 
 def gc(args):
-    reg = Registry(args.path)
+    reg = get_registry(args)
     cnt = reg.gc()
     print(f"{cnt} frames deleted")
 
@@ -91,14 +101,19 @@ def print_help(parser, args):
 
 def run():
 
+    # Take default uri from env variable, fallback to current dir
+    default_uri = os.environ.get('BALTIC_URI', 'file://.')
+
     # top-level parser
     parser = argparse.ArgumentParser(
         prog="baltic",
         description=banner,
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
-    parser.add_argument("--path", "-p", default=["file://."])
+    parser.add_argument("--uri", "-u", default=default_uri, help=f"Baltic URI (default: {default_uri}")
     parser.add_argument("--timing", "-t", action="store_true", help="Enable timing")
+    parser.add_argument("--verbose", "-v", action="count", help="Increase verbosity")
+    parser.add_argument("--lazy", "-L", action="store_true", help="Rely only on local cache")
     subparsers = parser.add_subparsers(dest="command")
 
     # Add read command
@@ -158,11 +173,16 @@ def run():
     parser_help.add_argument("help_cmd")
     parser_help.set_defaults(func=lambda args: print_help(parser, args))
 
-    # Execute command
+    # Parse args
     args = parser.parse_args()
     if not args.command:
         parser.print_help()
         return
+    # Enable logging
+    if args.verbose:
+        logger.setLevel('DEBUG')
+
+    # Execute command
     try:
         if args.timing:
             with timeit(f"Timing ({args.command}):"):

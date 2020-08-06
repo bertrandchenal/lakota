@@ -5,7 +5,7 @@ from time import sleep
 import numpy
 
 from .schema import Schema
-from .utils import hexdigest, tail, hextime
+from .utils import hexdigest, tail, hextime, memoize
 
 phi = "0" * 40
 
@@ -85,7 +85,10 @@ class Changelog:
             rev = revs.pop()
             parent, child = rev
             # Yield from first child
-            yield from self.extract(f"{parent}.{child}")
+            path = f"{parent}.{child}"
+            rev_arr = self.extract(path)
+            for item in rev_arr:
+                yield path, item
             # Append children
             revs.extend((child, c) for c in reversed(log[child]))
 
@@ -94,9 +97,7 @@ class Changelog:
             revision = self.pod.read(path)
         except FileNotFoundError:
             return
-        revisions = self.schema["revision"].decode(revision)
-        for rev in revisions:
-            yield path, rev
+        return self.schema["revision"].decode(revision)
 
     def pull(self, remote):
         new_revs = []

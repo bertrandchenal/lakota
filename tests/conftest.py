@@ -34,5 +34,11 @@ def pod(request):
             pod.fs.mkdir(bucket)
             yield pod
 
+        # bucket = 'e8e90f41-5465-45fa-9486-570448278a8a'
+        # uri = f"s3://{bucket}/"
+        # pod = POD.from_uri(uri)
+        # # pod.fs.mkdir(bucket)
+        # yield pod
+
     else:
         raise
