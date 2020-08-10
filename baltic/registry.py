@@ -18,6 +18,9 @@ class Registry:
     schema = Schema(["label:str", "timestamp:f8", "schema:O"])
 
     def __init__(self, uri=None, pod=None, lazy=False):
+
+        # TODO add a repo and move all this pod setup in it
+
         self.pod = pod or POD.from_uri(uri, lazy=lazy)
         self.segment_pod = self.pod / "segment"
         self.schema_series = Series(

@@ -2,7 +2,7 @@ from numpy import arange, lexsort
 
 from .changelog import Changelog, phi
 from .frame import Frame
-from .utils import hashed_path
+from .utils import hashed_path, hextime
 
 
 def intersect(revision, start, end):
@@ -44,10 +44,17 @@ class Series:
                 payload = remote.segment_pod.read(path)
                 self.segment_pod.write(path, payload)
 
-    def read(self, start=None, end=None, limit=None, min_rev=None, max_rev=None):
+    def revisions(self):
+        # TODO use a rev class !
+        for path, _ in self.changelog.walk():
+            revtime = path.split(".")[1].split("-")[0]
+            yield int(revtime, 16)
+
+    def read(self, start=None, end=None, limit=None, after=None, before=None):
         """
         Read all matching frame and combine them
         """
+        # Extract start and end
         if start is not None and not isinstance(start, (list, tuple)):
             start = (start,)
         if end is not None and not isinstance(end, (list, tuple)):
@@ -55,9 +62,19 @@ class Series:
         start = self.schema.deserialize(start)
         end = self.schema.deserialize(end)
 
+        # Convert int time to hex
+        after = after and hextime(after)
+        before = before and hextime(before)
+
         # Collect all rev revision
         all_revision = []
-        for _, revision in self.changelog.walk():
+        for path, revision in self.changelog.walk():
+            revtime = path.split(".")[1].split("-")[0]
+            if after is not None and revtime < after:  # closed on left
+                continue
+            elif before is not None and revtime >= before:  # right-opened
+                continue
+
             revision["start"] = self.schema.deserialize(revision["start"])
             revision["end"] = self.schema.deserialize(revision["end"])
             if intersect(revision, start, end):
@@ -142,7 +159,8 @@ class Series:
             "len": len(frm),
             "digests": col_digests,
         }
-        return self.changelog.commit(revision, force_parent=parent_commit)
+        rev = self.changelog.commit(revision, force_parent=parent_commit)
+        return rev
 
     def truncate(self, *skip):
         self.chl_pod.clear(*skip)

@@ -5,9 +5,13 @@ from time import sleep
 import numpy
 
 from .schema import Schema
-from .utils import hexdigest, hextime, memoize, tail
+from .utils import hexdigest, hextime, tail
 
 phi = "0" * 40
+
+
+# TODO implement a proper revision object (with parent, child, path and
+# payload fields)
 
 
 class Changelog:
@@ -41,12 +45,14 @@ class Changelog:
         key = hexdigest(data)
         if parent.endswith(key):
             # Prevent double writes
-            return None
+            rev, _ = parent.split("-")
+            return rev
 
         # Construct new filename and save content
-        filename = f"{parent}.{hextime()}-{key}"
+        rev = hextime()
+        filename = f"{parent}.{rev}-{key}"
         self.pod.write(filename, data)
-        return filename
+        return rev
 
     def __iter__(self):
         yield from self.pod.ls(raise_on_missing=False)

@@ -28,7 +28,7 @@ def hexdigest(*data):
 
 def hextime(*data, timestamp=None):
     """
-    hex representation of current time (rounded to millisecond)
+    hex representation of current UTC time (rounded to millisecond)
     """
     timestamp = timestamp or time()
     return hex(int(timestamp * 1000))[2:]

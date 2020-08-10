@@ -15,9 +15,9 @@ frm = {
 def series():
     pod = POD.from_uri("memory://")
     series = Series(schema, pod)
-
     # Write some values
     series.write(frm)
+
     return series
 
 
@@ -134,3 +134,20 @@ def test_column_types():
 
         for name in names:
             assert all(frm[name] == df[name])
+
+
+def test_rev_filter(series):
+    # Read those back
+    second_frm = {
+        "timestamp": [1589455904, 1589455905],
+        "value": [44, 55],
+    }
+    new_rev = series.write(second_frm)
+
+    # Read initial commit
+    old_frm = series.read(before=new_rev)
+    assert old_frm == frm
+
+    # Ignore initial commit
+    new_frm = series.read(after=new_rev)
+    assert new_frm == second_frm

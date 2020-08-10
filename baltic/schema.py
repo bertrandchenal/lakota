@@ -2,6 +2,11 @@ from numcodecs import registry
 from numpy import array, dtype, frombuffer
 
 DTYPES = [dtype(s) for s in ("<M8[s]", "int64", "float64", "<U", "O")]
+ALIASES = {
+    "timestamp": "<M8[s]",
+    "float": "float64",
+    "int": "int64",
+}
 
 
 class ColumnDefinition:
@@ -53,7 +58,7 @@ class Schema:
         for pos, col in enumerate(columns):
             name, dt = col.split(":", 1)
             dt, *codecs = dt.split("|")
-            dt = dtype(dt)
+            dt = dtype(ALIASES.get(dt, dt))
             col = ColumnDefinition(name, dt, codecs, idx=pos < self.idx_len)
             self.columns[name] = col
 
