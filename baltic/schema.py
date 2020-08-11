@@ -74,6 +74,8 @@ class Schema:
     def deserialize(self, values=tuple()):
         if not values:
             return tuple()
+        if not isinstance(values, (list, tuple)):
+            values = (values,)
         return tuple(
             col.dt.type(val) for col, val in zip(self.columns.values(), values)
         )
@@ -86,7 +88,6 @@ class Schema:
         return {
             "columns": [f"{c.name}:{c.dt}" for c in self.columns.values()],
             "idx_len": len(self.idx),
-            "fmt": "TODO CODEC",
         }
 
     def __repr__(self):

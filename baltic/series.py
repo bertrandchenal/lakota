@@ -1,8 +1,10 @@
+from time import time
+
 from numpy import arange, lexsort
 
 from .changelog import Changelog, phi
 from .frame import Frame
-from .utils import hashed_path, hextime
+from .utils import hashed_path
 
 
 def intersect(revision, start, end):
@@ -22,12 +24,13 @@ class Series:
     concurrent management of series.
     """
 
-    def __init__(self, schema, pod, segment_pod=None):
+    def __init__(self, label, schema, pod, segment_pod=None):
         self.schema = schema
         self.pod = pod
         self.segment_pod = segment_pod or pod / "segment"
         self.chl_pod = self.pod / "changelog"
         self.changelog = Changelog(self.chl_pod)
+        self.label = label
 
     def clone(self, remote, shallow=False):
         """
@@ -37,7 +40,7 @@ class Series:
         self.changelog.pull(remote.changelog)
         # if shallow:
         #     return
-        for _, revision in self.changelog.walk():
+        for revision in self.changelog.walk():
             for dig in revision["digests"]:
                 folder, filename = hashed_path(dig)
                 path = folder / filename
@@ -45,40 +48,32 @@ class Series:
                 self.segment_pod.write(path, payload)
 
     def revisions(self):
-        # TODO use a rev class !
-        for path, _ in self.changelog.walk():
-            revtime = path.split(".")[1].split("-")[0]
-            yield int(revtime, 16)
+        return self.changelog.walk()
 
     def read(self, start=None, end=None, limit=None, after=None, before=None):
         """
         Read all matching frame and combine them
         """
         # Extract start and end
-        if start is not None and not isinstance(start, (list, tuple)):
-            start = (start,)
-        if end is not None and not isinstance(end, (list, tuple)):
-            end = (end,)
         start = self.schema.deserialize(start)
         end = self.schema.deserialize(end)
 
-        # Convert int time to hex
-        after = after and hextime(after)
-        before = before and hextime(before)
-
-        # Collect all rev revision
+        # Collect all revisions
         all_revision = []
-        for path, revision in self.changelog.walk():
-            revtime = path.split(".")[1].split("-")[0]
-            if after is not None and revtime < after:  # closed on left
+        for rev in self.changelog.walk():
+            # from baltic import utils
+            # if utils.DEBUG:
+            #     import pdb;pdb.set_trace()
+
+            if after is not None and rev["epoch"] < after:  # closed on left
                 continue
-            elif before is not None and revtime >= before:  # right-opened
+            elif before is not None and rev["epoch"] >= before:  # right-opened
                 continue
 
-            revision["start"] = self.schema.deserialize(revision["start"])
-            revision["end"] = self.schema.deserialize(revision["end"])
-            if intersect(revision, start, end):
-                all_revision.append(revision)
+            rev["start"] = self.schema.deserialize(rev["start"])
+            rev["end"] = self.schema.deserialize(rev["end"])
+            if intersect(rev, start, end):
+                all_revision.append(rev)
 
         # Order revision backward
         all_revision = list(reversed(all_revision))
@@ -109,6 +104,7 @@ class Series:
                 digests=revision["digests"],
                 length=revision["len"],
             )
+
             # Adapt closed value for extremities
             if closed == "right" and mstart != start:
                 closed = "both"
@@ -153,14 +149,15 @@ class Series:
         idx_start = start or frm.start()
         idx_end = end or frm.end()
 
-        revision = {
+        rev_info = {
             "start": self.schema.serialize(idx_start),
             "end": self.schema.serialize(idx_end),
             "len": len(frm),
             "digests": col_digests,
+            "epoch": time(),
         }
-        rev = self.changelog.commit(revision, force_parent=parent_commit)
-        return rev
+        commit = self.changelog.commit(rev_info, force_parent=parent_commit)
+        return commit
 
     def truncate(self, *skip):
         self.chl_pod.clear(*skip)
@@ -170,9 +167,9 @@ class Series:
         Remove all the revisions, collapse all frames into one
         """
         frm = self.read()
-        key = self.write(frm, parent_commit=phi)
-        self.truncate(key)
+        commit = self.write(frm, parent_commit=phi)
+        self.truncate(commit.path)
 
     def digests(self):
-        for _, revision in self.changelog.walk():
+        for revision in self.changelog.walk():
             yield from revision["digests"]

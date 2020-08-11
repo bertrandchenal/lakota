@@ -14,7 +14,12 @@ class Frame:
 
     def __init__(self, schema, columns=None, pod=None):
         self.schema = schema
-        self.columns = columns or {}
+        if not columns:
+            self.columns = {
+                coldef.name: Column(coldef) for coldef in schema.columns.values()
+            }
+        else:
+            self.columns = columns
         self.pod = pod
 
     @classmethod
@@ -48,6 +53,11 @@ class Frame:
     def empty(self):
         return len(self) == 0
 
+    def get(self, *idx):
+        pos = self.index(*self.schema.deserialize(idx))
+        values = self.read_at(pos, full=True)
+        return dict(zip(self.schema.columns, values))
+
     def index_slice(self, start, end=None, closed=None):
         """
         Slice between two index value. `closed` can be "left" (default),
@@ -58,11 +68,7 @@ class Frame:
         # from_pod, and use it to bypass the test hereunder if start
         # and end are not interesting with frame.start and frame.stop
 
-        if end is None:
-            end = start
-            closed = "both"
-        else:
-            closed = closed or "left"
+        closed = closed or "left"
         idx_start = self.index(*start, right=closed == "right")
         idx_end = self.index(*end, right=closed in ("both", "right"))
         return self.slice(slice(idx_start, idx_end))
@@ -112,8 +118,15 @@ class Frame:
         sgm = Segment(arr=arr)
         self.columns[name] = Column(self.schema.columns[name], sgm)
 
-    def __getitem__(self, name):
-        return self.columns[name].read()
+    def __getitem__(self, by):
+        # By slice -> return a frame
+        if isinstance(by, slice):
+            start = by.start and self.schema.deserialize(by.start)
+            stop = by.stop and self.schema.deserialize(by.stop)
+            return self.index_slice(start, stop)
+
+        # By column name -> return an array
+        return self.columns[by].read()
 
     def hexdigests(self):
         for name in self.schema.columns:
@@ -121,12 +134,13 @@ class Frame:
             res = name, hexdigest(arr.tostring())
             yield res
 
-    def read_at(self, pos):
+    def read_at(self, pos, full=False):
         """
         Return a json serializable (monotonic) representation of the index
         at the given position in the (sorted) index.
         """
-        return tuple(self.serialize(n, self[n][pos]) for n in self.schema.idx)
+        names = self.schema.columns if full else self.schema.idx
+        return tuple(self.serialize(n, self[n][pos]) for n in names)
 
     def start(self):
         return self.read_at(0)
@@ -188,6 +202,8 @@ class Column:
         return new_col
 
     def read(self):
+        if not self.segments:
+            return asarray([], dtype=self.coldef.dt)
         if len(self.segments) == 1:
             return self.segments[0].read(self.coldef)
         arrays = []

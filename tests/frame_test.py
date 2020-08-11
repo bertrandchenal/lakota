@@ -68,11 +68,11 @@ def test_index_slice(sgm):
     assert all(res == [3, 4])
 
     # implict right
-    res = sgm.index_slice([5])["x"]
+    res = sgm.index_slice([5], [5], closed="both")["x"]
     assert all(res == [5, 5, 5])
 
-    res = sgm.index_slice([1])["x"]
+    res = sgm.index_slice([1], [1], closed="both")["x"]
     assert all(res == [1])
 
-    res = sgm.index_slice([6])["x"]
+    res = sgm.index_slice([6], [6], closed="both")["x"]
     assert all(res == [6])

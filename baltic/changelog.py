@@ -10,10 +10,6 @@ from .utils import hexdigest, hextime, tail
 phi = "0" * 40
 
 
-# TODO implement a proper revision object (with parent, child, path and
-# payload fields)
-
-
 class Changelog:
 
     """
@@ -25,113 +21,139 @@ class Changelog:
     def __init__(self, pod):
         self.pod = pod
 
-    def commit(self, revision, _jitter=False, force_parent=None):
+    def commit(self, payload, _jitter=False, force_parent=None):
         # Find parent & write revisions
         if force_parent:
             parent = force_parent
         else:
-            parent = self.leaf()
-            if parent is None:
+            last_commit = self.leaf()
+            if last_commit is None:
                 parent = phi
             else:
-                parent = parent.split(".", 1)[1]
+                parent = last_commit.child
 
         # Debug helper
         if _jitter:
             sleep(random())
 
-        arr = numpy.array([revision])
+        # Create array and encode it
+        if not isinstance(payload, (list, tuple)):
+            payload = [payload]
+        arr = numpy.array(payload)
         data = self.schema["revision"].encode(arr)
         key = hexdigest(data)
-        if parent.endswith(key):
-            # Prevent double writes
-            rev, _ = parent.split("-")
-            return rev
 
         # Construct new filename and save content
-        rev = hextime()
-        filename = f"{parent}.{rev}-{key}"
-        self.pod.write(filename, data)
-        return rev
+        child = hextime() + "-" + key
+        commit = Commit(parent, child)
+        self.pod.write(commit.path, data)
+        return commit
 
     def __iter__(self):
         yield from self.pod.ls(raise_on_missing=False)
 
-    def log(self):
+    def leaf(self):
+        commits = tail(self.log(), 1)
+        if not commits:
+            return None
+        return commits[0]
+
+    def log(self, from_parent=phi):
         """
-        Create a parent:[child] dict of all the revisions
+        Re-Create a list of all the active commits
         """
-        log = defaultdict(list)
+        # Extract parent->children relations
+        commits = defaultdict(list)
         for name in sorted(self):
             parent, child = name.split(".")
             if parent == child:
                 continue
-            log[parent].append(child)
-        return log
+            commits[parent].append(Commit(parent, child))
 
-    def leaf(self):
-        res = tail(self.walk(), 1)
-        if not res:
-            return None
-        path, _ = res[0]
-        return path
+        # Depth first traversal of the tree(see
+        # https://stackoverflow.com/a/5278667)
+        queue = list(reversed(commits[from_parent]))
+        while queue:
+            item = queue.pop()
+            yield item
+            # Append children
+            queue.extend(reversed(commits[item.child]))
 
     def walk(self, parent=phi):
         """
-        Depth-first traversal of the tree
+        Iterator on the list of commits
         """
         # [XXX] re-executing a full walk all the time is costly, we
         # could cache the last result and (based on log content)
         # bootstrap the loop
-
-        # see DFS in https://stackoverflow.com/a/5278667
-        log = self.log()
-        revs = [(parent, c) for c in reversed(log[parent])]
-        while revs:
-            rev = revs.pop()
-            parent, child = rev
-            # Yield from first child
-            path = f"{parent}.{child}"
-            rev_arr = self.extract(path)
-            for item in rev_arr:
-                yield path, item
-            # Append children
-            revs.extend((child, c) for c in reversed(log[child]))
+        for commit in self.log():
+            rev_arr = self.extract(commit.path)
+            for payload in rev_arr:
+                yield Revision(commit=commit, payload=payload)
 
     def extract(self, path):
         try:
-            revision = self.pod.read(path)
+            data = self.pod.read(path)
         except FileNotFoundError:
             return
-        return self.schema["revision"].decode(revision)
+        return self.schema["revision"].decode(data)
 
     def pull(self, remote):
-        new_revs = []
-        local_revs = set(self)
-        for rev in remote:
-            if rev in local_revs:
+        new_paths = []
+        local_paths = set(self)
+        for remote_path in remote:
+            if remote_path in local_paths:
                 continue
-            new_revs.append(rev)
-            payload = remote.pod.read(rev)
-            self.pod.write(rev, payload)
-        return new_revs
+            new_paths.append(remote_path)
+            payload = remote.pod.read(remote_path)
+            self.pod.write(remote_path, payload)
+        return new_paths
 
     def pack(self):
         """
         Combine the current list of revisions into one array of revision
         """
-        items = list(self.walk())
-        paths, revisions = zip(*items)
-        if len(revisions) == 1:
+        revs = list(self.walk())
+        if len(revs) == 1:
             return
 
-        parent = phi
-        arr = numpy.array(revisions)
-        data = self.schema["revision"].encode(arr)
-        key = hexdigest(data, parent.encode())
-        filename = ".".join((parent, key))
-        self.pod.write(filename, data)
+        # parent = phi
+        # arr = numpy.array()
+        self.commit([r.payload for r in revs], force_parent=phi)
+        # data = self.schema["revision"].encode(arr)
+        # key = hexdigest(data)
+        # filename = ".".join((parent, key))
+        # self.pod.write(filename, data)
 
         # Clean old revisions
-        for path in set(paths):
+        for path in set(r.path for r in revs):
             self.pod.rm(path)
+
+
+class Revision:
+    def __init__(self, commit, payload=None):
+        self.payload = payload or {}
+        self.commit = commit
+
+    def __getitem__(self, name):
+        return self.payload[name]
+
+    def __setitem__(self, name, value):
+        self.payload[name] = value
+
+    @property
+    def path(self):
+        return self.commit.path
+
+
+class Commit:
+    def __init__(self, parent, child):
+        self.parent = parent
+        self.child = child
+
+    @property
+    def path(self):
+        return self.parent + "." + self.child
+
+    def __repr__(self):
+        return f"<Commit {self.path}>"

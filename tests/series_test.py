@@ -3,6 +3,7 @@ from numpy import array
 
 from baltic import POD, Frame, Schema, Series
 from baltic.schema import DTYPES
+from baltic.utils import tail
 
 schema = Schema(["timestamp:int", "value:float"])
 frm = {
@@ -14,7 +15,7 @@ frm = {
 @pytest.fixture
 def series():
     pod = POD.from_uri("memory://")
-    series = Series(schema, pod)
+    series = Series("_", schema, pod)
     # Write some values
     series.write(frm)
 
@@ -25,15 +26,6 @@ def test_read_series(series):
     # Read those back
     frm_copy = series.read()
     assert frm_copy == frm
-
-
-def test_double_write(series):
-    # Test that double write is ignored
-    expected = list(series.changelog.walk())
-    series.write(frm)
-    frm_copy = series.read()
-    assert frm_copy == frm
-    assert list(series.changelog.walk()) == expected
 
 
 @pytest.mark.parametrize("how", ["left", "right"])
@@ -128,7 +120,7 @@ def test_column_types():
     for idx_len in range(1, len(cols)):
         pod = POD.from_uri("memory://")
         schema = Schema(cols, idx_len)
-        series = Series(schema, pod)
+        series = Series("_", schema, pod)
         series.write(df)
         frm = series.read()
 
@@ -142,12 +134,13 @@ def test_rev_filter(series):
         "timestamp": [1589455904, 1589455905],
         "value": [44, 55],
     }
-    new_rev = series.write(second_frm)
+    series.write(second_frm)
+    (last_rev,) = tail(series.revisions())
 
     # Read initial commit
-    old_frm = series.read(before=new_rev)
+    old_frm = series.read(before=last_rev["epoch"])
     assert old_frm == frm
 
     # Ignore initial commit
-    new_frm = series.read(after=new_rev)
+    new_frm = series.read(after=last_rev["epoch"])
     assert new_frm == second_frm

@@ -5,6 +5,9 @@ from baltic import Registry, Schema
 labels = "zero one two three four five six seven eight nine".split()
 
 
+# TODO implement registry.delete(label)
+
+
 def test_create_labels(pod):
     """
     Create all labels in one go

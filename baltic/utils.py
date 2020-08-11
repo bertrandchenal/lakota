@@ -9,14 +9,15 @@ from pathlib import PosixPath
 from time import perf_counter, time
 
 default_hash = sha1
-head = lambda it, n: list(islice(it, 0, n))
-tail = lambda it, n: deque(it, maxlen=n)
+head = lambda it, n=1: list(islice(it, 0, n))
+tail = lambda it, n=1: deque(it, maxlen=n)
 skip = lambda it, n: list(islice(it, n, None))
 FLAGS = {}
 
 fmt = "%(levelname)s:%(asctime).19s: %(message)s"
 logging.basicConfig(format=fmt)
 logger = logging.getLogger("baltic")
+DEBUG = False
 
 
 def hexdigest(*data):
@@ -26,7 +27,7 @@ def hexdigest(*data):
     return digest.hexdigest()
 
 
-def hextime(*data, timestamp=None):
+def hextime(timestamp=None):
     """
     hex representation of current UTC time (rounded to millisecond)
     """

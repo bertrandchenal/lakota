@@ -23,9 +23,9 @@ def test_simple_commit(pod):
     assert len(res) == len(datum)
 
     # Read commits
-    revs = [r for _, r in changelog.walk()]
-    for data, expected in zip(revs, datum):
-        assert data.startswith(hexdigest(expected))
+    revs = list(changelog.walk())
+    for rev, expected in zip(revs, datum):
+        assert rev.payload.startswith(hexdigest(expected))
 
 
 def test_concurrent_commit(pod):
@@ -56,8 +56,8 @@ def test_concurrent_commit(pod):
     # As we inserted datum in a random fashion we have no order
     # garantee
     expected = set(map(hexdigest, datum))
-    for _, item in changelog.walk():
-        key, _ = item.split(" ", 1)
+    for rev in changelog.walk():
+        key, _ = rev.payload.split(" ", 1)
         expected.remove(key)
     assert not expected
 
@@ -71,6 +71,6 @@ def test_pack(pod):
     changelog.pack()
 
     # Read commits
-    revs = [r for _, r in changelog.walk()]
-    for data, expected in zip(revs, datum):
-        assert data.startswith(hexdigest(expected))
+    revs = list(changelog.walk())
+    for rev, expected in zip(revs, datum):
+        assert rev.payload.startswith(hexdigest(expected))

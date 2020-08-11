@@ -24,7 +24,7 @@ class Registry:
         self.pod = pod or POD.from_uri(uri, lazy=lazy)
         self.segment_pod = self.pod / "segment"
         self.schema_series = Series(
-            self.schema, self.pod / "registry", self.segment_pod
+            "__schema_series__", self.schema, self.pod / "registry", self.segment_pod
         )
         self.series_pod = self.pod / "series"
 
@@ -38,11 +38,14 @@ class Registry:
         series = self.get(label)
         series.clone(rseries, shallow=shallow)
 
-    def create(self, schema, *labels):
+    def create(self, schema, *labels, raise_if_exists=True):
         new_series = []
         for label in sorted(labels):
             current = self.search(label)
-            assert current.empty()
+            if not current.empty():
+                if not raise_if_exists:
+                    continue
+                raise ValueError('Label "{label}" already exists')
             # Save a frame of size one
             ts = time()
             self.schema_series.write(
@@ -57,14 +60,16 @@ class Registry:
             start = end = (label,)
         else:
             start = end = None
+        # [XXX] add cache on schema_series ?
         frm = self.schema_series.read(start=start, end=end)
         return frm
 
     def get(self, label, from_frm=None):
         if from_frm:
-            frm = from_frm.index_slice([label])
+            frm = from_frm.index_slice([label], [label], closed="both")
         else:
             frm = self.search(label)
+
         if frm.empty():
             return None
         schema = Schema.loads(frm["schema"][-1])
@@ -74,7 +79,9 @@ class Registry:
     def series(self, label, schema, timestamp):
         digest = hexdigest(label.encode(), str(timestamp).encode())
         folder, filename = hashed_path(digest)
-        series = Series(schema, self.series_pod / folder / filename, self.segment_pod)
+        series = Series(
+            label, schema, self.series_pod / folder / filename, self.segment_pod
+        )
         return series
 
     def gc(self, soft=True):
