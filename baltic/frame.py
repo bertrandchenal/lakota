@@ -50,6 +50,7 @@ class Frame:
         res = numexpr.evaluate(expr, local_dict=self)
         return res
 
+    @property
     def empty(self):
         return len(self) == 0
 
@@ -80,8 +81,12 @@ class Frame:
         """
         Slice between both position start and end
         """
-        if slc.start in (0, None) and (slc.stop is None or slc.stop >= len(self)):
+        # Replace None by actual values
+        slc = slice(*slc.indices(len(self)))
+        # Do not provide full copy
+        if slc.start == 0 and slc.stop >= len(self):
             return self
+        # Build new frame
         new_frame = {}
         for name in self.schema.columns:
             new_frame[name] = self.columns[name].slice(slc)
@@ -98,6 +103,7 @@ class Frame:
             idx_start = self.index(*start, right=closed == "right")
         if end:
             idx_end = self.index(*end, right=closed in ("both", "right"))
+
         left = self.slice(slice(None, idx_start))
         right = self.slice(slice(idx_end, None))
         res = Frame.concat(self.schema, left, right)
@@ -216,21 +222,21 @@ class Column:
             sgm_start = sgm_stop
             sgm_stop = sgm_start + len(sgm)
             # Ignore segments out of range
-            if col_slc.start is not None and sgm_stop < col_slc.start:
+            if sgm_stop < col_slc.start:
                 continue
-            if col_slc.stop is not None and col_slc.stop <= sgm_start:
+            if col_slc.stop <= sgm_start:
                 continue
 
             # Compute slice start for segment
-            if col_slc.start is not None and sgm_start < col_slc.start:
+            if sgm_start < col_slc.start:
                 start = col_slc.start - sgm_start
             else:
-                start = None
+                start = 0
             # Compute slice stop for segment
-            if col_slc.stop is not None and col_slc.stop <= sgm_stop:
+            if col_slc.stop <= sgm_stop:
                 stop = col_slc.stop - sgm_start
             else:
-                stop = None
+                stop = len(sgm)
 
             if start == stop == None:
                 segments.append(sgm)
@@ -266,14 +272,16 @@ class Column:
 
 
 class Segment:
-    def __init__(self, coldef, arr=None, digest=None, pod=None, length=None):
+    def __init__(self, coldef, arr=None, digest=None, pod=None, length=None, slc=None):
         assert arr is not None or digest is not None
         self.coldef = coldef
         self.arr = arr
         self.digest = digest
         self.pod = pod
         self.length = length if length is not None else len(arr)
-        self.slc = None
+        if slc:
+            assert 0 <= slc.start <= slc.stop <= self.length, "Invalid slice!"
+        self.slc = slc
 
     def read(self):
         if self.arr is None:
@@ -284,12 +292,24 @@ class Segment:
             return self.arr
         return self.arr[self.slc]
 
+    def combine_slice(self, slc):
+        if not self.slc:
+            slc = slice(
+                max(0, min(slc.start, len(self))), min(len(self), max(0, slc.stop))
+            )
+            return slc
+        start = min(self.slc.start + slc.start, self.slc.stop)
+        stop = min(self.slc.stop, slc.stop - slc.start + start)
+        return slice(start, stop)
+
     def slice(self, slc):
-        sgm = Segment(self.coldef, self.arr, self.digest, self.pod, self.length)
-        sgm.slc = slc
+        slc = self.combine_slice(slc)
+        sgm = Segment(
+            self.coldef, self.arr, self.digest, self.pod, self.length, slc=slc
+        )
         return sgm
 
     def __len__(self):
         if self.slc:
-            return (self.slc.stop or self.length) - (self.slc.start or 0)
+            return self.slc.stop - self.slc.start
         return self.length

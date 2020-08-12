@@ -50,6 +50,7 @@ class Series:
     def revisions(self):
         return self.changelog.walk()
 
+    # TODO replace end with stop everywhere!
     def read(self, start=None, end=None, limit=None, after=None, before=None):
         """
         Read all matching frame and combine them
@@ -61,10 +62,6 @@ class Series:
         # Collect all revisions
         all_revision = []
         for rev in self.changelog.walk():
-            # from baltic import utils
-            # if utils.DEBUG:
-            #     import pdb;pdb.set_trace()
-
             if after is not None and rev["epoch"] < after:  # closed on left
                 continue
             elif before is not None and rev["epoch"] >= before:  # right-opened
@@ -111,7 +108,7 @@ class Series:
             elif closed == "left" and mend != end:
                 closed = "both"
             frm = frm.index_slice(mstart, mend, closed=closed)
-            if not frm.empty():
+            if not frm.empty:
                 yield frm
                 # We have found one result and the search range is
                 # collapsed, stop recursion:

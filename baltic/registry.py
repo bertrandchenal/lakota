@@ -41,7 +41,7 @@ class Registry:
         new_series = []
         for label in sorted(labels):
             current = self.search(label)
-            if not current.empty():
+            if not current.empty:
                 if not raise_if_exists:
                     continue
                 raise ValueError('Label "{label}" already exists')
@@ -66,7 +66,7 @@ class Registry:
         else:
             frm = self.search(label)
 
-        if frm.empty():
+        if frm.empty:
             return None
         schema = Schema.loads(frm["schema"][-1])
         return self.series(label, schema)

@@ -3,6 +3,7 @@ import logging
 import sys
 from collections import deque
 from contextlib import contextmanager
+from datetime import date, datetime
 from hashlib import sha1
 from itertools import islice
 from pathlib import PosixPath
@@ -33,6 +34,25 @@ def hextime(timestamp=None):
     """
     timestamp = timestamp or time()
     return hex(int(timestamp * 1000))[2:]
+
+
+def strpt(time_str):
+    if isinstance(time_str, datetime):
+        return time_str
+    elif isinstance(time_str, date):
+        return datetime(time_str.year, time_str.month, time_str.day)
+
+    candidates = [
+        "%Y-%m-%d %H:%M:%S",
+        "%Y-%m-%d %H:%M",
+        "%Y-%m-%d",
+    ]
+    for fmt in candidates:
+        try:
+            return datetime.strptime(time_str, fmt)
+        except ValueError:
+            pass
+    raise ValueError('Unable to parse "%s" as datetime' % time_str)
 
 
 def hashed_path(digest, depth=2):
