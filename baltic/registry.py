@@ -1,6 +1,7 @@
 from itertools import chain
 from time import time
 
+from .changelog import phi
 from .pod import POD
 from .schema import Schema
 from .series import Series
@@ -15,12 +16,10 @@ class Registry:
     Use a Series object to store all the series labels
     """
 
-    schema = Schema(["label:str", "timestamp:f8", "schema:O"])
+    schema = Schema(["label:str", "schema:O"])
 
     def __init__(self, uri=None, pod=None, lazy=False):
-
         # TODO add a repo and move all this pod setup in it
-
         self.pod = pod or POD.from_uri(uri, lazy=lazy)
         self.segment_pod = self.pod / "segment"
         self.schema_series = Series(
@@ -47,11 +46,8 @@ class Registry:
                     continue
                 raise ValueError('Label "{label}" already exists')
             # Save a frame of size one
-            ts = time()
-            self.schema_series.write(
-                {"label": [label], "timestamp": [ts], "schema": [schema.as_dict()]}
-            )
-            new_series.append(self.series(label, schema, ts))
+            self.schema_series.write({"label": [label], "schema": [schema.as_dict()]})
+            new_series.append(self.series(label, schema))
         return new_series
 
     def search(self, label=None):
@@ -73,16 +69,25 @@ class Registry:
         if frm.empty():
             return None
         schema = Schema.loads(frm["schema"][-1])
-        timestamp = frm["timestamp"][-1]
-        return self.series(label, schema, timestamp)
+        return self.series(label, schema)
 
-    def series(self, label, schema, timestamp):
-        digest = hexdigest(label.encode(), str(timestamp).encode())
+    def series(self, label, schema):
+        digest = hexdigest(label.encode())
         folder, filename = hashed_path(digest)
         series = Series(
             label, schema, self.series_pod / folder / filename, self.segment_pod
         )
         return series
+
+    def squash(self):
+        self.schema_series.squash()
+
+    def delete(self, *labels):
+        frm = self.schema_series.read()
+        for label in labels:
+            frm = frm.remove_slice([label], [label], closed="both")
+        commit = self.schema_series.write(frm, parent_commit=phi)
+        self.schema_series.truncate(commit.path)
 
     def gc(self, soft=True):
         """

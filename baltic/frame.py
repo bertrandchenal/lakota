@@ -33,7 +33,7 @@ class Frame:
         cols = {}
         for coldef, dig in zip(schema.columns.values(), digests):
             cols[coldef.name] = Column(
-                coldef, Segment(digest=dig, pod=pod, length=length)
+                coldef, Segment(coldef, digest=dig, pod=pod, length=length)
             )
         return Frame(schema, columns=cols, pod=pod)
 
@@ -69,20 +69,39 @@ class Frame:
         # and end are not interesting with frame.start and frame.stop
 
         closed = closed or "left"
-        idx_start = self.index(*start, right=closed == "right")
-        idx_end = self.index(*end, right=closed in ("both", "right"))
+        idx_start = idx_end = None
+        if start:
+            idx_start = self.index(*start, right=closed == "right")
+        if end:
+            idx_end = self.index(*end, right=closed in ("both", "right"))
         return self.slice(slice(idx_start, idx_end))
 
     def slice(self, slc):
         """
         Slice between both position start and end
         """
-        if slc.start == 0 and slc.stop >= len(self):
+        if slc.start in (0, None) and (slc.stop is None or slc.stop >= len(self)):
             return self
         new_frame = {}
         for name in self.schema.columns:
             new_frame[name] = self.columns[name].slice(slc)
         return Frame(self.schema, new_frame)
+
+    def remove_slice(self, start, end, closed=None):
+        """
+        Complement of index_slice method: return a new Frame that does not contain
+        the rows between start and end.
+        """
+        closed = closed or "left"
+        idx_start = idx_end = None
+        if start:
+            idx_start = self.index(*start, right=closed == "right")
+        if end:
+            idx_end = self.index(*end, right=closed in ("both", "right"))
+        left = self.slice(slice(None, idx_start))
+        right = self.slice(slice(idx_end, None))
+        res = Frame.concat(self.schema, left, right)
+        return res
 
     @classmethod
     def concat(cls, schema, *frames):
@@ -115,7 +134,8 @@ class Frame:
     def __setitem__(self, name, arr):
         # Make sure we have a numpy array
         arr = asarray(arr, dtype=self.schema[name].dt)
-        sgm = Segment(arr=arr)
+        coldef = self.schema.columns[name]
+        sgm = Segment(coldef, arr=arr)
         self.columns[name] = Column(self.schema.columns[name], sgm)
 
     def __getitem__(self, by):
@@ -157,6 +177,7 @@ class Frame:
         return value
 
     def save(self, pod):
+        # [TODO] chunk large frames and return list of list of digests
         all_dig = []
         for name, dig in self.hexdigests():
             all_dig.append(dig)
@@ -185,11 +206,39 @@ class Column:
         self.coldef = coldef
         self.segments = segments
 
-    def slice(self, slc):
+    def slice(self, col_slc):
+        # Provide explicit value for start and stop
+        # Broadcast slice to segments
         segments = []
+
+        sgm_stop = 0
         for sgm in self.segments:
-            segments.append(sgm.slice(slc))
-            slc = slice(slc.start - len(sgm), slc.stop - len(sgm))
+            sgm_start = sgm_stop
+            sgm_stop = sgm_start + len(sgm)
+            # Ignore segments out of range
+            if col_slc.start is not None and sgm_stop < col_slc.start:
+                continue
+            if col_slc.stop is not None and col_slc.stop <= sgm_start:
+                continue
+
+            # Compute slice start for segment
+            if col_slc.start is not None and sgm_start < col_slc.start:
+                start = col_slc.start - sgm_start
+            else:
+                start = None
+            # Compute slice stop for segment
+            if col_slc.stop is not None and col_slc.stop <= sgm_stop:
+                stop = col_slc.stop - sgm_start
+            else:
+                stop = None
+
+            if start == stop == None:
+                segments.append(sgm)
+            elif start == stop:
+                continue
+            else:
+                sgm_slc = slice(start, stop)
+                segments.append(sgm.slice(sgm_slc))
 
         return Column(self.coldef, *segments)
 
@@ -205,10 +254,10 @@ class Column:
         if not self.segments:
             return asarray([], dtype=self.coldef.dt)
         if len(self.segments) == 1:
-            return self.segments[0].read(self.coldef)
+            return self.segments[0].read()
         arrays = []
         for sgm in self.segments:
-            arr = sgm.read(self.coldef)
+            arr = sgm.read()
             arrays.append(arr)
         return concatenate(arrays)
 
@@ -217,29 +266,30 @@ class Column:
 
 
 class Segment:
-    def __init__(self, arr=None, digest=None, pod=None, length=None):
+    def __init__(self, coldef, arr=None, digest=None, pod=None, length=None):
         assert arr is not None or digest is not None
+        self.coldef = coldef
         self.arr = arr
         self.digest = digest
         self.pod = pod
         self.length = length if length is not None else len(arr)
         self.slc = None
 
-    def read(self, coldef):
+    def read(self):
         if self.arr is None:
             folder, filename = hashed_path(self.digest)
             data = self.pod.cd(folder).read(filename)
-            self.arr = coldef.decode(data)
+            self.arr = self.coldef.decode(data)
         if self.slc is None:
             return self.arr
         return self.arr[self.slc]
 
     def slice(self, slc):
-        sgm = Segment(self.arr, self.digest, self.pod, self.length)
+        sgm = Segment(self.coldef, self.arr, self.digest, self.pod, self.length)
         sgm.slc = slc
         return sgm
 
     def __len__(self):
-        if self.slc is not None:
-            return self.slc.stop - self.slc.start
+        if self.slc:
+            return (self.slc.stop or self.length) - (self.slc.start or 0)
         return self.length

@@ -143,7 +143,7 @@ class Series:
         # Make sure frame is sorted
         idx_cols = reversed(list(frm.schema.idx))
         sort_mask = lexsort([frm[n] for n in idx_cols])
-        assert (sort_mask == arange(len(frm))).all()
+        assert (sort_mask == arange(len(frm))).all(), "Dataframe is not sorted!"
 
         col_digests = frm.save(self.segment_pod)
         idx_start = start or frm.start()

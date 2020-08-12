@@ -49,7 +49,7 @@ def length(args):
 
 def ls(args):
     reg = get_registry(args)
-    rows = [[label] for label in sorted(set(reg.search()["label"]))]
+    rows = [[label] for label in reg.search()["label"]]
     print(tabulate(rows, headers=["label"]))
 
 

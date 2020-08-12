@@ -5,14 +5,10 @@ from baltic import Registry, Schema
 labels = "zero one two three four five six seven eight nine".split()
 
 
-# TODO implement registry.delete(label)
-
-
 def test_create_labels(pod):
     """
     Create all labels in one go
     """
-
     reg = Registry(pod=pod)
     schema = Schema(["timestamp:int", "value:float"])
     reg.create(schema, *labels)
@@ -54,10 +50,24 @@ def test_create_labels_chunks(pod):
         assert series.schema == schema
 
     # Same after sqash
-    reg.schema_series.squash()
+    reg.squash()
     for label in labels:
         series = reg.get(label)
         assert series.schema == schema
+
+
+def test_delete(pod):
+    reg = Registry(pod=pod)
+    schema = Schema(["timestamp:int", "value:float"])
+    reg.create(schema, *labels)
+    expected = sorted(labels)
+    assert list(reg.search()["label"]) == expected
+
+    # Remove a label and check result
+    reg.delete("nine", "zero")
+    assert list(reg.search()["label"]) == [
+        l for l in expected if l not in ("nine", "zero")
+    ]
 
 
 def test_clone():
