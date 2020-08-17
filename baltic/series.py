@@ -3,8 +3,8 @@ from time import time
 from numpy import arange, lexsort
 
 from .changelog import Changelog, phi
-from .frame import Frame
-from .utils import hashed_path
+from .frame import Frame, ShallowSegment
+from .utils import hashed_path, hexdigest
 
 
 def intersect(revision, start, end):
@@ -75,60 +75,57 @@ class Series:
         # Order revision backward
         all_revision = list(reversed(all_revision))
         # Recursive discovery of matching frames
-        frames = list(self._read(all_revision, start, end, limit=limit))
-
-        if not frames:
-            return Frame(self.schema)
+        segments = list(self._read(all_revision, start, end))
 
         # Sort (non-overlaping frames)
-        frames.sort(key=lambda s: s.start())
-        frm = Frame.concat(self.schema, *frames)
-        if limit is not None:
-            frm = frm.slice(slice(0, limit))
+        segments.sort(key=lambda s: s.start)
+        frm = Frame.from_segments(self.schema, *segments, limit=limit)
+
         return frm
 
-    def _read(self, revisions, start, end, limit=None, closed="both"):
+    def _read(self, revisions, start, end, closed="both"):
         for pos, revision in enumerate(revisions):
             match = intersect(revision, start, end)
             if not match:
                 continue
             mstart, mend = match
+            if closed == "right" and mstart > start:
+                closed = "both"
+            if closed == "left" and mend < end:
+                closed = "both"
 
             # instanciate frame
-            frm = Frame.from_pod(
+            sgm = ShallowSegment(
                 self.schema,
                 self.segment_pod,
-                digests=revision["digests"],
+                revision["digests"],
+                start=revision["start"],
+                stop=revision["end"],
                 length=revision["len"],
-            )
+            ).slice(mstart, mend, closed)
+            yield sgm
+
+            # We have found one result and the search range is
+            # collapsed, stop recursion:
+            if len(start) and start == end:
+                return
 
             # Adapt closed value for extremities
             if closed == "right" and mstart != start:
                 closed = "both"
             elif closed == "left" and mend != end:
                 closed = "both"
-            frm = frm.index_slice(mstart, mend, closed=closed)
-            if not frm.empty:
-                yield frm
-                # We have found one result and the search range is
-                # collapsed, stop recursion:
-                if start and start == end:
-                    return
+
             # recurse left
             if mstart > start:
+                closed = "left"  # "both" if start < mstart else "left"
                 left_frm = self._read(
-                    revisions[pos + 1 :], start, mstart, limit=limit, closed="left"
+                    revisions[pos + 1 :], start, mstart, closed=closed
                 )
                 yield from left_frm
             # recurse right
             if not end or mend < end:
-                if limit is not None:
-                    limit = limit - len(frm)
-                    if limit < 1:
-                        break
-                right_frm = self._read(
-                    revisions[pos + 1 :], mend, end, limit=limit, closed="right"
-                )
+                right_frm = self._read(revisions[pos + 1 :], mend, end, closed="right")
                 yield from right_frm
 
             break
@@ -136,21 +133,29 @@ class Series:
     def write(self, df, start=None, end=None, cast=False, parent_commit=None):
         if cast:
             df = self.schema.cast(df)
-        frm = Frame.from_df(self.schema, df)
+        # frm = Frame.from_df(self.schema, df)
         # Make sure frame is sorted
-        idx_cols = reversed(list(frm.schema.idx))
-        sort_mask = lexsort([frm[n] for n in idx_cols])
-        assert (sort_mask == arange(len(frm))).all(), "Dataframe is not sorted!"
+        idx_cols = reversed(list(self.schema.idx))
+        sort_mask = lexsort([df[n] for n in idx_cols])
+        assert (sort_mask == arange(len(sort_mask))).all(), "Dataframe is not sorted!"
 
-        col_digests = frm.save(self.segment_pod)
-        idx_start = start or frm.start()
-        idx_end = end or frm.end()
+        # Save segments (XXX autochunkify)
+        all_dig = []
+        for name in self.schema:
+            arr = self.schema[name].cast(df[name])
+            digest = hexdigest(arr.tostring())
+            all_dig.append(digest)
+            data = self.schema[name].encode(arr)
+            folder, filename = hashed_path(digest)
+            self.segment_pod.cd(folder).write(filename, data)
 
+        start = start or self.schema.row(df, pos=0, full=False)
+        end = end or self.schema.row(df, pos=-1, full=False)
         rev_info = {
-            "start": self.schema.serialize(idx_start),
-            "end": self.schema.serialize(idx_end),
-            "len": len(frm),
-            "digests": col_digests,
+            "start": self.schema.serialize(start),
+            "end": self.schema.serialize(end),
+            "len": len(df),
+            "digests": all_dig,
             "epoch": time(),
         }
         commit = self.changelog.commit(rev_info, force_parent=parent_commit)

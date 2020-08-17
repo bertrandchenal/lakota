@@ -37,7 +37,7 @@ def test_spill_write(series, how):
         ts = [1589455903, 1589455904, 1589455905, 1589455906]
         vals = [33, 44, 55, 66]
 
-    frm = Frame.from_df(schema, {"timestamp": ts, "value": vals,},)
+    frm = Frame(schema, {"timestamp": ts, "value": vals,})
     series.write(frm)
 
     frm_copy = series.read()
@@ -53,7 +53,7 @@ def test_short_cover(series, how):
         ts = [1589455903, 1589455904]
         vals = [33, 44]
 
-    frm = Frame.from_df(schema, {"timestamp": ts, "value": vals},)
+    frm = Frame(schema, {"timestamp": ts, "value": vals},)
     series.write(frm)
 
     frm_copy = series.read()
@@ -74,10 +74,11 @@ def test_adjacent_write(series, how):
         ts = [1589455906]
         vals = [6.6]
 
-    frm = Frame.from_df(schema, {"timestamp": ts, "value": vals,},)
+    frm = Frame(schema, {"timestamp": ts, "value": vals,},)
     series.write(frm)
 
     # Full read
+    print("READ", "-------------", how)
     frm_copy = series.read()
     if how == "left":
         assert all(

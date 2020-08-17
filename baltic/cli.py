@@ -12,9 +12,9 @@ from .utils import logger, timeit
 # generated from http://www.patorjk.com/software/taag/
 # With fond "Calvin S"
 banner = """
-┌┐ ┌─┐┬ ┌┬┐┬┌─┐
-├┴┐├─┤│  │ ││
-└─┘┴ ┴┴─┘┴ ┴└─┘
+┌┐   ┌─┐  ┬   ┌┬┐  ┬  ┌─┐
+├┴┐  ├─┤  │    │   │  │
+└─┘  ┴ ┴  ┴─┘  ┴   ┴  └─┘
 """
 
 
@@ -87,9 +87,14 @@ def pack(args):
     series.changelog.pack()
 
 
-def clear(args):
+def truncate(args):
+    series = get_series(args)
+    series.truncate()
+
+
+def delete(args):
     reg = get_registry(args)
-    reg.clear()
+    reg.delete(args.label)
 
 
 def gc(args):
@@ -167,9 +172,15 @@ def run():
     parser_write.add_argument("label")
     parser_write.set_defaults(func=write)
 
-    # Add clear command
-    parser_clear = subparsers.add_parser("clear")
-    parser_clear.set_defaults(func=clear)
+    # Add delete command
+    parser_delete = subparsers.add_parser("delete")
+    parser_delete.add_argument("label")
+    parser_delete.set_defaults(func=delete)
+
+    # Add truncate command
+    parser_truncate = subparsers.add_parser("truncate")
+    parser_truncate.add_argument("label")
+    parser_truncate.set_defaults(func=truncate)
 
     # Add gc command
     parser_gc = subparsers.add_parser("gc")

@@ -1,10 +1,12 @@
 from bisect import bisect_left, bisect_right
-from itertools import chain
 
 import numexpr
-from numpy import array_equal, asarray, concatenate
+from numpy import array_equal, concatenate
 
-from .utils import hashed_path, hexdigest
+from .utils import hashed_path
+
+# TODO Frame does to much stuff, it should be splitted in two (one
+# that act like a db cursor and one container). MetaFrame, ShallowFrame, ResultSet, Collection?
 
 
 class Frame:
@@ -12,39 +14,33 @@ class Frame:
     DataFrame-like object
     """
 
-    def __init__(self, schema, columns=None, pod=None):
+    def __init__(self, schema, columns):
         self.schema = schema
-        if not columns:
-            self.columns = {
-                coldef.name: Column(coldef) for coldef in schema.columns.values()
-            }
-        else:
-            self.columns = columns
-        self.pod = pod
+        self.columns = columns
 
     @classmethod
-    def from_df(cls, schema, df):
-        frm = cls(schema)
-        frm.write(df)
-        return frm
-
-    @classmethod
-    def from_pod(cls, schema, pod, digests, length):
+    def from_segments(cls, schema, *segments, limit=None):
         cols = {}
-        for coldef, dig in zip(schema.columns.values(), digests):
-            cols[coldef.name] = Column(
-                coldef, Segment(coldef, digest=dig, pod=pod, length=length)
-            )
-        return Frame(schema, columns=cols, pod=pod)
+        for name in schema.columns:
+            arrays = []
+            slim = limit
+            for sgm in segments:
+                arr = sgm.read(name, limit)
+                if slim is not None:
+                    arr = arr[:slim]
+                    slim -= len(sgm)
+                arrays.append(arr)
+            cols[name] = concatenate(arrays)
+        return Frame(schema, cols)
 
-    def df(self):
+    def df(self, *columns):
         from pandas import DataFrame
 
-        return DataFrame(dict(self))
+        return DataFrame({c: self[c] for c in self.schema.columns})
 
-    def mask(self, mask_arr):
-        new_frame = {n: self[n][mask_arr] for n in self.schema.columns}
-        return Frame(self.schema, new_frame)
+    def mask(self, mask_ar):
+        cols = {name: self.data[name][mask_ar] for name in self.data}
+        return Frame(self.schema, cols)
 
     def eval(self, expr):
         res = numexpr.evaluate(expr, local_dict=self)
@@ -54,69 +50,49 @@ class Frame:
     def empty(self):
         return len(self) == 0
 
-    def get(self, *idx):
+    def rowdict(self, *idx):
         pos = self.index(*self.schema.deserialize(idx))
-        values = self.read_at(pos, full=True)
+        values = self.schema.row(pos, full=True)
         return dict(zip(self.schema.columns, values))
 
-    def index_slice(self, start, end=None, closed=None):
+    def index_slice(self, start=None, stop=None, closed="left"):
         """
         Slice between two index value. `closed` can be "left" (default),
         "right" or "both". If end is None, the code will use `start`
         as value and enforce "both" as value for `closed`
         """
-        # [TODO] record start and stop when frame is created with
-        # from_pod, and use it to bypass the test hereunder if start
-        # and end are not interesting with frame.start and frame.stop
-
-        closed = closed or "left"
-        idx_start = idx_end = None
+        idx_start = idx_stop = None
         if start:
-            idx_start = self.index(*start, right=closed == "right")
-        if end:
-            idx_end = self.index(*end, right=closed in ("both", "right"))
-        return self.slice(slice(idx_start, idx_end))
+            idx_start = self.index(start, right=closed == "right")
+        if stop:
+            idx_stop = self.index(stop, right=closed in ("both", "right"))
+        return self.slice(idx_start, idx_stop)
 
-    def slice(self, slc):
+    def index(self, values, right=False):
+        if not values:
+            return None
+        lo = 0
+        hi = len(self)
+        for name, val in zip(self.schema.idx, values):
+            arr = self.columns[name]
+            lo = bisect_left(arr, val, lo=lo, hi=hi)
+            hi = bisect_right(arr, val, lo=lo, hi=hi)
+
+        if right:
+            return hi
+        return lo
+
+    def slice(self, start=None, stop=None):
         """
         Slice between both position start and end
         """
         # Replace None by actual values
-        slc = slice(*slc.indices(len(self)))
-        # Do not provide full copy
-        if slc.start == 0 and slc.stop >= len(self):
-            return self
+        slc = slice(*(slice(start, stop).indices(len(self))))
         # Build new frame
-        new_frame = {}
+        cols = {}
         for name in self.schema.columns:
-            new_frame[name] = self.columns[name].slice(slc)
-        return Frame(self.schema, new_frame)
-
-    def remove_slice(self, start, end, closed=None):
-        """
-        Complement of index_slice method: return a new Frame that does not contain
-        the rows between start and end.
-        """
-        closed = closed or "left"
-        idx_start = idx_end = None
-        if start:
-            idx_start = self.index(*start, right=closed == "right")
-        if end:
-            idx_end = self.index(*end, right=closed in ("both", "right"))
-
-        left = self.slice(slice(None, idx_start))
-        right = self.slice(slice(idx_end, None))
-        res = Frame.concat(self.schema, left, right)
-        return res
-
-    @classmethod
-    def concat(cls, schema, *frames):
-        new_frame = {}
-        for name in schema.columns:
-            cols = [s.columns[name] for s in frames]
-            new_col = Column.concat(cols)
-            new_frame[name] = new_col
-        return Frame(schema, new_frame)
+            cols[name] = self.columns[name][slc]
+        return Frame(self.schema, cols)
 
     def __eq__(self, other):
         return all(array_equal(self[c], other[c]) for c in self.schema.columns)
@@ -131,6 +107,7 @@ class Frame:
         return self.schema.columns
 
     def write(self, df, reverse_idx=False):
+        # FIXME Frame.write Frame.from_df and Frame.save should be extracted. and hexdigets (called by save) can be put on schema
         for name in self.schema.columns:
             arr = df[name]
             if hasattr(arr, "values"):
@@ -139,10 +116,10 @@ class Frame:
 
     def __setitem__(self, name, arr):
         # Make sure we have a numpy array
-        arr = asarray(arr, dtype=self.schema[name].dt)
-        coldef = self.schema.columns[name]
-        sgm = Segment(coldef, arr=arr)
-        self.columns[name] = Column(self.schema.columns[name], sgm)
+        arr = self.schema[name].cast(arr)
+        if len(arr) != len(self):
+            raise ValueError("Lenght mismatch")
+        self.columns[name] = arr
 
     def __getitem__(self, by):
         # By slice -> return a frame
@@ -152,164 +129,86 @@ class Frame:
             return self.index_slice(start, stop)
 
         # By column name -> return an array
-        return self.columns[by].read()
-
-    def hexdigests(self):
-        for name in self.schema.columns:
-            arr = self[name]
-            res = name, hexdigest(arr.tostring())
-            yield res
-
-    def read_at(self, pos, full=False):
-        """
-        Return a json serializable (monotonic) representation of the index
-        at the given position in the (sorted) index.
-        """
-        names = self.schema.columns if full else self.schema.idx
-        return tuple(self.serialize(n, self[n][pos]) for n in names)
-
-    def start(self):
-        return self.read_at(0)
-
-    def end(self):
-        return self.read_at(-1)
-
-    def serialize(self, column, value):
-        # [TODO] use schema.serialize
-        dt = self.schema[column].dt
-        if dt in ("int", "int64"):
-            # json does not like int64
-            return int(value)
-        return value
-
-    def save(self, pod):
-        # [TODO] chunk large frames and return list of list of digests
-        all_dig = []
-        for name, dig in self.hexdigests():
-            all_dig.append(dig)
-            arr = self[name]
-            data = self.schema[name].encode(arr)
-            folder, filename = hashed_path(dig)
-            pod.cd(folder).write(filename, data)  # if_exists='skip')
-        return all_dig
-
-    def index(self, *values, right=False):
-        if not values:
-            return None
-        lo = 0
-        hi = len(self)
-        for name, val in zip(self.schema.idx, values):
-            arr = self[name]
-            lo = bisect_left(arr, val, lo=lo, hi=hi)
-            hi = bisect_right(arr, val, lo=lo, hi=hi)
-        if right:
-            return hi
-        return lo
+        return self.columns[by]
 
 
-class Column:
-    def __init__(self, coldef, *segments):
-        self.coldef = coldef
-        self.segments = segments
+class ShallowSegment:
+    def __init__(self, schema, pod, digests, start, stop, length, closed="left"):
+        self.schema = schema
+        self.pod = pod
+        self.start = start
+        self.stop = stop
+        self.length = length
+        self.digest = dict(zip(schema, digests))
 
-    def slice(self, col_slc):
-        # Provide explicit value for start and stop
-        # Broadcast slice to segments
-        segments = []
+    def slice(self, start, stop, closed="left"):
+        assert stop >= start
+        # empty_test contains any condition that would result in an empty segment
+        empty_test = [
+            start > self.stop,
+            stop < self.start,
+            start == self.stop and closed not in ("both", "left"),
+            stop == self.start and closed not in ("both", "right"),
+        ]
+        if any(empty_test):
+            return EmptySegment(start, stop, self.schema)
 
-        sgm_stop = 0
-        for sgm in self.segments:
-            sgm_start = sgm_stop
-            sgm_stop = sgm_start + len(sgm)
-            # Ignore segments out of range
-            if sgm_stop < col_slc.start:
-                continue
-            if col_slc.stop <= sgm_start:
-                continue
-
-            # Compute slice start for segment
-            if sgm_start < col_slc.start:
-                start = col_slc.start - sgm_start
-            else:
-                start = 0
-            # Compute slice stop for segment
-            if col_slc.stop <= sgm_stop:
-                stop = col_slc.stop - sgm_start
-            else:
-                stop = len(sgm)
-
-            if start == stop == None:
-                segments.append(sgm)
-            elif start == stop:
-                continue
-            else:
-                sgm_slc = slice(start, stop)
-                segments.append(sgm.slice(sgm_slc))
-
-        return Column(self.coldef, *segments)
-
-    @classmethod
-    def concat(cls, columns):
-        coldef = columns[0].coldef
-        assert all(c.coldef == coldef for c in columns[1:])
-        segments = list(chain.from_iterable(c.segments for c in columns))
-        new_col = Column(coldef, *segments)
-        return new_col
-
-    def read(self):
-        if not self.segments:
-            return asarray([], dtype=self.coldef.dt)
-        if len(self.segments) == 1:
-            return self.segments[0].read()
-        arrays = []
-        for sgm in self.segments:
-            arr = sgm.read()
-            arrays.append(arr)
-        return concatenate(arrays)
+        # skip_tests list contains all the tests that have to be true to
+        # _not_ do the slice and return self
+        skip_tests = (
+            [start <= self.start]
+            if closed in ("both", "left")
+            else [start < self.start]
+        )
+        skip_tests.append(
+            stop >= self.stop if closed in ("both", "righ") else stop > self.stop
+        )
+        if all(skip_tests):
+            return self
+        else:
+            print("slice!")
+            # Materialize arrays
+            frm = Frame(self.schema, {name: self.read(name) for name in self.schema})
+            # Compute slice and apply it
+            frm = frm.index_slice(start, stop, closed=closed)
+            return Segment(start, stop, frm)
 
     def __len__(self):
-        return sum(len(s) for s in self.segments)
+        return self.length
+
+    def read(self, name, limit=None):
+        folder, filename = hashed_path(self.digest[name])
+        data = self.pod.cd(folder).read(filename)
+        arr = self.schema[name].decode(data)
+        return arr[:limit]
+
+    @property
+    def empty(self):
+        return self.length == 0
 
 
 class Segment:
-    def __init__(self, coldef, arr=None, digest=None, pod=None, length=None, slc=None):
-        assert arr is not None or digest is not None
-        self.coldef = coldef
-        self.arr = arr
-        self.digest = digest
-        self.pod = pod
-        self.length = length if length is not None else len(arr)
-        if slc:
-            assert 0 <= slc.start <= slc.stop <= self.length, "Invalid slice!"
-        self.slc = slc
+    def __init__(self, start, stop, frm):
+        self.start = start
+        self.stop = stop
+        self.frm = frm
 
-    def read(self):
-        if self.arr is None:
-            folder, filename = hashed_path(self.digest)
-            data = self.pod.cd(folder).read(filename)
-            self.arr = self.coldef.decode(data)
-        if self.slc is None:
-            return self.arr
-        return self.arr[self.slc]
+    def read(self, name, limit=None):
+        return self.frm[name][:limit]
 
-    def combine_slice(self, slc):
-        if not self.slc:
-            slc = slice(
-                max(0, min(slc.start, len(self))), min(len(self), max(0, slc.stop))
-            )
-            return slc
-        start = min(self.slc.start + slc.start, self.slc.stop)
-        stop = min(self.slc.stop, slc.stop - slc.start + start)
-        return slice(start, stop)
 
-    def slice(self, slc):
-        slc = self.combine_slice(slc)
-        sgm = Segment(
-            self.coldef, self.arr, self.digest, self.pod, self.length, slc=slc
-        )
-        return sgm
+class EmptySegment:
+    def __init__(self, start, stop, schema):
+        self.start = start
+        self.stop = stop
+        self.schema = schema
 
     def __len__(self):
-        if self.slc:
-            return self.slc.stop - self.slc.start
-        return self.length
+        return 0
+
+    def read(self, name, limit=None):
+        return self.schema[name].cast([])
+
+    @property
+    def empty(self):
+        return True

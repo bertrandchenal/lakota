@@ -1,5 +1,4 @@
 from itertools import chain
-from time import time
 
 from .changelog import phi
 from .pod import POD
@@ -26,9 +25,6 @@ class Registry:
             "__schema_series__", self.schema, self.pod / "registry", self.segment_pod
         )
         self.series_pod = self.pod / "series"
-
-    def clear(self):
-        self.pod.clear()
 
     def clone(self, remote, label, shallow=False):
         # TODO if shallow -> should be combined with a lazy cachedpod

@@ -1,11 +1,12 @@
 from numcodecs import registry
-from numpy import array, dtype, frombuffer
+from numpy import array, asarray, dtype, frombuffer
 
 DTYPES = [dtype(s) for s in ("<M8[s]", "int64", "float64", "<U", "O")]
 ALIASES = {
     "timestamp": "<M8[s]",
     "float": "float64",
     "int": "int64",
+    "str": "<U",
 }
 
 
@@ -43,6 +44,9 @@ class ColumnDefinition:
         if self.dt in ("<U", "O"):
             return arr.astype(self.dt)
         return frombuffer(arr, dtype=self.dt)
+
+    def cast(self, arr):
+        return asarray(arr, dtype=self.dt)
 
     def __eq__(self, other):
         return self.name == other.name and self.dt == other.dt
@@ -89,6 +93,9 @@ class Schema:
             "idx_len": len(self.idx),
         }
 
+    def __iter__(self):
+        return iter(self.columns.keys())
+
     def __repr__(self):
         cols = [f"{c.name}:{c.dt}" for c in self.columns.values()]
         return "<Schema {}>".format(" ".join(cols))
@@ -105,3 +112,11 @@ class Schema:
 
     def __getitem__(self, name):
         return self.columns[name]
+
+    def row(self, df, pos, full=True):
+        """
+        Extract a row of the dataframe-like object at
+        given position
+        """
+        cols = self.columns if full else self.idx
+        return tuple(df[n][pos] for n in cols)
