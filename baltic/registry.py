@@ -1,7 +1,6 @@
 from itertools import chain
 
 from .changelog import phi
-from .frame import Frame
 from .pod import POD
 from .schema import Schema
 from .series import Series
@@ -50,11 +49,11 @@ class Registry:
     def search(self, label=None):
         # TODO use numexp expr to push down filter to Series.read
         if label:
-            start = end = (label,)
+            start = stop = (label,)
         else:
-            start = end = None
+            start = stop = None
         # [XXX] add cache on schema_series ?
-        frm = self.schema_series.read(start=start, end=end)
+        frm = self.schema_series.read(start=start, stop=stop)
         return frm
 
     def get(self, label, from_frm=None):
@@ -80,15 +79,15 @@ class Registry:
         self.schema_series.squash()
 
     def delete(self, *labels):
-        start, end = min(labels), max(labels)
-        frm = self.schema_series.read(start, end)
+        start, stop = min(labels), max(labels)
+        frm = self.schema_series.read(start, stop)
         items = [(l, s) for l, s in zip(frm["label"], frm["schema"]) if l not in labels]
         keep_labels, keep_schema = zip(*items)
         new_frm = {
             "label": keep_labels,
             "schema": keep_schema,
         }
-        self.schema_series.write(new_frm, start=start, end=end, parent_commit=phi)
+        self.schema_series.write(new_frm, start=start, stop=stop, parent_commit=phi)
 
     def gc(self, soft=True):
         """

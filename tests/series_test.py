@@ -96,7 +96,7 @@ def test_adjacent_write(series, how):
         assert all(frm_copy["value"] == [3.3, 4.4, 5.5, 6.6])
 
     # Slice read - left slice
-    frm_copy = series.read(start=[1589455902], end=[1589455903])
+    frm_copy = series.read(start=[1589455902], stop=[1589455903])
     if how == "left":
         assert all(frm_copy["timestamp"] == [1589455902, 1589455903])
         assert all(frm_copy["value"] == [2.2, 3.3])
@@ -106,7 +106,7 @@ def test_adjacent_write(series, how):
         assert all(frm_copy["value"] == [3.3])
 
     # Slice read - right slice
-    frm_copy = series.read(start=[1589455905], end=[1589455906])
+    frm_copy = series.read(start=[1589455905], stop=[1589455906])
     if how == "left":
         assert all(frm_copy["timestamp"] == [1589455905])
         assert all(frm_copy["value"] == [5.5])

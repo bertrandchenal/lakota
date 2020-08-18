@@ -33,7 +33,7 @@ def get_series(args):
 def read(args):
     series = get_series(args)
     columns = args.columns or series.schema.columns
-    frm = series.read(start=args.greater_than, end=args.less_than, limit=args.limit)
+    frm = series.read(start=args.greater_than, stop=args.less_than, limit=args.limit)
     if len(frm) == 0:
         print(tabulate([], headers=columns))
     else:

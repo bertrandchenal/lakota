@@ -7,15 +7,15 @@ from .frame import Frame, ShallowSegment
 from .utils import hashed_path, hexdigest
 
 
-def intersect(revision, start, end):
-    ok_start = not end or revision["start"][: len(end)] <= end
-    ok_end = not start or revision["end"][: len(start)] >= start
-    if not (ok_start and ok_end):
+def intersect(revision, start, stop):
+    ok_start = not stop or revision["start"][: len(stop)] <= stop
+    ok_stop = not start or revision["stop"][: len(start)] >= start
+    if not (ok_start and ok_stop):
         return None
     # return reduced range
     max_start = max(revision["start"], start)
-    min_end = min(revision["end"], end) if end else revision["end"]
-    return (max_start, min_end)
+    min_stop = min(revision["stop"], stop) if stop else revision["stop"]
+    return (max_start, min_stop)
 
 
 class Series:
@@ -50,16 +50,15 @@ class Series:
     def revisions(self):
         return self.changelog.walk()
 
-    # TODO replace end with stop everywhere!
     def read(
-        self, start=None, end=None, limit=None, after=None, before=None, closed="both"
+        self, start=None, stop=None, limit=None, after=None, before=None, closed="both"
     ):
         """
         Read all matching frame and combine them
         """
-        # Extract start and end
+        # Extract start and stop
         start = self.schema.deserialize(start)
-        end = self.schema.deserialize(end)
+        stop = self.schema.deserialize(stop)
 
         # Collect all revisions
         all_revision = []
@@ -70,14 +69,14 @@ class Series:
                 continue
 
             rev["start"] = self.schema.deserialize(rev["start"])
-            rev["end"] = self.schema.deserialize(rev["end"])
-            if intersect(rev, start, end):
+            rev["stop"] = self.schema.deserialize(rev["stop"])
+            if intersect(rev, start, stop):
                 all_revision.append(rev)
 
         # Order revision backward
         all_revision = list(reversed(all_revision))
         # Recursive discovery of matching frames
-        segments = list(self._read(all_revision, start, end, closed=closed))
+        segments = list(self._read(all_revision, start, stop, closed=closed))
 
         # Sort (non-overlaping frames)
         segments.sort(key=lambda s: s.start)
@@ -85,15 +84,15 @@ class Series:
 
         return frm
 
-    def _read(self, revisions, start, end, closed="both"):
+    def _read(self, revisions, start, stop, closed="both"):
         for pos, revision in enumerate(revisions):
-            match = intersect(revision, start, end)
+            match = intersect(revision, start, stop)
             if not match:
                 continue
-            mstart, mend = match
+            mstart, mstop = match
             if closed == "right" and mstart > start:
                 closed = "both"
-            if closed == "left" and mend < end:
+            if closed == "left" and mstop < stop:
                 closed = "both"
 
             # instanciate frame
@@ -102,20 +101,20 @@ class Series:
                 self.segment_pod,
                 revision["digests"],
                 start=revision["start"],
-                stop=revision["end"],
+                stop=revision["stop"],
                 length=revision["len"],
-            ).slice(mstart, mend, closed)
+            ).slice(mstart, mstop, closed)
             yield sgm
 
             # We have found one result and the search range is
             # collapsed, stop recursion:
-            if len(start) and start == end:
+            if len(start) and start == stop:
                 return
 
             # Adapt closed value for extremities
             if closed == "right" and mstart != start:
                 closed = "both"
-            elif closed == "left" and mend != end:
+            elif closed == "left" and mstop != stop:
                 closed = "both"
 
             # recurse left
@@ -126,12 +125,14 @@ class Series:
                 )
                 yield from left_frm
             # recurse right
-            if not end or mend < end:
-                right_frm = self._read(revisions[pos + 1 :], mend, end, closed="right")
+            if not stop or mstop < stop:
+                right_frm = self._read(
+                    revisions[pos + 1 :], mstop, stop, closed="right"
+                )
                 yield from right_frm
             break
 
-    def write(self, frame, start=None, end=None, parent_commit=None):
+    def write(self, frame, start=None, stop=None, parent_commit=None):
         if not isinstance(frame, Frame):
             frame = Frame(self.schema, frame)
         # Make sure frame is sorted
@@ -150,10 +151,10 @@ class Series:
             self.segment_pod.cd(folder).write(filename, data)
 
         start = start or self.schema.row(frame, pos=0, full=False)
-        end = end or self.schema.row(frame, pos=-1, full=False)
+        stop = stop or self.schema.row(frame, pos=-1, full=False)
         rev_info = {
             "start": self.schema.serialize(start),
-            "end": self.schema.serialize(end),
+            "stop": self.schema.serialize(stop),
             "len": len(frame),
             "digests": all_dig,
             "epoch": time(),

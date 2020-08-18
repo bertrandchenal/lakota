@@ -67,8 +67,7 @@ class Frame:
     def index_slice(self, start=None, stop=None, closed="left"):
         """
         Slice between two index value. `closed` can be "left" (default),
-        "right" or "both". If end is None, the code will use `start`
-        as value and enforce "both" as value for `closed`
+        "right" or "both".
         """
         idx_start = idx_stop = None
         if start:
@@ -93,7 +92,7 @@ class Frame:
 
     def slice(self, start=None, stop=None):
         """
-        Slice between both position start and end
+        Slice between both position start and stop
         """
         # Replace None by actual values
         slc = slice(*(slice(start, stop).indices(len(self))))
