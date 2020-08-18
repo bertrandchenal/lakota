@@ -90,10 +90,16 @@ class Series:
             if not match:
                 continue
             mstart, mstop = match
+
+            clsd = closed
             if closed == "right" and mstart > start:
-                closed = "both"
-            if closed == "left" and mstop < stop:
-                closed = "both"
+                clsd = "both"
+            elif closed == None and mstart > start:
+                clsd = "left"
+            if clsd == "left" and (mstop < stop or not stop):
+                clsd = "both"
+            elif clsd == None and (mstop < stop or not stop):
+                clsd = "right"
 
             # instanciate frame
             sgm = ShallowSegment(
@@ -103,7 +109,7 @@ class Series:
                 start=revision["start"],
                 stop=revision["stop"],
                 length=revision["len"],
-            ).slice(mstart, mstop, closed)
+            ).slice(mstart, mstop, clsd)
             yield sgm
 
             # We have found one result and the search range is
@@ -111,24 +117,21 @@ class Series:
             if len(start) and start == stop:
                 return
 
-            # Adapt closed value for extremities
-            if closed == "right" and mstart != start:
-                closed = "both"
-            elif closed == "left" and mstop != stop:
-                closed = "both"
-
             # recurse left
             if mstart > start:
-                closed = "left"  # "both" if start < mstart else "left"
-                left_frm = self._read(
-                    revisions[pos + 1 :], start, mstart, closed=closed
-                )
+                if closed == "both":
+                    clsd = "left"
+                elif closed == "right":
+                    clsd = None
+                left_frm = self._read(revisions[pos + 1 :], start, mstart, closed=clsd)
                 yield from left_frm
             # recurse right
             if not stop or mstop < stop:
-                right_frm = self._read(
-                    revisions[pos + 1 :], mstop, stop, closed="right"
-                )
+                if closed == "both":
+                    clsd = "right"
+                elif closed == "left":
+                    clsd = None
+                right_frm = self._read(revisions[pos + 1 :], mstop, stop, closed=clsd)
                 yield from right_frm
             break
 

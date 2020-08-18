@@ -1,7 +1,7 @@
 from bisect import bisect_left, bisect_right
 
 import numexpr
-from numpy import array_equal, concatenate
+from numpy import array_equal, concatenate, ndarray
 
 from .utils import hashed_path
 
@@ -18,10 +18,10 @@ class Frame:
 
     def __init__(self, schema, columns=None):
         self.schema = schema
-        if columns is None:
-            columns = schema.cast({})
-        elif DataFrame is not None and isinstance(columns, DataFrame):
+        if DataFrame is not None and isinstance(columns, DataFrame):
             columns = {c: columns[c].values for c in columns}
+        else:
+            columns = schema.cast(columns or {})
         self.columns = columns
 
     @classmethod
@@ -47,8 +47,10 @@ class Frame:
             raise ModuleNotFoundError("No module named 'pandas'")
         return DataFrame({c: self[c] for c in self.schema.columns})
 
-    def mask(self, mask_ar):
-        cols = {name: self.data[name][mask_ar] for name in self.data}
+    def mask(self, mask):
+        if isinstance(mask, str):
+            mask = self.eval(mask)
+        cols = {name: self.columns[name][mask] for name in self.columns}
         return Frame(self.schema, cols)
 
     def eval(self, expr):
@@ -114,14 +116,6 @@ class Frame:
     def keys(self):
         return self.schema.columns
 
-    # def write(self, df, reverse_idx=False):
-    #     # FIXME Frame.write Frame.from_df and Frame.save should be extracted. and hexdigets (called by save) can be put on schema
-    #     for name in self.schema.columns:
-    #         arr = df[name]
-    #         if hasattr(arr, "values"):
-    #             arr = arr.values
-    #         self[name] = arr
-
     def __setitem__(self, name, arr):
         # Make sure we have a numpy array
         arr = self.schema[name].cast(arr)
@@ -135,7 +129,9 @@ class Frame:
             start = by.start and self.schema.deserialize(by.start)
             stop = by.stop and self.schema.deserialize(by.stop)
             return self.index_slice(start, stop)
-
+        # By mask -> return a frame
+        if isinstance(by, ndarray):
+            return self.mask(by)
         # By column name -> return an array
         return self.columns[by]
 
@@ -199,6 +195,9 @@ class Segment:
         self.start = start
         self.stop = stop
         self.frm = frm
+
+    def __len__(self):
+        return len(self.frm)
 
     def read(self, name, limit=None):
         return self.frm[name][:limit]

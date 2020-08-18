@@ -1,5 +1,5 @@
 from numcodecs import registry
-from numpy import array, asarray, dtype, frombuffer
+from numpy import asarray, dtype, frombuffer
 
 DTYPES = [dtype(s) for s in ("<M8[s]", "int64", "float64", "<U", "O")]
 ALIASES = {
