@@ -72,6 +72,8 @@ class Schema:
     def serialize(self, values):
         if not values:
             return tuple()
+        if not isinstance(values, (list, tuple)):
+            values = (values,)
         # TODO implement column type based repr
         return tuple(str(val) for col, val in zip(self.columns.values(), values))
 
@@ -105,9 +107,10 @@ class Schema:
             x == y for x, y in zip(self.columns.values(), other.columns.values())
         )
 
-    def cast(self, df):
+    def cast(self, df=None):
+        df = {} if df is None else df
         for col in self.columns.values():
-            df[col.name] = array(df[col.name]).astype(col.dt)
+            df[col.name] = col.cast(df.get(col.name, []))
         return df
 
     def __getitem__(self, name):

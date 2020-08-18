@@ -1,6 +1,7 @@
 from itertools import chain
 
 from .changelog import phi
+from .frame import Frame
 from .pod import POD
 from .schema import Schema
 from .series import Series
@@ -79,11 +80,15 @@ class Registry:
         self.schema_series.squash()
 
     def delete(self, *labels):
-        frm = self.schema_series.read()
-        for label in labels:
-            frm = frm.remove_slice([label], [label], closed="both")
-        commit = self.schema_series.write(frm, parent_commit=phi)
-        self.schema_series.truncate(commit.path)
+        start, end = min(labels), max(labels)
+        frm = self.schema_series.read(start, end)
+        items = [(l, s) for l, s in zip(frm["label"], frm["schema"]) if l not in labels]
+        keep_labels, keep_schema = zip(*items)
+        new_frm = {
+            "label": keep_labels,
+            "schema": keep_schema,
+        }
+        self.schema_series.write(new_frm, start=start, end=end, parent_commit=phi)
 
     def gc(self, soft=True):
         """

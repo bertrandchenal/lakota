@@ -141,6 +141,9 @@ class Revision:
     def __setitem__(self, name, value):
         self.payload[name] = value
 
+    def __repr__(self):
+        return f"<revision {self.payload}>"
+
     @property
     def path(self):
         return self.commit.path

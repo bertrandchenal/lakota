@@ -51,7 +51,9 @@ class Series:
         return self.changelog.walk()
 
     # TODO replace end with stop everywhere!
-    def read(self, start=None, end=None, limit=None, after=None, before=None):
+    def read(
+        self, start=None, end=None, limit=None, after=None, before=None, closed="both"
+    ):
         """
         Read all matching frame and combine them
         """
@@ -75,7 +77,7 @@ class Series:
         # Order revision backward
         all_revision = list(reversed(all_revision))
         # Recursive discovery of matching frames
-        segments = list(self._read(all_revision, start, end))
+        segments = list(self._read(all_revision, start, end, closed=closed))
 
         # Sort (non-overlaping frames)
         segments.sort(key=lambda s: s.start)
@@ -127,34 +129,32 @@ class Series:
             if not end or mend < end:
                 right_frm = self._read(revisions[pos + 1 :], mend, end, closed="right")
                 yield from right_frm
-
             break
 
-    def write(self, df, start=None, end=None, cast=False, parent_commit=None):
-        if cast:
-            df = self.schema.cast(df)
-        # frm = Frame.from_df(self.schema, df)
+    def write(self, frame, start=None, end=None, parent_commit=None):
+        if not isinstance(frame, Frame):
+            frame = Frame(self.schema, frame)
         # Make sure frame is sorted
         idx_cols = reversed(list(self.schema.idx))
-        sort_mask = lexsort([df[n] for n in idx_cols])
+        sort_mask = lexsort([frame[n] for n in idx_cols])
         assert (sort_mask == arange(len(sort_mask))).all(), "Dataframe is not sorted!"
 
         # Save segments (XXX autochunkify)
         all_dig = []
         for name in self.schema:
-            arr = self.schema[name].cast(df[name])
+            arr = self.schema[name].cast(frame[name])
             digest = hexdigest(arr.tostring())
             all_dig.append(digest)
             data = self.schema[name].encode(arr)
             folder, filename = hashed_path(digest)
             self.segment_pod.cd(folder).write(filename, data)
 
-        start = start or self.schema.row(df, pos=0, full=False)
-        end = end or self.schema.row(df, pos=-1, full=False)
+        start = start or self.schema.row(frame, pos=0, full=False)
+        end = end or self.schema.row(frame, pos=-1, full=False)
         rev_info = {
             "start": self.schema.serialize(start),
             "end": self.schema.serialize(end),
-            "len": len(df),
+            "len": len(frame),
             "digests": all_dig,
             "epoch": time(),
         }

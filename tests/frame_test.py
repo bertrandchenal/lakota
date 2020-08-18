@@ -59,7 +59,7 @@ def test_double_slice(frame_values, frm):
     (series,) = reg.create(frm.schema, "my-label")
     series.write(frame_values)
     frm = series.read()
-    frm = frm.slice(slice(1, None)).slice(slice(None, 2))
+    frm = frm.slice(1, None).slice(None, 2)
     assert all(frm["value"] == VALUES[1:][:2])
 
     # Add chunks

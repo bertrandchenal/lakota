@@ -5,8 +5,10 @@ from numpy import array_equal, concatenate
 
 from .utils import hashed_path
 
-# TODO Frame does to much stuff, it should be splitted in two (one
-# that act like a db cursor and one container). MetaFrame, ShallowFrame, ResultSet, Collection?
+try:
+    from pandas import DataFrame
+except ImportError:
+    DataFrame = None
 
 
 class Frame:
@@ -14,13 +16,20 @@ class Frame:
     DataFrame-like object
     """
 
-    def __init__(self, schema, columns):
+    def __init__(self, schema, columns=None):
         self.schema = schema
+        if columns is None:
+            columns = schema.cast({})
+        elif DataFrame is not None and isinstance(columns, DataFrame):
+            columns = {c: columns[c].values for c in columns}
         self.columns = columns
 
     @classmethod
     def from_segments(cls, schema, *segments, limit=None):
-        cols = {}
+        if not segments:
+            return Frame(schema)
+
+        columns = {}
         for name in schema.columns:
             arrays = []
             slim = limit
@@ -30,12 +39,12 @@ class Frame:
                     arr = arr[:slim]
                     slim -= len(sgm)
                 arrays.append(arr)
-            cols[name] = concatenate(arrays)
-        return Frame(schema, cols)
+            columns[name] = concatenate(arrays)
+        return Frame(schema, columns)
 
     def df(self, *columns):
-        from pandas import DataFrame
-
+        if DataFrame is None:
+            raise ModuleNotFoundError("No module named 'pandas'")
         return DataFrame({c: self[c] for c in self.schema.columns})
 
     def mask(self, mask_ar):
@@ -106,13 +115,13 @@ class Frame:
     def keys(self):
         return self.schema.columns
 
-    def write(self, df, reverse_idx=False):
-        # FIXME Frame.write Frame.from_df and Frame.save should be extracted. and hexdigets (called by save) can be put on schema
-        for name in self.schema.columns:
-            arr = df[name]
-            if hasattr(arr, "values"):
-                arr = arr.values
-            self[name] = arr
+    # def write(self, df, reverse_idx=False):
+    #     # FIXME Frame.write Frame.from_df and Frame.save should be extracted. and hexdigets (called by save) can be put on schema
+    #     for name in self.schema.columns:
+    #         arr = df[name]
+    #         if hasattr(arr, "values"):
+    #             arr = arr.values
+    #         self[name] = arr
 
     def __setitem__(self, name, arr):
         # Make sure we have a numpy array
@@ -166,7 +175,6 @@ class ShallowSegment:
         if all(skip_tests):
             return self
         else:
-            print("slice!")
             # Materialize arrays
             frm = Frame(self.schema, {name: self.read(name) for name in self.schema})
             # Compute slice and apply it

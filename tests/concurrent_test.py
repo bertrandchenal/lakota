@@ -13,12 +13,15 @@ def insert(args):
     pod = POD.from_token(token)
     registry = Registry(pod=pod)
     series = registry.get(label)
-
     ts = date_range(f"{year}-01-01", f"{year+1}-01-01", freq="1min", closed="left")
-    df = DataFrame({"timestamp": ts,})
+    df = DataFrame(
+        {
+            "timestamp": ts,
+            "value": numpy.round(numpy.random.random(len(ts)) * 1000, decimals=0),
+        }
+    )
 
-    df["value"] = numpy.round(numpy.random.random(len(ts)) * 1000, decimals=0)
-    sgm = Frame.from_df(schema, df)
+    sgm = Frame(schema, df)
     series.write(sgm)
     return len(sgm)
 
@@ -43,7 +46,7 @@ def test_insert(pod):
     # Read it back
     with timeit(f"\nREAD ({pod.protocol})"):
         series = registry.get(label)
-        df = series.read(["2015-01-01"], ["2015-01-02"]).df()
-        assert len(df) == 1441
-        df = series.read(["2015-12-31"], ["2016-01-02"]).df()
-        assert len(df) == 2881
+        df = series.read(["2015-01-01"], ["2015-01-02"], closed="left").df()
+        assert len(df) == 1440
+        df = series.read(["2015-12-31"], ["2016-01-02"], closed="left").df()
+        assert len(df) == 2880

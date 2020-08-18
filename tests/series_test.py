@@ -1,5 +1,6 @@
 import pytest
 from numpy import array
+from pandas import DataFrame
 
 from baltic import POD, Frame, Schema, Series
 from baltic.schema import DTYPES
@@ -12,13 +13,16 @@ frm = {
 }
 
 
-@pytest.fixture
-def series():
+@pytest.fixture(scope="function", params=["dataframe", "dict"])
+def series(request):
     pod = POD.from_uri("memory://")
     series = Series("_", schema, pod)
     # Write some values
-    series.write(frm)
-
+    if request.param == "dataframe":
+        df = DataFrame(frm)
+        series.write(df)
+    else:
+        series.write(frm)
     return series
 
 
@@ -78,7 +82,6 @@ def test_adjacent_write(series, how):
     series.write(frm)
 
     # Full read
-    print("READ", "-------------", how)
     frm_copy = series.read()
     if how == "left":
         assert all(
