@@ -2,8 +2,8 @@ import numpy
 from dask.distributed import Client, LocalCluster
 from pandas import DataFrame, date_range
 
-from baltic import POD, Frame, Registry, Schema
-from baltic.utils import timeit
+from nagra import POD, Frame, Registry, Schema
+from nagra.utils import timeit
 
 schema = Schema(["timestamp:M8[s]", "value:int"])
 

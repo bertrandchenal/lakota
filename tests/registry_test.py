@@ -1,6 +1,6 @@
 from itertools import islice
 
-from baltic import Registry, Schema
+from nagra import Registry, Schema
 
 labels = "zero one two three four five six seven eight nine".split()
 

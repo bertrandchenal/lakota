@@ -8,6 +8,7 @@ from tabulate import tabulate
 from .registry import Registry
 from .schema import Schema
 from .utils import logger, timeit
+from . import __version__
 
 # generated from http://www.patorjk.com/software/taag/
 # With fond "Calvin S"
@@ -110,16 +111,16 @@ def print_help(parser, args):
 def run():
 
     # Take default uri from env variable, fallback to current dir
-    default_uri = os.environ.get("BALTIC_URI", "file://.")
+    default_uri = os.environ.get("NAGRA_URI", "file://.")
 
     # top-level parser
     parser = argparse.ArgumentParser(
-        prog="baltic",
+        prog="nagra",
         description=banner,
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument(
-        "--uri", "-u", default=default_uri, help=f"Baltic URI (default: {default_uri}"
+        "--uri", "-u", default=default_uri, help=f"Nagra URI (default: {default_uri}"
     )
     parser.add_argument("--timing", "-t", action="store_true", help="Enable timing")
     parser.add_argument("--verbose", "-v", action="count", help="Increase verbosity")
@@ -190,6 +191,10 @@ def run():
     parser_help = subparsers.add_parser("help")
     parser_help.add_argument("help_cmd")
     parser_help.set_defaults(func=lambda args: print_help(parser, args))
+
+    # Add version command
+    parser_len = subparsers.add_parser("version")
+    parser_len.set_defaults(func=lambda *a: print(__version__))
 
     # Parse args
     args = parser.parse_args()

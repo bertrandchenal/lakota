@@ -1,6 +1,6 @@
 import pytest
 
-from baltic import POD
+from nagra import POD
 
 
 def test_cd(pod):

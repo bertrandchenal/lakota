@@ -1,7 +1,7 @@
 import pytest
 from numpy import array
 
-from baltic import Frame, Registry, Schema
+from nagra import Frame, Registry, Schema
 
 NAMES = list("abcde")
 VALUES = [1.1, 2.2, 3.3, 4.4, 5.5]

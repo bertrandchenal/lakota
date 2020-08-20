@@ -1,6 +1,6 @@
 from numpy import array
 
-from baltic import Schema
+from nagra import Schema
 
 
 def test_vlen_codecs():

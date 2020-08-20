@@ -1,7 +1,7 @@
 from concurrent.futures import ThreadPoolExecutor
 
-from baltic import Changelog
-from baltic.utils import hexdigest
+from nagra import Changelog
+from nagra.utils import hexdigest
 
 
 def populate(changelog, datum):
