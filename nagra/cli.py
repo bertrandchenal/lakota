@@ -10,14 +10,6 @@ from .schema import Schema
 from .utils import logger, timeit
 from . import __version__
 
-# generated from http://www.patorjk.com/software/taag/
-# With fond "Calvin S"
-banner = """
-┌┐   ┌─┐  ┬   ┌┬┐  ┬  ┌─┐
-├┴┐  ├─┤  │    │   │  │
-└─┘  ┴ ┴  ┴─┘  ┴   ┴  └─┘
-"""
-
 
 def get_registry(args):
     return Registry(args.uri, lazy=args.lazy)
@@ -116,7 +108,6 @@ def run():
     # top-level parser
     parser = argparse.ArgumentParser(
         prog="nagra",
-        description=banner,
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument(

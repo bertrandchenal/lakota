@@ -147,7 +147,7 @@ class Series:
         all_dig = []
         for name in self.schema:
             arr = self.schema[name].cast(frame[name])
-            digest = hexdigest(arr.tostring())
+            digest = hexdigest(arr.tobytes())
             all_dig.append(digest)
             data = self.schema[name].encode(arr)
             folder, filename = hashed_path(digest)
