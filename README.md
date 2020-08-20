@@ -1,7 +1,8 @@
 
-# Baltic
 
-Inspired by Git, Baltic is a version-control system for numerical
+![Nagra Logo](assets/nagra-sm.png)
+
+Inspired by Git, Nagra is a version-control system for numerical
 series. It is meant to be used on top of S3, on the local filesystem
 or in memory.
 
@@ -9,11 +10,11 @@ or in memory.
 
 ``` python
 
->>> from baltic import Registry, Schema
+>>> from nagra import Registry, Schema
 >>> ts_schema = Schema(['timestamp:timestamp', 'value:float'])
 >>> reg = Registry('my-data-folder')
 >>> reg.create(ts_schema, 'my-timeseries')
-[<baltic.series.Series object at 0x7f48d0702390>]
+[<nagra.series.Series object at 0x7f48d0702390>]
 >>> series = reg.get('my-timeseries')
 >>>
 >>> df = {
@@ -24,7 +25,7 @@ or in memory.
 >>> series.write(df)
 '0000000000000000000000000000000000000000.173c45d792a-306686bb001cfcaae3f8af9943e2945c9711ad5c'
 >>> series.read()
-<baltic.frame.Frame object at 0x7f48d0702cf8>
+<nagra.frame.Frame object at 0x7f48d0702cf8>
 >>>
 >>> frame = series.read()
 >>> frame['timestamp']
