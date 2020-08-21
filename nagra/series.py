@@ -32,18 +32,17 @@ class Series:
         self.changelog = Changelog(self.chl_pod)
         self.label = label
 
-    def clone(self, remote, shallow=False):
+    def pull(self, remote):
         """
-        Clone remote series into self
+        Pull remote series into self
         """
-        # TODO implement push & pull
         self.changelog.pull(remote.changelog)
-        # if shallow:
-        #     return
         for revision in self.changelog.walk():
             for dig in revision["digests"]:
                 folder, filename = hashed_path(dig)
                 path = folder / filename
+                if self.segment_pod.isfile(path):
+                    continue
                 payload = remote.segment_pod.read(path)
                 self.segment_pod.write(path, payload)
 

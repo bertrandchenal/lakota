@@ -6,8 +6,6 @@ from .schema import Schema
 from .series import Series
 from .utils import hashed_path, hexdigest
 
-# Idea: "package" a bunch of writes in a Zip/Tar and send the
-# archive on s3
 
 
 class Registry:
@@ -26,12 +24,22 @@ class Registry:
         )
         self.series_pod = self.pod / "series"
 
-    def clone(self, remote, label, shallow=False):
-        # TODO if shallow -> should be combined with a lazy cachedpod
-        rseries = remote.get(label)
-        self.create(rseries.schema, label)
-        series = self.get(label)
-        series.clone(rseries, shallow=shallow)
+    def pull(self, remote, *labels):
+        local_cache = self.search()
+        remote_cache = remote.search()
+
+        for label in labels:
+            rseries = remote.get(label, remote_cache)
+            lseries = self.get(label, local_cache)
+            if lseries is None:
+                lseries = self.create(rseries.schema, label)
+            elif lseries.schema != rseries.schema:
+                msg = f'Unable to pull label "{label}", incompatible schema.'
+                raise ValueError(msg)
+            lseries.pull(rseries)
+
+    def push(self, remote, *labels):
+        return remote.pull(self, *labels)
 
     def create(self, schema, *labels, raise_if_exists=True):
         new_series = []
@@ -44,10 +52,11 @@ class Registry:
             # Save a frame of size one
             self.schema_series.write({"label": [label], "schema": [schema.as_dict()]})
             new_series.append(self.series(label, schema))
+        if len(labels) == 1:
+            return new_series[0]
         return new_series
 
     def search(self, label=None):
-        # TODO use numexp expr to push down filter to Series.read
         if label:
             start = stop = (label,)
         else:

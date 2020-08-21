@@ -81,7 +81,7 @@ def test_double_slice(frame_values, frm):
 
     # frame created from registry
     reg = Registry()
-    (series,) = reg.create(frm.schema, "my-label")
+    series = reg.create(frm.schema, "my-label")
     series.write(frame_values)
     frm = series.read()
     frm = frm.slice(1, None).slice(None, 2)

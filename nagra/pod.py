@@ -115,6 +115,9 @@ class FilePOD(POD):
     def isdir(self, relpath):
         return self.path.joinpath(relpath).is_dir()
 
+    def isfile(self, relpath):
+        return self.path.joinpath(relpath).is_file()
+
     def rm(self, relpath=".", recursive=False):
         logger.debug("REMOVE %s %s", self.path, relpath)
         path = self.path / relpath
@@ -217,7 +220,15 @@ class MemPOD(POD):
 
     def isdir(self, relpath):
         pod, leaf = self.find_parent_pod(relpath)
+        if pod is None:
+            return False
         return isinstance(pod.store[leaf], POD)
+
+    def isfile(self, relpath):
+        pod, leaf = self.find_parent_pod(relpath)
+        if pod is None:
+            return False
+        return not isinstance(pod.store[leaf], POD)
 
     def rm(self, relpath, recursive=False):
         logger.debug("REMOVE memory://%s %s", self.path, relpath)
@@ -277,6 +288,9 @@ class S3POD(POD):
     def isdir(self, relpath):
         return self.fs.isdir(self.path / relpath)
 
+    def isfile(self, relpath):
+        return self.fs.isfile(self.path / relpath)
+
     def rm(self, relpath=".", recursive=False):
         logger.debug("REMOVE s3://%s %s", self.path, relpath)
         path = str(self.path / relpath)
@@ -321,6 +335,9 @@ class CachePOD(POD):
 
     def isdir(self, relpath):
         return self.remote.isdir(relpath)
+
+    def isfile(self, relpath):
+        return self.remote.isfile(relpath)
 
     def rm(self, relpath, recursive=False):
         self.remote.rm(relpath, recursive=recursive)

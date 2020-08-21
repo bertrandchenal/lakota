@@ -1,6 +1,8 @@
 from itertools import islice
 
-from nagra import Registry, Schema
+from pytest import raises
+
+from nagra import Registry, Schema, Frame
 
 labels = "zero one two three four five six seven eight nine".split()
 
@@ -70,7 +72,7 @@ def test_delete(pod):
     ]
 
 
-def test_clone():
+def test_pull():
     schema = Schema(["timestamp:int", "value:float"])
     label = "LABEL"
     remote_reg = Registry()
@@ -82,11 +84,39 @@ def test_clone():
         )
     expected = rseries.read()
 
+    # Test pull
     local_reg = Registry()
-    local_reg.clone(remote_reg, label)
-
+    local_reg.pull(remote_reg, label)
     lseries = local_reg.get(label)
     assert lseries.read() == expected
+
+    # Test push
+    other_reg = Registry()
+    remote_reg.push(other_reg, label)
+    oseries = other_reg.get(label)
+    assert oseries.read() == expected
+
+    # Test with existing series
+    local_reg = Registry()
+    local_reg.create(schema, label)
+    local_reg.pull(remote_reg, label)
+    lseries = other_reg.get(label)
+    assert oseries.read() == expected
+
+    # Test with existing series with existing data
+    local_reg = Registry()
+    lseries = local_reg.create(schema, label)
+    frm = Frame(schema, {"timestamp": range(0, 20), "value": range(10, 20),})
+    lseries.write(frm)
+    local_reg.pull(remote_reg, label)
+    assert lseries.read() == frm
+
+    # Test with existing series with other schema
+    local_reg = Registry()
+    other_schema = Schema(["timestamp:int", "value:int"])
+    lseries = local_reg.create(other_schema, label)
+    with raises(ValueError):
+        local_reg.pull(remote_reg, label)
 
 
 def test_gc(pod):
