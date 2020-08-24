@@ -1,4 +1,6 @@
+black
 dask[distributed]
+isort
 moto
 numcodecs
 numpy
