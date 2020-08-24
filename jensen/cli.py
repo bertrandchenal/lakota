@@ -74,6 +74,15 @@ def squash(args):
     else:
         reg.schema_series.squash()
 
+def push(args):
+    reg = get_registry(args)
+    remote_reg = Registry(args.remote)
+    reg.push(remote_reg, *args.labels)
+
+def pull(args):
+    reg = get_registry(args)
+    remote_reg = Registry(args.remote)
+    reg.pull(remote_reg, *args.labels)
 
 def pack(args):
     series = get_series(args)
@@ -103,18 +112,18 @@ def print_help(parser, args):
 def run():
 
     # Take default uri from env variable, fallback to current dir
-    default_uri = os.environ.get("NAGRA_URI", "file://.")
+    default_uri = os.environ.get("JENSEN_URI", "file://.")
 
     # top-level parser
     parser = argparse.ArgumentParser(
-        prog="nagra",
+        prog="jensen",
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument(
-        "--uri", "-u", default=default_uri, help=f"Nagra URI (default: {default_uri}"
+        "--uri", "-u", default=default_uri, help=f"Jensen URI (default: {default_uri}"
     )
     parser.add_argument("--timing", "-t", action="store_true", help="Enable timing")
-    parser.add_argument("--verbose", "-v", action="count", help="Increase verbosity")
+    parser.add_argument("--verbose", "-v", action="count", help="Increase verbosity", default=0)
     parser.add_argument(
         "--lazy", "-L", action="store_true", help="Rely only on local cache"
     )
@@ -146,6 +155,19 @@ def run():
     parser_squash = subparsers.add_parser("squash")
     parser_squash.add_argument("labels", nargs="*")
     parser_squash.set_defaults(func=squash)
+
+    # Add push command
+    parser_push = subparsers.add_parser("push")
+    parser_push.add_argument("remote")
+    parser_push.add_argument("labels", nargs="*")
+    parser_push.set_defaults(func=push)
+
+
+    # Add pull command
+    parser_pull = subparsers.add_parser("pull")
+    parser_pull.add_argument("remote")
+    parser_pull.add_argument("labels", nargs="*")
+    parser_pull.set_defaults(func=pull)
 
     # Add pack command
     parser_pack = subparsers.add_parser("pack")
@@ -193,7 +215,9 @@ def run():
         parser.print_help()
         return
     # Enable logging
-    if args.verbose:
+    if args.verbose == 1:
+        logger.setLevel("INFO")
+    elif args.verbose > 1:
         logger.setLevel("DEBUG")
 
     # Execute command

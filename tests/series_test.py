@@ -2,9 +2,9 @@ import pytest
 from numpy import array
 from pandas import DataFrame
 
-from nagra import POD, Frame, Schema, Series
-from nagra.schema import DTYPES
-from nagra.utils import tail
+from jensen import POD, Frame, Schema, Series
+from jensen.schema import DTYPES
+from jensen.utils import tail
 
 schema = Schema(["timestamp:int", "value:float"])
 frm = {

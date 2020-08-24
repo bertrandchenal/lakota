@@ -18,9 +18,9 @@
 - Scaling
 
 
-# Baltic
+# Jensen
 
-Baltic is a versionned columnar storage.
+Jensen is a versionned columnar storage.
 
 
 ## Inspirations
@@ -34,7 +34,7 @@ Baltic is a versionned columnar storage.
 
 New timeseries:
 
-	bch@wsl:/tmp/data-dir$ baltic create temp_bxl "timestamp:M8[s]" "value:f8"
+	bch@wsl:/tmp/data-dir$ jensen create temp_bxl "timestamp:M8[s]" "value:f8"
 	bch@wsl:/tmp/data-dir$ tree -h .
 	.
 	├── [  96]  input-corrected.csv
@@ -103,7 +103,7 @@ Updated content:
 Second write:
 
 
-	bch@wsl:/tmp/data-dir$ cat input-corrected.csv | baltic write temp_bxl
+	bch@wsl:/tmp/data-dir$ cat input-corrected.csv | jensen write temp_bxl
 	bch@wsl:/tmp/data-dir$ tree -h .
 	.
 	├── [  96]  input-corrected.csv
@@ -134,7 +134,7 @@ Second write:
 
 Read back the result:
 
-	bch@wsl:/tmp/data-dir$ baltic read temp_bxl
+	bch@wsl:/tmp/data-dir$ jensen read temp_bxl
 	timestamp              value
 	-------------------  -------
 	2020-06-22T00:00:00     25
@@ -149,7 +149,7 @@ Read back the result:
 Squash series:
 
 
-	bch@wsl:/tmp/data-dir$ baltic squash temp_bxl
+	bch@wsl:/tmp/data-dir$ jensen squash temp_bxl
 	bch@wsl:/tmp/data-dir$ tree -h .
 	.
 	├── [  96]  input-corrected.csv
@@ -182,7 +182,7 @@ Squash series:
 
 Garbage collection
 
-	bch@wsl:/tmp/data-dir$ baltic gc
+	bch@wsl:/tmp/data-dir$ jensen gc
 	3 segments deleted
 	bch@wsl:/tmp/data-dir$ tree -h .
 	.

@@ -1,7 +1,7 @@
 from concurrent.futures import ThreadPoolExecutor
 
-from nagra import Changelog
-from nagra.utils import hexdigest
+from jensen import Changelog
+from jensen.utils import hexdigest
 
 
 def populate(changelog, datum):

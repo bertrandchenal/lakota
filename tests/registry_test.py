@@ -2,7 +2,7 @@ from itertools import islice
 
 from pytest import raises
 
-from nagra import Registry, Schema, Frame
+from jensen import Registry, Schema, Frame
 
 labels = "zero one two three four five six seven eight nine".split()
 

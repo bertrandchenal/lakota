@@ -4,7 +4,7 @@ from .changelog import phi
 from .pod import POD
 from .schema import Schema
 from .series import Series
-from .utils import hashed_path, hexdigest
+from .utils import hashed_path, hexdigest, logger
 
 
 
@@ -27,8 +27,11 @@ class Registry:
     def pull(self, remote, *labels):
         local_cache = self.search()
         remote_cache = remote.search()
+        if not labels:
+            labels = remote_cache['label']
 
         for label in labels:
+            logger.info('SYNC %s', label)
             rseries = remote.get(label, remote_cache)
             lseries = self.get(label, local_cache)
             if lseries is None:

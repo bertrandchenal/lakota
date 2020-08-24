@@ -1,6 +1,6 @@
 import pytest
 
-from nagra import POD
+from jensen import POD
 
 
 def test_cd(pod):

@@ -4,7 +4,7 @@ from setuptools import setup
 
 
 def get_version():
-    ini_path = Path(__file__).parent / 'nagra' / '__init__.py'
+    ini_path = Path(__file__).parent / 'jensen' / '__init__.py'
     for line in ini_path.open():
         if line.startswith('__version__'):
             return line.split('=')[1].strip("' \"\n")
@@ -12,9 +12,9 @@ def get_version():
 
 
 long_description = """
-Nagra is a columnar storage solution for timeseries.
+Jensen is a columnar storage solution for timeseries.
 
-Nagra organise reads and writes through a changelog inspired by
+Jensen organise reads and writes through a changelog inspired by
 Git. This changelog provides: historisation, concurrency control and
 ease of synchronisation across different storage backends.
 """
@@ -22,14 +22,14 @@ ease of synchronisation across different storage backends.
 description = "Versioned columnar storage for timeseries"
 
 setup(
-    name="nagra",
+    name="jensen",
     version=get_version(),
     description=description,
     long_description=long_description,
     author="Bertrand Chenal",
-    url="https://github.com/bertrandchenal/nagra",
+    url="https://github.com/bertrandchenal/jensen",
     license="MIT",
-    packages=["nagra"],
+    packages=["jensen"],
     install_requires=["numpy", "numcodecs", "s3fs", "numexpr", "tabulate", "msgpack"],
-    entry_points={"console_scripts": ["nagra = nagra.cli:run",],},
+    entry_points={"console_scripts": ["jensen = jensen.cli:run",],},
 )

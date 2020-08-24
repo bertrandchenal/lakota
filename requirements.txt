@@ -1,6 +1,8 @@
+dask[distributed]
+moto
+numcodecs
+numpy
 pandas
 pytest
 s3fs
-dask[distributed]
-moto
 tabulate

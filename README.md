@@ -1,8 +1,8 @@
 
 
-![Nagra Logo](assets/nagra-sm.png)
+# Jensen
 
-Inspired by Git, Nagra is a version-control system for numerical
+Inspired by Git, Jensen is a version-control system for numerical
 series. It is meant to be used on top of S3, on the local filesystem
 or in memory.
 
@@ -10,11 +10,11 @@ or in memory.
 
 ``` python
 
->>> from nagra import Registry, Schema
+>>> from jensen import Registry, Schema
 >>> ts_schema = Schema(['timestamp:timestamp', 'value:float'])
 >>> reg = Registry('my-data-folder')
 >>> reg.create(ts_schema, 'my-timeseries')
-[<nagra.series.Series object at 0x7f48d0702390>]
+[<jensen.series.Series object at 0x7f48d0702390>]
 >>> series = reg.get('my-timeseries')
 >>>
 >>> df = {
@@ -25,7 +25,7 @@ or in memory.
 >>> series.write(df)
 '0000000000000000000000000000000000000000.173c45d792a-306686bb001cfcaae3f8af9943e2945c9711ad5c'
 >>> series.read()
-<nagra.frame.Frame object at 0x7f48d0702cf8>
+<jensen.frame.Frame object at 0x7f48d0702cf8>
 >>>
 >>> frame = series.read()
 >>> frame['timestamp']

@@ -4,7 +4,7 @@ from uuid import uuid4
 import pytest
 from moto import mock_s3
 
-from nagra import POD
+from jensen import POD
 
 
 @pytest.yield_fixture(scope="function", params=["file", "memory", "s3", "cache"])
