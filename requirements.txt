@@ -1,10 +1,10 @@
 black
 dask[distributed]
 isort
-moto
+moto[server]
 numcodecs
 numpy
 pandas
 pytest
-s3fs
+s3fs<0.5
 tabulate

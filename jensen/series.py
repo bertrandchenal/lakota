@@ -122,6 +122,8 @@ class Series:
                     clsd = "left"
                 elif closed == "right":
                     clsd = None
+                else:
+                    clsd = closed
                 left_frm = self._read(revisions[pos + 1 :], start, mstart, closed=clsd)
                 yield from left_frm
             # recurse right
@@ -130,6 +132,8 @@ class Series:
                     clsd = "right"
                 elif closed == "left":
                     clsd = None
+                else:
+                    clsd = closed
                 right_frm = self._read(revisions[pos + 1 :], mstop, stop, closed=clsd)
                 yield from right_frm
             break
@@ -142,7 +146,7 @@ class Series:
         sort_mask = lexsort([frame[n] for n in idx_cols])
         assert (sort_mask == arange(len(sort_mask))).all(), "Dataframe is not sorted!"
 
-        # Save segments (XXX autochunkify)
+        # Save segments (TODO auto-chunk)
         all_dig = []
         for name in self.schema:
             arr = self.schema[name].cast(frame[name])

@@ -7,7 +7,6 @@ from .series import Series
 from .utils import hashed_path, hexdigest, logger
 
 
-
 class Registry:
     """
     Use a Series object to store all the series labels
@@ -28,10 +27,10 @@ class Registry:
         local_cache = self.search()
         remote_cache = remote.search()
         if not labels:
-            labels = remote_cache['label']
+            labels = remote_cache["label"]
 
         for label in labels:
-            logger.info('SYNC %s', label)
+            logger.info("SYNC %s", label)
             rseries = remote.get(label, remote_cache)
             lseries = self.get(label, local_cache)
             if lseries is None:
@@ -94,11 +93,14 @@ class Registry:
         start, stop = min(labels), max(labels)
         frm = self.schema_series.read(start, stop)
         items = [(l, s) for l, s in zip(frm["label"], frm["schema"]) if l not in labels]
-        keep_labels, keep_schema = zip(*items)
-        new_frm = {
-            "label": keep_labels,
-            "schema": keep_schema,
-        }
+        if len(items) == 0:
+            new_frm = self.schema.cast()
+        else:
+            keep_labels, keep_schema = zip(*items)
+            new_frm = {
+                "label": keep_labels,
+                "schema": keep_schema,
+            }
         self.schema_series.write(new_frm, start=start, stop=stop, parent_commit=phi)
 
     def gc(self, soft=True):

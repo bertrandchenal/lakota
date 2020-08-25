@@ -45,13 +45,12 @@ class POD:
 
         # Instatiate pod object
         path = PurePosixPath(path)
-        fs_kwargs.setdefault("auto_mkdir", True)
         if protocol == "file":
-            return FilePOD(path)
+            return FilePOD(path, **fs_kwargs)
         elif protocol == "s3":
-            return S3POD(path)
+            return S3POD(path, **fs_kwargs)
         elif protocol == "memory":
-            return MemPOD(path)
+            return MemPOD(path, **fs_kwargs)
         else:
             raise ValueError(f'Protocol "{protocol}" not supported')
 
@@ -249,14 +248,10 @@ class S3POD(POD):
 
     protocol = "s3"
 
-    def __init__(self, path, fs=None):
+    def __init__(self, path, fs=None, **kw):
+        # TODO document use of param: endpoint_url='http://127.0.0.1:5300'
         self.path = path
-        self.fs = fs or s3fs.S3FileSystem(
-            anon=False,
-            # client_kwargs={'endpoint_url': 'http://127.0.0.1:9000'},
-            # key='minioadmin',
-            # secret='minioadmin'
-        )
+        self.fs = fs or s3fs.S3FileSystem(anon=False, **kw,)
         super().__init__()
 
     def cd(self, *others):

@@ -2,7 +2,7 @@ from itertools import islice
 
 from pytest import raises
 
-from jensen import Registry, Schema, Frame
+from jensen import Frame, Registry, Schema
 
 labels = "zero one two three four five six seven eight nine".split()
 
@@ -65,11 +65,19 @@ def test_delete(pod):
     expected = sorted(labels)
     assert list(reg.search()["label"]) == expected
 
-    # Remove a label and check result
+    # Remove one label and check result
+    reg.delete("seven")
+    expected = [l for l in expected if l != "seven"]
+    assert list(reg.search()["label"]) == expected
+
+    # Remove two labels and check result
     reg.delete("nine", "zero")
-    assert list(reg.search()["label"]) == [
-        l for l in expected if l not in ("nine", "zero")
-    ]
+    expected = [l for l in expected if l not in ("nine", "zero", "seven")]
+    assert list(reg.search()["label"]) == expected
+
+    # Same after sqash
+    reg.squash()
+    assert list(reg.search()["label"]) == expected
 
 
 def test_pull():

@@ -32,12 +32,16 @@ class ColumnDefinition:
         self.idx = idx
 
     def encode(self, arr):
+        if len(arr) == 0:
+            return b""
         for codec_name in self.codecs:
             codec = registry.codec_registry[codec_name]
             arr = codec().encode(arr)
         return arr
 
     def decode(self, arr):
+        if len(arr) == 0:
+            return asarray([], dtype=self.dt)
         for codec_name in reversed(self.codecs):
             codec = registry.codec_registry[codec_name]
             arr = codec().decode(arr)
