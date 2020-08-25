@@ -18,7 +18,7 @@ class Registry:
         # TODO add a repo and move all this pod setup in it
         self.pod = pod or POD.from_uri(uri, lazy=lazy)
         self.segment_pod = self.pod / "segment"
-        self.schema_series = Series(
+        self.schema_series = Series(  # TODO rename into "series"
             "__schema_series__", self.schema, self.pod / "registry", self.segment_pod
         )
         self.series_pod = self.pod / "series"
@@ -26,6 +26,9 @@ class Registry:
     def pull(self, remote, *labels):
         local_cache = self.search()
         remote_cache = remote.search()
+        # Pull schema
+        self.schema_series.pull(remote.schema_series)
+
         if not labels:
             labels = remote_cache["label"]
 
@@ -33,9 +36,7 @@ class Registry:
             logger.info("SYNC %s", label)
             rseries = remote.get(label, remote_cache)
             lseries = self.get(label, local_cache)
-            if lseries is None:
-                lseries = self.create(rseries.schema, label)
-            elif lseries.schema != rseries.schema:
+            if lseries.schema != rseries.schema:
                 msg = f'Unable to pull label "{label}", incompatible schema.'
                 raise ValueError(msg)
             lseries.pull(rseries)

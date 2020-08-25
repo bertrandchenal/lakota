@@ -89,7 +89,6 @@ class Series:
             if not match:
                 continue
             mstart, mstop = match
-
             clsd = closed
             if closed == "right" and mstart > start:
                 clsd = "both"
@@ -101,14 +100,7 @@ class Series:
                 clsd = "right"
 
             # instanciate frame
-            sgm = ShallowSegment(
-                self.schema,
-                self.segment_pod,
-                revision["digests"],
-                start=revision["start"],
-                stop=revision["stop"],
-                length=revision["len"],
-            ).slice(mstart, mstop, clsd)
+            sgm = revision.segment(self).slice(mstart, mstop, clsd)
             yield sgm
 
             # We have found one result and the search range is
@@ -171,7 +163,7 @@ class Series:
     def truncate(self, *skip):
         self.chl_pod.clear(*skip)
 
-    def squash(self):
+    def squash(self, expected=None):
         """
         Remove all the revisions, collapse all frames into one
         """

@@ -227,7 +227,7 @@ class MemPOD(POD):
         pod, leaf = self.find_parent_pod(relpath)
         if pod is None:
             return False
-        return not isinstance(pod.store[leaf], POD)
+        return leaf in pod.store and not isinstance(pod.store[leaf], POD)
 
     def rm(self, relpath, recursive=False):
         logger.debug("REMOVE memory://%s %s", self.path, relpath)

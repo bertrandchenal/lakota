@@ -4,6 +4,7 @@ from time import sleep
 
 import numpy
 
+from .frame import ShallowSegment
 from .schema import Schema
 from .utils import hexdigest, hextime, tail
 
@@ -38,7 +39,9 @@ class Changelog:
 
         # Create array and encode it
         if not isinstance(payload, (list, tuple)):
-            payload = [payload]
+            payload = [
+                payload
+            ]  # XXX wrap payload like '{epoch: .., payload: payload}' this will make digest more stable
         arr = numpy.array(payload)
         data = self.schema["revision"].encode(arr)
         key = hexdigest(data)
@@ -144,6 +147,16 @@ class Revision:
     @property
     def path(self):
         return self.commit.path
+
+    def segment(self, series):
+        return ShallowSegment(
+            series.schema,
+            series.segment_pod,
+            self["digests"],
+            start=self["start"],
+            stop=self["stop"],
+            length=self["len"],
+        )
 
 
 class Commit:

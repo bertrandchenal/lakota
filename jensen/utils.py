@@ -3,11 +3,13 @@ import logging
 import sys
 from collections import deque
 from contextlib import contextmanager
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from hashlib import sha1
 from itertools import islice
 from pathlib import PosixPath
 from time import perf_counter, time
+
+from numpy import arange
 
 default_hash = sha1
 head = lambda it, n=1: list(islice(it, 0, n))
@@ -43,9 +45,9 @@ def strpt(time_str):
         return datetime(time_str.year, time_str.month, time_str.day)
 
     candidates = [
-        "%Y-%m-%d %H:%M:%S",
-        "%Y-%m-%d %H:%M",
         "%Y-%m-%d",
+        "%Y-%m-%d %H:%M",
+        "%Y-%m-%d %H:%M:%S",
     ]
     for fmt in candidates:
         try:
@@ -53,6 +55,12 @@ def strpt(time_str):
         except ValueError:
             pass
     raise ValueError('Unable to parse "%s" as datetime' % time_str)
+
+
+def drange(start, end, **time_delta_args):
+    start = strpt(start)
+    end = strpt(end)
+    return arange(start, end, timedelta(**time_delta_args))
 
 
 def hashed_path(digest, depth=2):
