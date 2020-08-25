@@ -1,6 +1,6 @@
 from itertools import islice
 
-from pytest import raises
+import pytest
 
 from jensen import Frame, Registry, Schema
 
@@ -27,7 +27,8 @@ def test_create_labels(pod):
         assert series.schema == schema
 
 
-def test_create_labels_chunks(pod):
+@pytest.mark.parametrize("squash", [True, False])
+def test_create_labels_chunks(pod, squash):
     """
     Create all labels in chunks
     """
@@ -47,18 +48,20 @@ def test_create_labels_chunks(pod):
 
     # Same after packing
     reg.schema_series.changelog.pack()
+    if squash:
+        reg.squash()
     for label in labels:
         series = reg.get(label)
         assert series.schema == schema
 
     # Same after sqash
-    reg.squash()
     for label in labels:
         series = reg.get(label)
         assert series.schema == schema
 
 
-def test_delete(pod):
+@pytest.mark.parametrize("squash", [True, False])
+def test_delete(pod, squash):
     reg = Registry(pod=pod)
     schema = Schema(["timestamp:int", "value:float"])
     reg.create(schema, *labels)
@@ -67,11 +70,15 @@ def test_delete(pod):
 
     # Remove one label and check result
     reg.delete("seven")
+    if squash:
+        reg.squash()
     expected = [l for l in expected if l != "seven"]
     assert list(reg.search()["label"]) == expected
 
     # Remove two labels and check result
     reg.delete("nine", "zero")
+    if squash:
+        reg.squash()
     expected = [l for l in expected if l not in ("nine", "zero", "seven")]
     assert list(reg.search()["label"]) == expected
 
@@ -123,7 +130,7 @@ def test_pull():
     local_reg = Registry()
     other_schema = Schema(["timestamp:int", "value:int"])
     lseries = local_reg.create(other_schema, label)
-    with raises(ValueError):
+    with pytest.raises(ValueError):
         local_reg.pull(remote_reg, label)
 
 
