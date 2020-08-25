@@ -113,18 +113,15 @@ class Changelog:
         """
         Combine the current list of revisions into one array of revision
         """
+
+        # TODO: allow to only pack commit that are old enough (so not
+        # the most recent ones) to not disturb concurrent writes. Also
+        # prevent dangling commits (when the parent has already been
+        # packed)
         revs = list(self.walk())
         if len(revs) == 1:
             return
-
-        # parent = phi
-        # arr = numpy.array()
         self.commit([r.payload for r in revs], force_parent=phi)
-        # data = self.schema["revision"].encode(arr)
-        # key = hexdigest(data)
-        # filename = ".".join((parent, key))
-        # self.pod.write(filename, data)
-
         # Clean old revisions
         for path in set(r.path for r in revs):
             self.pod.rm(path)
