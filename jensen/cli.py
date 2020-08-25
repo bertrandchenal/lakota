@@ -27,11 +27,16 @@ def read(args):
     series = get_series(args)
     columns = args.columns or series.schema.columns
     frm = series.read(start=args.greater_than, stop=args.less_than, limit=args.limit)
-    if len(frm) == 0:
-        print(tabulate([], headers=columns))
+    rows = zip(*(frm[col] for col in columns))
+    if args.tabulate:
+        if len(frm) == 0:
+            print(tabulate([], headers=columns))
+        else:
+            print(tabulate(rows, headers=columns))
     else:
-        rows = zip(*(frm[col] for col in columns))
-        print(tabulate(rows, headers=columns))
+        writer = csv.writer(sys.stdout)
+        writer.writerow(columns)
+        writer.writerows(rows)
 
 
 def length(args):
@@ -43,7 +48,12 @@ def length(args):
 def ls(args):
     reg = get_registry(args)
     rows = [[label] for label in reg.search()["label"]]
-    print(tabulate(rows, headers=["label"]))
+    if args.tabulate:
+        print(tabulate(rows, headers=["label"]))
+    else:
+        writer = csv.writer(sys.stdout)
+        writer.writerow(["label"])
+        writer.writerows(rows)
 
 
 def create(args):
@@ -123,6 +133,7 @@ def run():
         "--uri", "-u", default=default_uri, help=f"Jensen URI (default: {default_uri}"
     )
     parser.add_argument("--timing", "-t", action="store_true", help="Enable timing")
+    parser.add_argument("--tabulate", "-T", action="store_true", help="Tabulate output")
     parser.add_argument("--verbose", "-v", action="count", help="Increase verbosity", default=0)
     parser.add_argument(
         "--lazy", "-L", action="store_true", help="Rely only on local cache"
