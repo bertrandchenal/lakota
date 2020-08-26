@@ -1,7 +1,7 @@
 from itertools import chain
 
 from .changelog import phi
-from .pod import POD
+from .pod import POD, CachePOD
 from .schema import Schema
 from .series import Series
 from .utils import hashed_path, hexdigest, logger
@@ -14,9 +14,9 @@ class Registry:
 
     schema = Schema(["label:str", "schema:O"])
 
-    def __init__(self, uri=None, pod=None, lazy=False):
+    def __init__(self, uri=None, pod=None):
         # TODO add a repo and move all this pod setup in it
-        self.pod = pod or POD.from_uri(uri, lazy=lazy)
+        self.pod = pod or POD.from_uri(uri)
         self.segment_pod = self.pod / "segment"
         self.schema_series = Series(  # TODO rename into "series"
             "__schema_series__", self.schema, self.pod / "registry", self.segment_pod

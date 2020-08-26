@@ -19,19 +19,18 @@ class POD:
         return cls._by_token[token]
 
     @classmethod
-    def from_uri(cls, uri=None, lazy=False, **fs_kwargs):
+    def from_uri(cls, uri=None, **fs_kwargs):
         # multi-uri -> CachePOD
         if isinstance(uri, (tuple, list)):
             if len(uri) > 1:
                 return CachePOD(
                     local=POD.from_uri(uri[0], **fs_kwargs),
                     remote=POD.from_uri(uri[1:], **fs_kwargs),
-                    lazy=lazy,
                 )
             else:
                 return POD.from_uri(uri[0], **fs_kwargs)
         elif uri and "+" in uri:
-            return POD.from_uri(uri.split("+"), lazy=lazy, **fs_kwargs)
+            return POD.from_uri(uri.split("+"), **fs_kwargs)
 
         # Define protocal and path
         if not uri:
@@ -293,11 +292,10 @@ class S3POD(POD):
 
 
 class CachePOD(POD):
-    def __init__(self, local, remote, lazy=False):
+    def __init__(self, local, remote):
         self.local = local
         self.remote = remote
         self.protocol = f"{local.protocol}+{remote.protocol}"
-        self.lazy = lazy
         super().__init__()
 
     @property
@@ -307,11 +305,9 @@ class CachePOD(POD):
     def cd(self, *others):
         local = self.local.cd(*others)
         remote = self.remote.cd(*others)
-        return CachePOD(local, remote, lazy=self.lazy)
+        return CachePOD(local, remote)
 
     def ls(self, relpath=".", raise_on_missing=True):
-        if self.lazy:
-            return self.local.ls(relpath, raise_on_missing=raise_on_missing)
         return self.remote.ls(relpath, raise_on_missing=raise_on_missing)
 
     def read(self, relpath, mode="rb"):

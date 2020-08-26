@@ -5,14 +5,14 @@ import sys
 
 from tabulate import tabulate
 
+from . import __version__
 from .registry import Registry
 from .schema import Schema
 from .utils import logger, timeit
-from . import __version__
 
 
 def get_registry(args):
-    return Registry(args.uri, lazy=args.lazy)
+    return Registry(args.uri)
 
 
 def get_series(args):
@@ -84,15 +84,18 @@ def squash(args):
     else:
         reg.schema_series.squash()
 
+
 def push(args):
     reg = get_registry(args)
     remote_reg = Registry(args.remote)
     reg.push(remote_reg, *args.labels)
 
+
 def pull(args):
     reg = get_registry(args)
     remote_reg = Registry(args.remote)
     reg.pull(remote_reg, *args.labels)
+
 
 def pack(args):
     series = get_series(args)
@@ -126,17 +129,15 @@ def run():
 
     # top-level parser
     parser = argparse.ArgumentParser(
-        prog="jensen",
-        formatter_class=argparse.RawDescriptionHelpFormatter,
+        prog="jensen", formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument(
         "--uri", "-u", default=default_uri, help=f"Jensen URI (default: {default_uri}"
     )
     parser.add_argument("--timing", "-t", action="store_true", help="Enable timing")
     parser.add_argument("--tabulate", "-T", action="store_true", help="Tabulate output")
-    parser.add_argument("--verbose", "-v", action="count", help="Increase verbosity", default=0)
     parser.add_argument(
-        "--lazy", "-L", action="store_true", help="Rely only on local cache"
+        "--verbose", "-v", action="count", help="Increase verbosity", default=0
     )
     subparsers = parser.add_subparsers(dest="command")
 
@@ -172,7 +173,6 @@ def run():
     parser_push.add_argument("remote")
     parser_push.add_argument("labels", nargs="*")
     parser_push.set_defaults(func=push)
-
 
     # Add pull command
     parser_pull = subparsers.add_parser("pull")
