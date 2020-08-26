@@ -3,7 +3,7 @@ from time import time
 from numpy import arange, lexsort
 
 from .changelog import Changelog, phi
-from .frame import Frame, ShallowSegment
+from .frame import Frame
 from .utils import hashed_path, hexdigest
 
 
