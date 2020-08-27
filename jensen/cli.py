@@ -26,9 +26,16 @@ def get_series(args):
 def read(args):
     series = get_series(args)
     columns = args.columns or series.schema.columns
-    frm = series.read(start=args.greater_than, stop=args.less_than, limit=args.limit)
+    head, tail = args.head, args.tail
+    if head is None is not tail:
+        head = 0
+    elif head is not None is tail:
+        tail = 0
+    frm = series.read(
+        start=args.greater_than, stop=args.less_than, head=head, tail=tail
+    )
     rows = zip(*(frm[col] for col in columns))
-    if args.tabulate:
+    if args.pretty:
         if len(frm) == 0:
             print(tabulate([], headers=columns))
         else:
@@ -48,7 +55,7 @@ def length(args):
 def ls(args):
     reg = get_registry(args)
     rows = [[label] for label in reg.search()["label"]]
-    if args.tabulate:
+    if args.pretty:
         print(tabulate(rows, headers=["label"]))
     else:
         writer = csv.writer(sys.stdout)
@@ -135,7 +142,7 @@ def run():
         "--uri", "-u", default=default_uri, help=f"Jensen URI (default: {default_uri}"
     )
     parser.add_argument("--timing", "-t", action="store_true", help="Enable timing")
-    parser.add_argument("--tabulate", "-T", action="store_true", help="Tabulate output")
+    parser.add_argument("--pretty", "-P", action="store_true", help="Tabulate output")
     parser.add_argument(
         "--verbose", "-v", action="count", help="Increase verbosity", default=0
     )
@@ -145,7 +152,8 @@ def run():
     parser_read = subparsers.add_parser("read")
     parser_read.add_argument("label")
     parser_read.add_argument("columns", nargs="*")
-    parser_read.add_argument("--limit", "-l", type=int, default=1000)
+    parser_read.add_argument("--head", "-H", type=int, default=None)
+    parser_read.add_argument("--tail", "-T", type=int, default=None)
     parser_read.add_argument(
         "--greater-than", "--gt", nargs="+", help="Apply expression as mask"
     )

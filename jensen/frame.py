@@ -25,20 +25,22 @@ class Frame:
         self.columns = columns
 
     @classmethod
-    def from_segments(cls, schema, *segments, limit=None):
+    def from_segments(cls, schema, *segments, head=None, tail=None):
         if not segments:
             return Frame(schema)
-
+        total_len = sum(len(s) for s in segments)
         columns = {}
         for name in schema.columns:
             arrays = []
-            slim = limit
+            h = head
+            t = total_len - tail if tail is not None else None
             for sgm in segments:
-                arr = sgm.read(name, limit)
-                if slim is not None:
-                    arr = arr[:slim]
-                    slim -= len(sgm)
-                arrays.append(arr)
+                arrs = sgm.read(name, head=h, tail=t)
+                if h is not None:
+                    h = max(h - len(sgm), 0)
+                if t is not None:
+                    t = max(t - len(sgm), 0)
+                arrays.extend(arrs)
             columns[name] = concatenate(arrays)
         return Frame(schema, columns)
 
@@ -171,7 +173,10 @@ class ShallowSegment:
             return self
         else:
             # Materialize arrays
-            frm = Frame(self.schema, {name: self.read(name) for name in self.schema})
+            frm = Frame(
+                self.schema,
+                {name: concatenate(self.read(name)) for name in self.schema},
+            )
             # Compute slice and apply it
             frm = frm.index_slice(start, stop, closed=closed)
             return Segment(start, stop, frm)
@@ -179,11 +184,19 @@ class ShallowSegment:
     def __len__(self):
         return self.length
 
-    def read(self, name, limit=None):
+    def read(self, name, head=None, tail=None):
         folder, filename = hashed_path(self.digest[name])
         data = self.pod.cd(folder).read(filename)
         arr = self.schema[name].decode(data)
-        return arr[:limit]
+
+        res = []
+        if head:
+            res.append(arr[:head])
+        if tail:
+            res.append(arr[tail:])
+        if not res:
+            res = [arr]
+        return res
 
     @property
     def empty(self):
@@ -199,8 +212,15 @@ class Segment:
     def __len__(self):
         return len(self.frm)
 
-    def read(self, name, limit=None):
-        return self.frm[name][:limit]
+    def read(self, name, head=None, tail=None):
+        res = []
+        if head:
+            res.append(self.frm[name][:head])
+        if tail:
+            res.append(self.frm[name][tail:])
+        if not res:
+            res = [self.frm[name]]
+        return res
 
 
 class EmptySegment:
@@ -212,8 +232,8 @@ class EmptySegment:
     def __len__(self):
         return 0
 
-    def read(self, name, limit=None):
-        return self.schema[name].cast([])
+    def read(self, name, head=None, tail=None):
+        return [self.schema[name].cast([])]
 
     @property
     def empty(self):

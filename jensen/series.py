@@ -50,7 +50,14 @@ class Series:
         return self.changelog.walk()
 
     def read(
-        self, start=None, stop=None, limit=None, after=None, before=None, closed="both"
+        self,
+        start=None,
+        stop=None,
+        head=None,
+        tail=None,
+        after=None,
+        before=None,
+        closed="both",
     ):
         """
         Read all matching frame and combine them
@@ -79,7 +86,7 @@ class Series:
 
         # Sort (non-overlaping frames)
         segments.sort(key=lambda s: s.start)
-        frm = Frame.from_segments(self.schema, *segments, limit=limit)
+        frm = Frame.from_segments(self.schema, *segments, head=head, tail=tail)
 
         return frm
 
