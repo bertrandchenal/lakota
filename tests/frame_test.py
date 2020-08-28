@@ -83,7 +83,7 @@ def test_double_slice(frame_values, frm):
     reg = Registry()
     series = reg.create(frm.schema, "my-label")
     series.write(frame_values)
-    frm = series.read()
+    frm = series.frame()
     frm = frm.slice(1, None).slice(None, 2)
     assert all(frm["value"] == VALUES[1:][:2])
 

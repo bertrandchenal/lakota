@@ -97,21 +97,16 @@ def timeit(title=""):
     print(title, pretty_nb(delta) + "s", file=sys.stderr)
 
 
-class MemoizeWrapper:
-    def __init__(self, fn):
-        self.fn = fn
-        self.cache = {}
+def memoize(fn):
+    fn = fn
+    cache = {}
 
-    def __call__(self, *args):
-        if args in self.cache:
-            return self.cache[args]
-        res = self.fn(*args)
-        self.cache[args] = res
+    def wrapper(*a, **kw):
+        key = a + tuple(kw.keys()) + tuple(kw.values())
+        if key in cache:
+            return cache[key]
+        res = fn(*a, **kw)
+        cache[key] = res
         return res
 
-    def clear(self):
-        self.cache = {}
-
-
-def memoize(fn):
-    return MemoizeWrapper(fn)
+    return wrapper

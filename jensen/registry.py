@@ -65,7 +65,7 @@ class Registry:
         else:
             start = stop = None
         # [XXX] add cache on schema_series ?
-        frm = self.schema_series.read(start=start, stop=stop)
+        frm = self.schema_series[start:stop]
         return frm
 
     def get(self, label, from_frm=None):
@@ -92,7 +92,7 @@ class Registry:
 
     def delete(self, *labels):
         start, stop = min(labels), max(labels)
-        frm = self.schema_series.read(start, stop)
+        frm = self.schema_series[start:stop]
         items = [(l, s) for l, s in zip(frm["label"], frm["schema"]) if l not in labels]
         if len(items) == 0:
             new_frm = self.schema.cast()

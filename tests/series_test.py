@@ -7,29 +7,32 @@ from jensen.schema import DTYPES
 from jensen.utils import tail
 
 schema = Schema(["timestamp:int", "value:float"])
-frm = {
+orig_frm = {
     "timestamp": [1589455903, 1589455904, 1589455905],
     "value": [3.3, 4.4, 5.5],
 }
 
 
-@pytest.fixture(scope="function", params=["dataframe", "dict"])
+@pytest.fixture(scope="function",)
 def series(request):
     pod = POD.from_uri("memory://")
     series = Series("_", schema, pod)
-    # Write some values
-    if request.param == "dataframe":
-        df = DataFrame(frm)
-        series.write(df)
-    else:
-        series.write(frm)
+    series.write(orig_frm)
     return series
 
 
 def test_read_series(series):
     # Read those back
-    frm_copy = series.read()
-    assert frm_copy == frm
+    frm_copy = series.frame()
+    assert frm_copy == orig_frm
+
+
+def test_write_df(series):
+    # Write some values
+    df = DataFrame(orig_frm)
+    series.write(df)  # TODO implement setitem
+
+    assert series[:] == orig_frm
 
 
 @pytest.mark.parametrize("how", ["left", "right"])
@@ -44,7 +47,7 @@ def test_spill_write(series, how):
     frm = Frame(schema, {"timestamp": ts, "value": vals,})
     series.write(frm)
 
-    frm_copy = series.read()
+    frm_copy = series.frame()
     assert frm_copy == frm
 
 
@@ -60,7 +63,7 @@ def test_short_cover(series, how):
     frm = Frame(schema, {"timestamp": ts, "value": vals},)
     series.write(frm)
 
-    frm_copy = series.read()
+    frm_copy = series.frame()
     assert all(frm_copy["timestamp"] == [1589455903, 1589455904, 1589455905])
     if how == "left":
         assert all(frm_copy["value"] == [3.3, 44, 55])
@@ -82,7 +85,7 @@ def test_adjacent_write(series, how):
     series.write(frm)
 
     # Full read
-    frm_copy = series.read()
+    frm_copy = series.frame()
     if how == "left":
         assert all(
             frm_copy["timestamp"] == [1589455902, 1589455903, 1589455904, 1589455905]
@@ -96,7 +99,7 @@ def test_adjacent_write(series, how):
         assert all(frm_copy["value"] == [3.3, 4.4, 5.5, 6.6])
 
     # Slice read - left slice
-    frm_copy = series.read(start=[1589455902], stop=[1589455903])
+    frm_copy = series[1589455902:1589455903]
     if how == "left":
         assert all(frm_copy["timestamp"] == [1589455902, 1589455903])
         assert all(frm_copy["value"] == [2.2, 3.3])
@@ -106,7 +109,7 @@ def test_adjacent_write(series, how):
         assert all(frm_copy["value"] == [3.3])
 
     # Slice read - right slice
-    frm_copy = series.read(start=[1589455905], stop=[1589455906])
+    frm_copy = series[1589455905:1589455906]
     if how == "left":
         assert all(frm_copy["timestamp"] == [1589455905])
         assert all(frm_copy["value"] == [5.5])
@@ -126,7 +129,7 @@ def test_column_types():
         schema = Schema(cols, idx_len)
         series = Series("_", schema, pod)
         series.write(df)
-        frm = series.read()
+        frm = series.frame()
 
         for name in names:
             assert all(frm[name] == df[name])
@@ -142,9 +145,75 @@ def test_rev_filter(series):
     (last_rev,) = tail(series.revisions())
 
     # Read initial commit
-    old_frm = series.read(before=last_rev["epoch"])
-    assert old_frm == frm
+    old_frm = series.before(last_rev["epoch"]).frame()
+    assert old_frm == orig_frm
 
     # Ignore initial commit
-    new_frm = series.read(after=last_rev["epoch"])
+    new_frm = series.after(last_rev["epoch"]).frame()
     assert new_frm == second_frm
+
+
+@pytest.mark.parametrize("extra_commit", [True, False])
+def test_paginate(series, extra_commit):
+    ts = orig_frm["timestamp"]
+    frm = next(series.paginate(step=3))
+    assert all(frm["timestamp"] == ts)
+
+    frames = series.paginate(step=1)
+    for frm, val in zip(frames, ts):
+        assert len(frm) == 1
+        assert frm["timestamp"][0] == val
+
+    frames = list(series.paginate(step=2))
+    assert all(frames[0]["timestamp"] == ts[:2])
+    assert all(frames[1]["timestamp"] == ts[2:])
+
+    # Add two commits
+    series.write(
+        {"timestamp": [1589455906, 1589455907, 1589455908], "value": [6, 7, 8],}
+    )
+    series.write(
+        {"timestamp": [1589455909, 1589455910, 1589455911], "value": [9, 10, 11],}
+    )
+    if extra_commit:
+        series.write(
+            {
+                "timestamp": [1589455907, 1589455908, 1589455909, 1589455910],
+                "value": [7, 8, 9, 10],
+            }
+        )
+
+    # Paginate and reassemble
+    frames = series.paginate(2)
+    res = []
+    for frm in frames:
+        res.extend(frm["timestamp"])
+    assert res == list(range(1589455903, 1589455912))
+
+    # Same with offset
+    frames = series.offset(1).paginate(2)
+    res = []
+    for frm in frames:
+        res.extend(frm["timestamp"])
+    assert res == list(range(1589455904, 1589455912))
+
+    # Same with offset and limit
+    frames = series.offset(1).limit(5).paginate(2)
+    res = []
+    for frm in frames:
+        res.extend(frm["timestamp"])
+    assert res == list(range(1589455904, 1589455909))
+
+    # Same with offset and limit
+    frames = series.offset(1).limit(5).paginate(10)
+    res = []
+    for frm in frames:
+        res.extend(frm["timestamp"])
+    assert res == list(range(1589455904, 1589455909))
+
+    # Same with offset and limit
+    frames = series.offset(10).limit(5).paginate()
+    res = []
+    for frm in frames:
+        res.extend(frm["timestamp"])
+    assert res == []

@@ -50,17 +50,10 @@ class Series:
         return self.changelog.walk()
 
     def read(
-        self,
-        start=None,
-        stop=None,
-        head=None,
-        tail=None,
-        after=None,
-        before=None,
-        closed="both",
+        self, start=None, stop=None, after=None, before=None, closed="both",
     ):
         """
-        Read all matching frame and combine them
+        Find all matching segments
         """
         # Extract start and stop
         start = self.schema.deserialize(start)
@@ -86,9 +79,7 @@ class Series:
 
         # Sort (non-overlaping frames)
         segments.sort(key=lambda s: s.start)
-        frm = Frame.from_segments(self.schema, *segments, head=head, tail=tail)
-
-        return frm
+        return segments
 
     def _read(self, revisions, start, stop, closed="both"):
         for pos, revision in enumerate(revisions):
@@ -174,10 +165,133 @@ class Series:
         """
         Remove all the revisions, collapse all frames into one
         """
-        frm = self.read()
-        commit = self.write(frm, parent_commit=phi)
-        self.truncate(commit.path)
+        step = 500_000
+        commits = [self.write(frm, parent_commit=phi) for frm in self.paginate(step)]
+        self.truncate(*(c.path for c in commits))
 
     def digests(self):
         for revision in self.changelog.walk():
             yield from revision["digests"]
+
+    def __getitem__(self, by):
+        if isinstance(by, slice):
+            return Cursor(self)[by]
+        else:
+            raise KeyError(by)
+
+    @classmethod
+    def inject(cls, name):
+        fn = lambda self, *a, **kw: getattr(Cursor(self), name)(*a, **kw)
+        setattr(cls, name, fn)
+
+
+class Cursor:
+    def __init__(self, series):
+        self.series = series
+        self.segments = None
+        self.params = {
+            "closed": "both",  # FIXME should be 'left'
+        }
+
+    def closed(self, val):
+        assert val in ("left", "right", None), f"Unsupported value {val} for closed"
+        self.params["closed"] = val
+        return self
+
+    def start(self, val):
+        self.params["start"] = self.series.schema.deserialize(val)
+        return self
+
+    def stop(self, val):
+        self.params["stop"] = self.series.schema.deserialize(val)
+        return self
+
+    def limit(self, val):
+        self.params["limit"] = val
+        return self
+
+    def offset(self, val):
+        self.params["offset"] = val
+        return self
+
+    def before(self, val):
+        self.params["before"] = val
+        return self
+
+    def after(self, val):
+        self.params["after"] = val
+        return self
+
+    def select(self, *columns):
+        self.params["select"] = columns
+        return self
+
+    def __getitem__(self, by):
+        if isinstance(by, slice):
+            self.start(by.start).stop(by.stop)
+            return self.frame()
+        elif isinstance(by, (list, tuple, str)):
+            return self.select(by)
+        else:
+            raise KeyError(by)
+
+    def read(self):
+        keys = ("start", "stop", "before", "after", "closed")
+        kw = {k: self.params.get(k) for k in keys}
+        segments = self.series.read(**kw)
+        return segments
+
+    def __len__(self):
+        return sum(len(s) for s in self.read())
+
+    def frame(self):
+        segments = self.read()
+        limit = self.params.get("limit")
+        offset = self.params.get("offset")
+        select = self.params.get("select")
+        return Frame.from_segments(
+            self.series.schema, segments, limit=limit, offset=offset, select=select
+        )
+
+    def df(self):
+        frm = self.frame()
+        return frm.df()
+
+    def paginate(self, step=100_000):
+        if step <= 0:
+            raise ValueError("step argument must be > 0")
+        segments = self.read()
+        select = self.params.get("select")
+        limit = self.params.get("limit")
+        pos = self.params.get("offset") or 0
+
+        while True:
+            lmt = step if limit is None else min(step, limit)
+            frm = Frame.from_segments(
+                self.series.schema, segments, limit=lmt, offset=pos, select=select
+            )
+            if len(frm) == 0:
+                return
+            if limit is not None:
+                limit -= len(frm)
+            yield frm
+            pos += step
+
+
+# Auto-magically inject Cursor method in Series
+to_inject = [
+    "paginate",
+    "df",
+    "frame",
+    "closed",
+    "start",
+    "stop",
+    "limit",
+    "offset",
+    "after",
+    "before",
+    "__len__",
+    "select",
+]
+for name in to_inject:
+    Series.inject(name)

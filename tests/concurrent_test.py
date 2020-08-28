@@ -46,7 +46,7 @@ def test_insert(pod):
     # Read it back
     with timeit(f"\nREAD ({pod.protocol})"):
         series = registry.get(label)
-        df = series.read(["2015-01-01"], ["2015-01-02"], closed="left").df()
+        df = series.closed("left")["2015-01-01":"2015-01-02"].df()
         assert len(df) == 1440
-        df = series.read(["2015-12-31"], ["2016-01-02"], closed="left").df()
+        df = series.closed("left")["2015-12-31":"2016-01-02"].df()
         assert len(df) == 2880

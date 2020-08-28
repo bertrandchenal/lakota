@@ -26,30 +26,44 @@ def get_series(args):
 def read(args):
     series = get_series(args)
     columns = args.columns or series.schema.columns
-    head, tail = args.head, args.tail
-    if head is None is not tail:
-        head = 0
-    elif head is not None is tail:
-        tail = 0
-    frm = series.read(
-        start=args.greater_than, stop=args.less_than, head=head, tail=tail
-    )
-    rows = zip(*(frm[col] for col in columns))
+    cursor = series.select(*columns).limit(args.limit).offset(args.offset)
+    cursor = cursor.start(args.greater_than).stop(args.less_than)
+
+    if args.paginate:
+        frames = cursor.paginate(args.paginate)
+    else:
+        frames = [cursor.frame()]
+
     if args.pretty:
-        if len(frm) == 0:
-            print(tabulate([], headers=columns))
-        else:
-            print(tabulate(rows, headers=columns))
+        for frm in frames:
+            rows = zip(*(frm[col] for col in columns))
+            if len(frm) == 0:
+                print(tabulate([], headers=columns))
+            else:
+                print(tabulate(rows, headers=columns))
     else:
         writer = csv.writer(sys.stdout)
         writer.writerow(columns)
-        writer.writerows(rows)
+        for frm in frames:
+            rows = zip(*(frm[col] for col in columns))
+            writer.writerows(rows)
 
 
 def length(args):
     series = get_series(args)
-    frm = series.read()
-    print(len(frm))
+    print(len(series))
+
+
+def revisions(args):
+    series = get_series(args)
+    cols = ["start", "stop", "lenght"]
+    rows = [(r["start"], r["stop"], r["len"]) for r in series.revisions()]
+    if args.pretty:
+        print(tabulate(rows, headers=cols))
+    else:
+        writer = csv.writer(sys.stdout)
+        writer.writerow(cols)
+        writer.writerows(rows)
 
 
 def ls(args):
@@ -152,8 +166,9 @@ def run():
     parser_read = subparsers.add_parser("read")
     parser_read.add_argument("label")
     parser_read.add_argument("columns", nargs="*")
-    parser_read.add_argument("--head", "-H", type=int, default=None)
-    parser_read.add_argument("--tail", "-T", type=int, default=None)
+    parser_read.add_argument("--limit", "-l", type=int, default=None)
+    parser_read.add_argument("--offset", "-o", type=int, default=None)
+    parser_read.add_argument("--paginate", "-p", type=int, default=None)
     parser_read.add_argument(
         "--greater-than", "--gt", nargs="+", help="Apply expression as mask"
     )
@@ -166,6 +181,11 @@ def run():
     parser_len = subparsers.add_parser("len")
     parser_len.add_argument("label")
     parser_len.set_defaults(func=length)
+
+    # Add rev command
+    parser_rev = subparsers.add_parser("rev")
+    parser_rev.add_argument("label")
+    parser_rev.set_defaults(func=revisions)
 
     # Add len command
     parser_len = subparsers.add_parser("ls")

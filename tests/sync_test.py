@@ -16,26 +16,26 @@ def test_pull():
         rseries.write(
             {"timestamp": range(i, i + 10), "value": range(i + 100, i + 110),}
         )
-    expected = rseries.read()
+    expected = rseries[:]
 
     # Test pull
     local_reg = Registry()
     local_reg.pull(remote_reg, label)
     lseries = local_reg.get(label)
-    assert lseries.read() == expected
+    assert lseries[:] == expected
 
     # Test push
     other_reg = Registry()
     remote_reg.push(other_reg, label)
     oseries = other_reg.get(label)
-    assert oseries.read() == expected
+    assert oseries[:] == expected
 
     # Test with existing series
     local_reg = Registry()
     local_reg.create(schema, label)
     local_reg.pull(remote_reg, label)
     lseries = other_reg.get(label)
-    assert oseries.read() == expected
+    assert oseries[:] == expected
 
     # Test with existing series with existing data
     local_reg = Registry()
@@ -43,7 +43,7 @@ def test_pull():
     frm = Frame(schema, {"timestamp": range(0, 20), "value": range(10, 20),})
     lseries.write(frm)
     local_reg.pull(remote_reg, label)
-    assert lseries.read() == frm
+    assert lseries[:] == frm
 
     # Test with existing series with other schema
     local_reg = Registry()
