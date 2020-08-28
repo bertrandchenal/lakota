@@ -60,7 +60,12 @@ class Frame:
     def mask(self, mask):
         if isinstance(mask, str):
             mask = self.eval(mask)
-        cols = {name: self.columns[name][mask] for name in self.columns}
+        cols = {}
+        for name in self.columns:
+            arr = self.columns[name]
+            if len(arr) == 0:
+                continue
+            cols[name] = arr[mask]
         return Frame(self.schema, cols)
 
     def eval(self, expr):

@@ -2,3 +2,4 @@
 rm dist/*
 python setup.py sdist --formats=zip
 twine upload dist/*
+rm dist/*
