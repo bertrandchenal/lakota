@@ -50,7 +50,7 @@ class Series:
         return self.changelog.walk()
 
     def read(
-        self, start=None, stop=None, after=None, before=None, closed="both",
+        self, start=None, stop=None, after=None, before=None, closed="left",
     ):
         """
         Find all matching segments
@@ -81,7 +81,7 @@ class Series:
         segments.sort(key=lambda s: s.start)
         return segments
 
-    def _read(self, revisions, start, stop, closed="both"):
+    def _read(self, revisions, start, stop, closed="left"):
         for pos, revision in enumerate(revisions):
             match = intersect(revision, start, stop)
             if not match:
@@ -190,11 +190,16 @@ class Cursor:
         self.series = series
         self.segments = None
         self.params = {
-            "closed": "both",  # FIXME should be 'left'
+            "closed": "left",
         }
 
     def closed(self, val):
-        assert val in ("left", "right", None), f"Unsupported value {val} for closed"
+        assert val in (
+            "left",
+            "right",
+            "both",
+            None,
+        ), f"Unsupported value {val} for closed"
         self.params["closed"] = val
         return self
 

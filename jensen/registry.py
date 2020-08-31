@@ -1,7 +1,7 @@
 from itertools import chain
 
 from .changelog import phi
-from .pod import POD, CachePOD
+from .pod import POD
 from .schema import Schema
 from .series import Series
 from .utils import hashed_path, hexdigest, logger
@@ -47,6 +47,7 @@ class Registry:
     def create(self, schema, *labels, raise_if_exists=True):
         new_series = []
         for label in sorted(labels):
+            new_series.append(self.series(label, schema))
             current = self.search(label)
             if not current.empty:
                 if not raise_if_exists:
@@ -54,7 +55,6 @@ class Registry:
                 raise ValueError('Label "{label}" already exists')
             # Save a frame of size one
             self.schema_series.write({"label": [label], "schema": [schema.as_dict()]})
-            new_series.append(self.series(label, schema))
         if len(labels) == 1:
             return new_series[0]
         return new_series
@@ -65,7 +65,7 @@ class Registry:
         else:
             start = stop = None
         # [XXX] add cache on schema_series ?
-        frm = self.schema_series[start:stop]
+        frm = self.schema_series.closed("both")[start:stop]
         return frm
 
     def get(self, label, from_frm=None):
@@ -92,7 +92,7 @@ class Registry:
 
     def delete(self, *labels):
         start, stop = min(labels), max(labels)
-        frm = self.schema_series[start:stop]
+        frm = self.schema_series.closed("both")[start:stop]
         items = [(l, s) for l, s in zip(frm["label"], frm["schema"]) if l not in labels]
         if len(items) == 0:
             new_frm = self.schema.cast()
