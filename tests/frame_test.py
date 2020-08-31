@@ -17,14 +17,14 @@ def frame_values():
 
 @pytest.fixture
 def frm(frame_values):
-    schema = Schema(["category:str", "value:float"])
+    schema = Schema(["category str*", "value float"])
 
     frm = Frame(schema, frame_values)
     return frm
 
 
 def test_index_slice():
-    schema = Schema(["x:int"])
+    schema = Schema(["x int*"])
     frm = Frame(schema, {"x": [1, 2, 3, 4, 5, 5, 5, 6]})
 
     # include both side
@@ -52,7 +52,7 @@ def test_index_slice():
 
 def test_getitem():
     # with a slice
-    schema = Schema(["x:int"])
+    schema = Schema(["x int*"])
     frm = Frame(schema, {"x": [1, 2, 3, 4, 5, 5, 5, 6]})
     frm2 = frm[5:]
     assert all(frm2["x"] == [5, 5, 5, 6])
@@ -64,7 +64,7 @@ def test_getitem():
 
 def test_mask():
     # with an array
-    schema = Schema(["x:int"])
+    schema = Schema(["x int*"])
     frm = Frame(schema, {"x": [1, 2, 3, 4, 5, 5, 5, 6]})
     frm2 = frm.mask(array([True, False] * 4))
     assert all(frm2["x"] == [1, 3, 5, 5])

@@ -5,6 +5,12 @@ import pytest
 from jensen import Registry, Schema
 
 labels = "zero one two three four five six seven eight nine".split()
+schema = Schema(
+    """
+timestamp int *
+value float
+"""
+)
 
 
 def test_create_labels(pod):
@@ -12,7 +18,6 @@ def test_create_labels(pod):
     Create all labels in one go
     """
     reg = Registry(pod=pod)
-    schema = Schema(["timestamp:int", "value:float"])
     reg.create(schema, *labels)
 
     # Test that we can get back those series
@@ -34,7 +39,6 @@ def test_create_labels_chunks(pod, squash):
     """
     it = iter(labels)
     reg = Registry(pod=pod)
-    schema = Schema(["timestamp:int", "value:float"])
     while True:
         sl_labels = list(islice(it, 3))
         if not sl_labels:
@@ -63,7 +67,6 @@ def test_create_labels_chunks(pod, squash):
 @pytest.mark.parametrize("squash", [True, False])
 def test_delete(pod, squash):
     reg = Registry(pod=pod)
-    schema = Schema(["timestamp:int", "value:float"])
     reg.create(schema, *labels)
     expected = sorted(labels)
     assert list(reg.search()["label"]) == expected
@@ -88,7 +91,6 @@ def test_delete(pod, squash):
 
 
 def test_gc(pod):
-    schema = Schema(["timestamp:int", "value:float"])
     reg = Registry(pod=pod)
     reg.create(schema, "label_a", "label_b")
     for offset, label in enumerate(("label_a", "label_b")):

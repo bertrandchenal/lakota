@@ -5,9 +5,15 @@ import pytest
 from jensen import Frame, Registry, Schema
 from jensen.utils import drange
 
+schema = Schema(
+    """
+timestamp int*
+value float
+"""
+)
+
 
 def test_pull():
-    schema = Schema(["timestamp:int", "value:float"])
     label = "LABEL"
     remote_reg = Registry()
     remote_reg.create(schema, label)
@@ -47,7 +53,7 @@ def test_pull():
 
     # Test with existing series with other schema
     local_reg = Registry()
-    other_schema = Schema(["timestamp:int", "value:int"])
+    other_schema = Schema(["timestamp int*", "value int"])
     lseries = local_reg.create(other_schema, label)
     with pytest.raises(ValueError):
         local_reg.pull(remote_reg, label)
@@ -55,7 +61,6 @@ def test_pull():
 
 @pytest.mark.parametrize("squash", [True, False])
 def test_label_delete_push(squash):
-    schema = Schema(["timestamp:int", "value:float"])
     labels = list("abcd")
     local_reg = Registry()
     remote_reg = Registry()
@@ -88,7 +93,6 @@ def test_label_delete_push(squash):
 
 @pytest.mark.parametrize("squash", [True, False])
 def test_series_push(squash):
-    schema = Schema(["timestamp:int", "value:float"])
     label = "LABEL"
     local_reg = Registry()
     remote_reg = Registry()

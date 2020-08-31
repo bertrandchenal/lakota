@@ -12,7 +12,7 @@ class Registry:
     Use a Series object to store all the series labels
     """
 
-    schema = Schema(["label:str", "schema:O"])
+    schema = Schema(["label str*", "schema O"])
 
     def __init__(self, uri=None, pod=None):
         # TODO add a repo and move all this pod setup in it
@@ -54,7 +54,7 @@ class Registry:
                     continue
                 raise ValueError('Label "{label}" already exists')
             # Save a frame of size one
-            self.schema_series.write({"label": [label], "schema": [schema.as_dict()]})
+            self.schema_series.write({"label": [label], "schema": [schema.dump()]})
         if len(labels) == 1:
             return new_series[0]
         return new_series

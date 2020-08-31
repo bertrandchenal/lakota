@@ -1,3 +1,5 @@
+import shlex
+
 from numcodecs import registry
 from numpy import asarray, dtype, frombuffer
 
@@ -9,11 +11,27 @@ ALIASES = {
     "str": "<U",
 }
 
+# TODO AGGRAGTES: define column aggregate (avg, weighted avg, sum,
+# count, min, max, first; last).  We can have simple rule to infer types of those (sum ->
+# keep initial type, avg -> float, count -> int)
+
+# TODO PRE-COMPUTED AGG: for each column in the index, compute
+# aggregated values with that column removed
+
+# XXX use argparse for col def ? like: "meteor_id int -a count -e blosc"
+
+# TODO INDEXING pre-compute population per column (initialy per
+# secondary index column, the ones that comes after the timestamp),
+# this allows to speed up filters (and in some cases show the
+# population itself). Ex pre-compute: meteor_id count. This can be
+# saved along side the current digest in the revision payload
+
 
 class ColumnDefinition:
     def __init__(self, name, dt, codecs, idx):
         self.name = name
         # Make sure dtype is valid
+        dt = dtype(ALIASES.get(dt, dt))
         if dt not in DTYPES:
             raise ValueError("Column type '{dt}' not supported")
         self.dt = dt
@@ -58,20 +76,56 @@ class ColumnDefinition:
     def __repr__(self):
         return f"<ColumnDefinition {self.name}:{self.dt}>"
 
+    @classmethod
+    def from_ui(cls, line):
+        parser = shlex.shlex(line, posix=True, punctuation_chars="|*")
+        parser.wordchars += "[]"
+        name, dt, *tokens = parser
+        kw = {"idx": False, "codecs": []}
+        state = None
+        for tk in tokens:
+            if tk == "|":
+                state = "codec"
+            elif tk == "*":
+                kw["idx"] = True
+            elif state == "codec":
+                kw["codecs"].append(tk)
+            else:
+                raise ValueError(f"Unexpected item: {tk}")
+        return ColumnDefinition(name, dt, **kw)
+
+    def dump(self):
+        return {
+            "name": self.name,
+            "dt": str(self.dt),
+            "codecs": self.codecs,
+            "idx": self.idx,
+        }
+
 
 class Schema:
-    def __init__(self, columns, idx_len=0):
-        self.columns = {}
-        self.idx_len = idx_len or len(columns) - 1 or 1
-        for pos, col in enumerate(columns):
-            name, dt = col.split(":", 1)
-            dt, *codecs = dt.split("|")
-            dt = dtype(ALIASES.get(dt, dt))
-            col = ColumnDefinition(name, dt, codecs, idx=pos < self.idx_len)
-            self.columns[name] = col
+    def __init__(self, from_ui=None, from_columns=None):
+        assert (
+            from_ui or from_columns
+        ), "At least one of from_ui or from_columns is needed"
+        if from_columns:
+            self.columns = {c.name: c for c in from_columns}
+        else:
+            self.columns = {}
+            if not isinstance(from_ui, (list, tuple)):
+                from_ui = from_ui.splitlines()
+            for line in from_ui:
+                line = line.strip()
+                if not line:
+                    continue
+                col = ColumnDefinition.from_ui(line)
+                self.columns[col.name] = col
 
-        # All but last column is the default index
         self.idx = {n: c for n, c in self.columns.items() if c.idx}
+        if len(self.idx) == 0:
+            raise ValueError(
+                "Invalid schema, no index defined: " + str(from_ui or from_columns)
+            )
 
     def serialize(self, values):
         if not values:
@@ -90,20 +144,18 @@ class Schema:
         return res
 
     @classmethod
-    def loads(self, d):
-        return Schema(columns=d["columns"], idx_len=d["idx_len"],)
+    def loads(self, items):
+        columns = [ColumnDefinition(**i) for i in items]
+        return Schema(from_columns=columns)
 
-    def as_dict(self):
-        return {
-            "columns": [f"{c.name}:{c.dt}" for c in self.columns.values()],
-            "idx_len": len(self.idx),
-        }
+    def dump(self):
+        return [c.dump() for c in self.columns.values()]
 
     def __iter__(self):
         return iter(self.columns.keys())
 
     def __repr__(self):
-        cols = [f"{c.name}:{c.dt}" for c in self.columns.values()]
+        cols = [f"{c.name} {c.dt}" for c in self.columns.values()]
         return "<Schema {}>".format(" ".join(cols))
 
     def __eq__(self, other):

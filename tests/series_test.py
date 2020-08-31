@@ -6,7 +6,7 @@ from jensen import POD, Frame, Schema, Series
 from jensen.schema import DTYPES
 from jensen.utils import tail
 
-schema = Schema(["timestamp:int", "value:float"])
+schema = Schema(["timestamp int *", "value float"])
 orig_frm = {
     "timestamp": [1589455903, 1589455904, 1589455905],
     "value": [3.3, 4.4, 5.5],
@@ -121,12 +121,13 @@ def test_adjacent_write(series, how):
 
 def test_column_types():
     names = [dt.name for dt in DTYPES]
-    cols = [f"{n}:{n}" for n in names]
+    cols = [f"{n} {n}" for n in names]
     df = {n: array([0], dtype=n) for n in names}
 
     for idx_len in range(1, len(cols)):
         pod = POD.from_uri("memory://")
-        schema = Schema(cols, idx_len)
+        stars = ["*"] * idx_len + [""] * (len(cols) - idx_len)
+        schema = Schema([c + star for c, star in zip(cols, stars)])
         series = Series("_", schema, pod)
         series.write(df)
         frm = series.frame()

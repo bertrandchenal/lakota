@@ -15,7 +15,7 @@ a local folder and read it back.
 ``` python
 from jensen import Registry, Schema
 
-ts_schema = Schema(["timestamp:timestamp", "value:float"])
+ts_schema = Schema(["timestamp timestamp*", "value float"])
 reg = Registry("my-data-folder")  # or Registry("s3://my-s3-bucket")
 series = reg.create(ts_schema, "my-timeseries", raise_if_exists=False)
 df = {
@@ -49,11 +49,11 @@ from pandas import read_csv
 # Instantiate a local registry and define a schema
 reg = Registry('file://db')
 schema = Schema([
-    'date_reported:timestamp',
-    'new_cases:int',
-    'cumulative_cases:int',
-    'new_deaths:int',
-    'cumulative_deaths:int',
+    'date_reported timestamp*',
+    'new_cases int',
+    'cumulative_cases int',
+    'new_deaths int',
+    'cumulative_deaths int',
 ], idx_len=1)
 
 # Download csv from WHO's website

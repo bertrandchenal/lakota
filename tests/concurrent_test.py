@@ -5,7 +5,7 @@ from pandas import DataFrame, date_range
 from jensen import POD, Frame, Registry, Schema
 from jensen.utils import timeit
 
-schema = Schema(["timestamp:M8[s]", "value:int"])
+schema = Schema(["timestamp M8[s] *", "value int"])
 
 
 def insert(args):
