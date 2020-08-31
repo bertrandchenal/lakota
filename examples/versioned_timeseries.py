@@ -9,6 +9,8 @@ value float
 )
 reg = Registry()
 series = reg.create(ts_schema, "my-timeseries", raise_if_exists=False)
+
+# First insertion
 df = {
     "timestamp": [
         "2020-01-01T00:00",
@@ -34,6 +36,7 @@ df = {
 }
 series.write(df)
 
+# Append some data
 df2 = {
     "timestamp": [
         "2020-01-02T00:00",
@@ -74,3 +77,33 @@ print(df)
 # 8  2020-01-04 2020-01-03   20.0
 # 9  2020-01-05 2020-01-02   30.0
 # 10 2020-01-05 2020-01-03   40.0
+
+
+# Gotcha: this 3rd df will write an incomplete range that will overshadow the previous one
+df3 = {
+    "timestamp": [
+        "2020-01-02T00:00",
+        "2020-01-03T00:00",
+        "2020-01-04T00:00",
+        "2020-01-05T00:00",
+    ],
+    "pubtime": [
+        "2020-01-01T00:00",
+        "2020-01-01T00:00",
+        "2020-01-01T00:00",
+        "2020-01-01T00:00",
+    ],
+    "value": [10, 20, 30, 40],
+}
+series.write(df3)
+print(series.df())
+# ->
+#    timestamp    pubtime  value
+# 0 2020-01-01 2020-01-01    1.0
+# 1 2020-01-01 2020-01-02    2.0
+# 2 2020-01-02 2020-01-01   10.0
+# 3 2020-01-03 2020-01-01   20.0
+# 4 2020-01-04 2020-01-01   30.0
+# 5 2020-01-05 2020-01-01   40.0
+# 6 2020-01-05 2020-01-02   30.0
+# 7 2020-01-05 2020-01-03   40.0
