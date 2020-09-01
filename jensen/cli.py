@@ -79,7 +79,7 @@ def ls(args):
 
 def create(args):
     reg = get_registry(args)
-    schema = Schema(args.columns, idx_len=args.idx_len)
+    schema = Schema(args.columns)
     reg.create(schema, args.label)
 
 
