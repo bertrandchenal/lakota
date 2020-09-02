@@ -136,7 +136,7 @@ def delete(args):
 def gc(args):
     reg = get_registry(args)
     cnt = reg.gc()
-    print(f"{cnt} frames deleted")
+    print(f"{cnt} segments deleted")
 
 
 def print_help(parser, args):

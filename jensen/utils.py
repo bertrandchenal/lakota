@@ -23,6 +23,15 @@ logger = logging.getLogger("jensen")
 DEBUG = False
 
 
+def chunky(collection, size=100):
+    it = iter(collection)
+    while True:
+        chunk = head(it, size)
+        if not chunk:
+            break
+        yield chunk
+
+
 def hexdigest(*data):
     digest = default_hash()
     for datum in data:

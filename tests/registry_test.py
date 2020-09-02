@@ -3,6 +3,7 @@ from itertools import islice
 import pytest
 
 from jensen import Registry, Schema
+from jensen.registry import LABEL_RE
 
 labels = "zero one two three four five six seven eight nine".split()
 schema = Schema(
@@ -111,3 +112,17 @@ def test_gc(pod):
     # two data frames (the last write is offseted and contains two
     # columns)
     assert count == 2
+
+
+def test_label_regexp():
+    ok = ["abc", "abc-abc-123", "abc_abc-123"]
+    for label in ok:
+        match = LABEL_RE.match(label)
+        assert match is not None
+        match = LABEL_RE.match(label.upper())
+        assert match is not None
+
+    not_ok = ["", "abc+abc", "$", "é"]
+    for label in not_ok:
+        match = LABEL_RE.match(label)
+        assert match is None
