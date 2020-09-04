@@ -118,7 +118,6 @@ class Registry:
         # between max and min of labels
         start, stop = min(labels), max(labels)
         frm = self.schema_series.closed("both")[start:stop]
-
         # Keep only labels not given as argument
         items = [(l, s) for l, s in zip(frm["label"], frm["schema"]) if l not in labels]
         if len(items) == 0:
@@ -130,7 +129,7 @@ class Registry:
                 "schema": keep_schema,
             }
         # Write result to db
-        self.schema_series.write(new_frm, start=start, stop=stop)
+        self.schema_series.write(new_frm, start=start, stop=stop, parent_commit=phi)
 
     def gc(self, soft=True):
         """

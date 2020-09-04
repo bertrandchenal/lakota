@@ -59,7 +59,7 @@ def test_pull():
         local_reg.pull(remote_reg, label)
 
 
-@pytest.mark.parametrize("squash", [True, False])
+@pytest.mark.parametrize("squash", [False, True])
 def test_label_delete_push(squash):
     labels = list("abcd")
     local_reg = Registry()
@@ -87,7 +87,6 @@ def test_label_delete_push(squash):
     expected = list("ab")
     if squash:
         local_reg.schema_series.squash()
-
     assert all(local_reg.search()["label"] == expected)
 
 

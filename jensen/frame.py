@@ -88,9 +88,11 @@ class Frame:
         """
         idx_start = idx_stop = None
         if start:
-            idx_start = self.index(start, right=closed == "right")
+            right = closed in ("right", None)
+            idx_start = self.index(start, right=right)
         if stop:
-            idx_stop = self.index(stop, right=closed in ("both", "right"))
+            right = closed in ("both", "right")
+            idx_stop = self.index(stop, right=right)
         return self.slice(idx_start, idx_stop)
 
     def index(self, values, right=False):
