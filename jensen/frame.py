@@ -29,7 +29,10 @@ class Frame:
         if not segments:
             return Frame(schema)
         total_len = sum(len(s) for s in segments)
-        select = select or schema.columns
+        if not select:
+            select = schema.columns
+        elif isinstance(select, str):
+            select = [select]
         columns = {}
         for name in schema.columns:
             if name not in select:

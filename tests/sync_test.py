@@ -22,26 +22,26 @@ def test_pull():
         rseries.write(
             {"timestamp": range(i, i + 10), "value": range(i + 100, i + 110),}
         )
-    expected = rseries[:]
+    expected = rseries.frame()
 
     # Test pull
     local_reg = Registry()
     local_reg.pull(remote_reg, label)
     lseries = local_reg.get(label)
-    assert lseries[:] == expected
+    assert lseries.frame() == expected
 
     # Test push
     other_reg = Registry()
     remote_reg.push(other_reg, label)
     oseries = other_reg.get(label)
-    assert oseries[:] == expected
+    assert oseries.frame() == expected
 
     # Test with existing series
     local_reg = Registry()
     local_reg.create(schema, label)
     local_reg.pull(remote_reg, label)
     lseries = other_reg.get(label)
-    assert oseries[:] == expected
+    assert oseries.frame() == expected
 
     # Test with existing series with existing data
     local_reg = Registry()
@@ -49,7 +49,7 @@ def test_pull():
     frm = Frame(schema, {"timestamp": range(0, 20), "value": range(10, 20),})
     lseries.write(frm)
     local_reg.pull(remote_reg, label)
-    assert lseries[:] == frm
+    assert lseries.frame() == frm
 
     # Test with existing series with other schema
     local_reg = Registry()
@@ -70,24 +70,25 @@ def test_label_delete_push(squash):
     local_reg.push(remote_reg)
     if squash:
         remote_reg.squash()
+    assert all(local_reg.search()["label"] == labels)
     assert all(remote_reg.search()["label"] == labels)
 
     # Delete one local label and push again
     local_reg.delete("c")
     local_reg.push(remote_reg)
-    expected = list("abd")
     if squash:
         remote_reg.squash()
-    assert all(remote_reg.search()["label"] == expected)
+    assert all(remote_reg.search()["label"] == list("abd"))
+    assert all(local_reg.search()["label"] == list("abd"))
 
     # Delete one remote label and pull
-    sleep(0.1)  # Needed to avoid concurrent write with previous delete
+    sleep(0.1)  # Needed to avoid concurrent writes
     remote_reg.delete("d")
     local_reg.pull(remote_reg)
-    expected = list("ab")
     if squash:
         local_reg.schema_series.squash()
-    assert all(local_reg.search()["label"] == expected)
+    assert all(remote_reg.search()["label"] == list("ab"))
+    assert all(local_reg.search()["label"] == list("ab"))
 
 
 @pytest.mark.parametrize("squash", [True, False])

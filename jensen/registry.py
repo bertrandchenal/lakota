@@ -27,10 +27,11 @@ class Registry:
         self.series_pod = self.pod / "series"
 
     def pull(self, remote, *labels):
-        local_cache = self.search()
-        remote_cache = remote.search()
         # Pull schema
         self.schema_series.pull(remote.schema_series)
+        # Extract frames
+        local_cache = self.search()
+        remote_cache = remote.search()
 
         if not labels:
             labels = remote_cache["label"]
@@ -88,8 +89,8 @@ class Registry:
         else:
             start = stop = None
         # [XXX] add cache on schema_series ?
-        frm = self.schema_series.closed("both")[start:stop]
-        return frm
+        qr = self.schema_series[start:stop] @ {"closed": "both"}
+        return qr.frame()
 
     def get(self, label, from_frm=None):
         if from_frm:
@@ -111,13 +112,13 @@ class Registry:
         return series
 
     def squash(self):
-        self.schema_series.squash()
+        return self.schema_series.squash()
 
     def delete(self, *labels):
         # Create a frame with all the existing labels contained
         # between max and min of labels
         start, stop = min(labels), max(labels)
-        frm = self.schema_series.closed("both")[start:stop]
+        frm = self.schema_series[start:stop].frame(closed="both")
         # Keep only labels not given as argument
         items = [(l, s) for l, s in zip(frm["label"], frm["schema"]) if l not in labels]
         if len(items) == 0:

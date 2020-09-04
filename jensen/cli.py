@@ -26,13 +26,15 @@ def get_series(args):
 def read(args):
     series = get_series(args)
     columns = args.columns or series.schema.columns
-    cursor = series.select(*columns).limit(args.limit).offset(args.offset)
-    cursor = cursor.start(args.greater_than).stop(args.less_than)
+    query = series[columns][args.greater_than : args.less_than] @ {
+        "limit": args.limit,
+        "offset": args.offset,
+    }
 
     if args.paginate:
-        frames = cursor.paginate(args.paginate)
+        frames = query.paginate(args.paginate)
     else:
-        frames = [cursor.frame()]
+        frames = [query.frame()]
 
     if args.pretty:
         for frm in frames:
@@ -55,7 +57,11 @@ def length(args):
 
 
 def revisions(args):
-    series = get_series(args)
+    if args.label:
+        series = get_series(args)
+    else:
+        reg = get_registry(args)
+        series = reg.schema_series
     cols = ["start", "stop", "lenght"]
     rows = [(r["start"], r["stop"], r["len"]) for r in series.revisions()]
     if args.pretty:
@@ -184,7 +190,7 @@ def run():
 
     # Add rev command
     parser_rev = subparsers.add_parser("rev")
-    parser_rev.add_argument("label")
+    parser_rev.add_argument("label", nargs="?")
     parser_rev.set_defaults(func=revisions)
 
     # Add len command

@@ -163,82 +163,73 @@ class Series:
 
     def squash(self, expected=None):
         """
-        Remove all the revisions, collapse all frames into one
+        Remove all past revisions, collapse history into one or few large
+        frames.
         """
         step = 500_000
         commits = [self.write(frm, parent_commit=phi) for frm in self.paginate(step)]
         self.truncate(*(c.path for c in commits))
+        return commits
 
     def digests(self):
         for revision in self.changelog.walk():
             yield from revision["digests"]
 
     def __getitem__(self, by):
-        if isinstance(by, slice):
-            return Cursor(self)[by]
-        else:
-            raise KeyError(by)
+        return Query(self)[by]
 
-    @classmethod
-    def inject(cls, name):
-        fn = lambda self, *a, **kw: getattr(Cursor(self), name)(*a, **kw)
-        setattr(cls, name, fn)
+    def __matmul__(self, by):
+        return Query(self) @ by
+
+    def __len__(self):
+        return len(Query(self))
+
+    def paginate(self, step=100_000, **kw):
+        return Query(self).paginate(step=step, **kw)
+
+    def frame(self, **kw):
+        return Query(self, **kw).frame()
+
+    def df(self, **kw):
+        return Query(self, **kw).df()
 
 
-class Cursor:
-    def __init__(self, series):
+class Query:
+    def __init__(self, series, **kw):
         self.series = series
         self.segments = None
         self.params = {
             "closed": "left",
         }
+        for k, v in kw.items():
+            self.set_param(k, v)
 
-    def closed(self, val):
-        assert val in (
-            "left",
-            "right",
-            "both",
-            None,
-        ), f"Unsupported value {val} for closed"
-        self.params["closed"] = val
-        return self
-
-    def start(self, val):
-        self.params["start"] = self.series.schema.deserialize(val)
-        return self
-
-    def stop(self, val):
-        self.params["stop"] = self.series.schema.deserialize(val)
-        return self
-
-    def limit(self, val):
-        self.params["limit"] = val
-        return self
-
-    def offset(self, val):
-        self.params["offset"] = val
-        return self
-
-    def before(self, val):
-        self.params["before"] = val
-        return self
-
-    def after(self, val):
-        self.params["after"] = val
-        return self
-
-    def select(self, *columns):
-        self.params["select"] = columns
-        return self
+    def set_param(self, key, value):
+        if key == "closed":
+            if not value in ("left", "right", "both", None):
+                raise ValueError(f"Unsupported value {value} for closed")
+            self.params["closed"] = value
+        elif key in ("start", "stop"):
+            self.params[key] = self.series.schema.deserialize(value)
+        else:
+            if not key in ("limit", "offset", "before", "after", "select"):
+                raise ValueError(f"Unsupported parameter: {key}")
+            self.params[key] = value
 
     def __getitem__(self, by):
         if isinstance(by, slice):
-            self.start(by.start).stop(by.stop)
-            return self.frame()
+            return self @ {"start": by.start, "stop": by.stop}
         elif isinstance(by, (list, tuple, str)):
-            return self.select(by)
+            return self @ {"select": by}
         else:
             raise KeyError(by)
+
+    def __matmul__(self, kw):
+        if not kw:
+            return self
+        params = self.params.copy()
+        params.update(kw)
+        return Query(self.series, **params)
 
     def read(self):
         keys = ("start", "stop", "before", "after", "closed")
@@ -249,31 +240,33 @@ class Cursor:
     def __len__(self):
         return sum(len(s) for s in self.read())
 
-    def frame(self):
-        segments = self.read()
-        limit = self.params.get("limit")
-        offset = self.params.get("offset")
-        select = self.params.get("select")
+    def frame(self, **kw):
+        qr = self @ kw
+        segments = qr.read()
+        limit = qr.params.get("limit")
+        offset = qr.params.get("offset")
+        select = qr.params.get("select")
         return Frame.from_segments(
-            self.series.schema, segments, limit=limit, offset=offset, select=select
+            qr.series.schema, segments, limit=limit, offset=offset, select=select
         )
 
-    def df(self):
-        frm = self.frame()
+    def df(self, **kw):
+        frm = self.frame(**kw)
         return frm.df()
 
-    def paginate(self, step=100_000):
+    def paginate(self, step=100_000, **kw):
         if step <= 0:
             raise ValueError("step argument must be > 0")
-        segments = self.read()
-        select = self.params.get("select")
-        limit = self.params.get("limit")
-        pos = self.params.get("offset") or 0
+        qr = self @ kw
+        segments = qr.read()
+        select = qr.params.get("select")
+        limit = qr.params.get("limit")
+        pos = qr.params.get("offset", 0)
 
         while True:
             lmt = step if limit is None else min(step, limit)
             frm = Frame.from_segments(
-                self.series.schema, segments, limit=lmt, offset=pos, select=select
+                qr.series.schema, segments, limit=lmt, offset=pos, select=select
             )
             if len(frm) == 0:
                 return
@@ -281,22 +274,3 @@ class Cursor:
                 limit -= len(frm)
             yield frm
             pos += step
-
-
-# Auto-magically inject Cursor method in Series
-to_inject = [
-    "paginate",
-    "df",
-    "frame",
-    "closed",
-    "start",
-    "stop",
-    "limit",
-    "offset",
-    "after",
-    "before",
-    "__len__",
-    "select",
-]
-for name in to_inject:
-    Series.inject(name)
