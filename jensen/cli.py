@@ -25,7 +25,7 @@ def get_series(args):
 
 def read(args):
     series = get_series(args)
-    columns = args.columns or series.schema.columns
+    columns = args.columns or list(series.schema.columns)
     query = series[columns][args.greater_than : args.less_than] @ {
         "limit": args.limit,
         "offset": args.offset,
