@@ -87,4 +87,69 @@ def test_double_slice(frame_values, frm):
     frm = frm.slice(1, None).slice(None, 2)
     assert all(frm["value"] == VALUES[1:][:2])
 
-    # Add chunks
+
+def test_reduce(frm):
+    # Basic frame with only one index columns
+    frm = frm.drop("category").reduce()
+    assert len(frm) == 1
+
+    # more complex schema
+    schema = Schema(
+        f"""
+    timestamp int*
+    category str*
+    value int
+    """
+    )
+
+    values = {
+        "timestamp": [1589455901, 1589455901, 1589455902, 1589455902],
+        "category": list("abab"),
+        "value": [1, 2, 1, 2],
+    }
+
+    # drop first col
+    frm = Frame(schema, values)
+    partial_frm = frm.drop("timestamp")
+    reduced_frm = partial_frm.reduce()
+    assert len(reduced_frm) == 2
+    assert list(reduced_frm["category"]) == ["a", "b"]
+    assert list(reduced_frm["value"]) == [2, 4]
+
+    # drop second
+    partial_frm = frm.drop("category")
+    reduced_frm = partial_frm.reduce()
+    assert len(reduced_frm) == 2
+    assert list(reduced_frm["timestamp"]) == [1589455901, 1589455902]
+    assert list(reduced_frm["value"]) == [3, 3]
+
+    # test with a 2-col partial index
+    schema = Schema(
+        f"""
+    timestamp int*
+    version int*
+    category str*
+    value int
+    """
+    )
+    values = {
+        "timestamp": [1589455901, 1589455901, 1589455902, 1589455902],
+        "version": [1589455901, 1589455901, 1589455902, 1589455902],
+        "category": list("abab"),
+        "value": [1, 2, 1, 2],
+    }
+
+    # drop first col
+    frm = Frame(schema, values)
+    partial_frm = frm.drop("timestamp")
+    reduced_frm = partial_frm.reduce()
+    assert len(reduced_frm) == 4
+    assert list(reduced_frm["category"]) == ["a", "b", "a", "b"]
+    assert list(reduced_frm["value"]) == [1, 2, 1, 2]
+
+    # drop third
+    partial_frm = frm.drop("category")
+    reduced_frm = partial_frm.reduce()
+    assert len(reduced_frm) == 2
+    assert list(reduced_frm["timestamp"]) == [1589455901, 1589455902]
+    assert list(reduced_frm["value"]) == [3, 3]

@@ -165,8 +165,9 @@ class Schema:
 
     def cast(self, df=None):
         df = {} if df is None else df
-        for col in self.columns.values():
-            df[col.name] = col.cast(df.get(col.name, []))
+        for name in df:
+            col = self[name]
+            df[col.name] = col.cast(df[col.name])
         return df
 
     def __getitem__(self, name):

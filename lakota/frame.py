@@ -1,7 +1,7 @@
 from bisect import bisect_left, bisect_right
 
 import numexpr
-from numpy import array_equal, concatenate, ndarray
+from numpy import array_equal, asarray, bincount, concatenate, ndarray, unique
 
 from .utils import hashed_path
 
@@ -29,10 +29,7 @@ class Frame:
         if not segments:
             return Frame(schema)
         total_len = sum(len(s) for s in segments)
-        if not select:
-            select = schema.columns
-        elif isinstance(select, str):
-            select = [select]
+        select = select or schema.columns
         columns = {}
         for name in schema.columns:
             if name not in select:
@@ -130,11 +127,11 @@ class Frame:
     def __len__(self):
         if not self.columns:
             return 0
-        name = next(iter(self.schema.columns))
-        return len(self.columns[name])
+        values, *_ = self.columns.values()
+        return len(values)
 
     def keys(self):
-        return self.schema.columns
+        return iter(self.columns)
 
     def __setitem__(self, name, arr):
         # Make sure we have a numpy array
@@ -153,7 +150,54 @@ class Frame:
         if isinstance(by, ndarray):
             return self.mask(by)
         # By column name -> return an array
-        return self.columns[by]
+        if by in self.columns:
+            return self.columns[by]
+        return self.schema[by].cast([])
+
+    def drop(self, *column_names):
+        names = (c for c in self.columns if c not in column_names)
+        frm = Frame(self.schema, {c: self.columns[c] for c in names})
+        return frm
+
+    def __iter__(self):
+        return iter(self.columns)
+
+    def reduce(self):
+        # Index columns that are present in the frame
+        idx_cols = [c for c in self.schema.idx if c in self.columns]
+
+        # Handle corner cases
+        if len(idx_cols) == 0:
+            return Frame(self.schema, {c: [self[c].sum()] for c in self.columns})
+        elif len(idx_cols) == len(self.schema.idx):
+            # Full index, unicity is guaranteed
+            return self
+
+        # Handle general case
+        if len(idx_cols) == 1:
+            partial_index = self[idx_cols[0]]
+            axis = 0
+        else:
+            partial_index = asarray([self[c] for c in idx_cols])
+            axis = 1
+        keys, bins = unique(partial_index, axis=axis, return_inverse=True)
+
+        res = {}
+        for other_col in self.columns:
+            if other_col in idx_cols:
+                continue
+            res[other_col] = bincount(bins, weights=self[other_col])
+
+        if len(idx_cols) == 1:
+            res[idx_cols[0]] = keys
+        else:
+            for pos, col in enumerate(idx_cols):
+                res[col] = keys[pos]
+
+        # TODO handle other aggregate (beside a simple sum)
+        # TODO adapt scheme (avg gives floats count gives integers)
+
+        return Frame(self.schema, res)
 
 
 class ShallowSegment:
@@ -192,7 +236,10 @@ class ShallowSegment:
             return self
         else:
             # Materialize arrays
-            frm = Frame(self.schema, {name: self.read(name) for name in self.schema},)
+            frm = Frame(
+                self.schema,
+                {name: self.read(name) for name in self.schema},
+            )
             # Compute slice and apply it
             frm = frm.index_slice(start, stop, closed=closed)
             return Segment(start, stop, frm)
