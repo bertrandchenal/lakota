@@ -1,4 +1,5 @@
 from itertools import islice
+from time import sleep
 
 import pytest
 
@@ -73,6 +74,7 @@ def test_delete(pod, squash):
     assert list(reg.search()["label"]) == expected
 
     # Remove one label and check result
+    sleep(0.01)
     reg.delete("seven")
     if squash:
         reg.squash()
@@ -98,7 +100,10 @@ def test_gc(pod):
         series = reg.get(label)
         for i in range(offset, offset + 10):
             series.write(
-                {"timestamp": range(i, i + 10), "value": range(i + 100, i + 110),}
+                {
+                    "timestamp": range(i, i + 10),
+                    "value": range(i + 100, i + 110),
+                }
             )
 
     # Squash label_a

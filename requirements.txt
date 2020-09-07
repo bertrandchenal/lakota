@@ -1,7 +1,7 @@
 black
 dask[distributed]
 isort
-moto[server]
+moto
 numcodecs
 numpy
 pandas
