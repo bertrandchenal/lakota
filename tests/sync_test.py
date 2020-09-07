@@ -2,8 +2,8 @@ from time import sleep
 
 import pytest
 
-from jensen import Frame, Registry, Schema
-from jensen.utils import drange
+from lakota import Frame, Registry, Schema
+from lakota.utils import drange
 
 schema = Schema(
     """

@@ -1,10 +1,11 @@
 #!/usr/bin/env python
 from pathlib import Path
+
 from setuptools import setup
 
 
 def get_version():
-    ini_path = Path(__file__).parent / 'jensen' / '__init__.py'
+    ini_path = Path(__file__).parent / 'lakota' / '__init__.py'
     for line in ini_path.open():
         if line.startswith('__version__'):
             return line.split('=')[1].strip("' \"\n")
@@ -12,9 +13,9 @@ def get_version():
 
 
 long_description = """
-Jensen is a columnar storage solution for timeseries.
+Lakota is a columnar storage solution for timeseries.
 
-Jensen organise reads and writes through a changelog inspired by
+Lakota organises reads and writes through a changelog inspired by
 Git. This changelog provides: historisation, concurrency control and
 ease of synchronisation across different storage backends.
 """
@@ -22,14 +23,14 @@ ease of synchronisation across different storage backends.
 description = "Versioned columnar storage for timeseries"
 
 setup(
-    name="jensen",
+    name="lakota",
     version=get_version(),
     description=description,
     long_description=long_description,
     author="Bertrand Chenal",
-    url="https://github.com/bertrandchenal/jensen",
+    url="https://github.com/bertrandchenal/lakota",
     license="MIT",
-    packages=["jensen"],
+    packages=["lakota"],
     install_requires=["numpy", "numcodecs", "s3fs", "numexpr", "tabulate", "msgpack"],
-    entry_points={"console_scripts": ["jensen = jensen.cli:run",],},
+    entry_points={"console_scripts": ["lakota = lakota.cli:run",],},
 )

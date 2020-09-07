@@ -1,7 +1,7 @@
 from concurrent.futures import ThreadPoolExecutor
 
-from jensen import Changelog
-from jensen.utils import hexdigest
+from lakota import Changelog
+from lakota.utils import hexdigest
 
 
 def populate(changelog, datum):

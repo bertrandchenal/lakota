@@ -1,1 +1,1 @@
-black jensen/; black tests/; isort tests/*py; isort jensen/*py
+black lakota/; black tests/; isort tests/*py; isort lakota/*py

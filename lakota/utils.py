@@ -19,7 +19,7 @@ FLAGS = {}
 
 fmt = "%(levelname)s:%(asctime).19s: %(message)s"
 logging.basicConfig(format=fmt)
-logger = logging.getLogger("jensen")
+logger = logging.getLogger("lakota")
 DEBUG = False
 
 

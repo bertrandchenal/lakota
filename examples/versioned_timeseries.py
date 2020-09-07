@@ -1,4 +1,4 @@
-from jensen import Registry, Schema
+from lakota import Registry, Schema
 
 ts_schema = Schema(
     """

@@ -1,8 +1,8 @@
 
 
-# Jensen
+# Lakota
 
-Inspired by Git, Jensen is a version-control system for numerical
+Inspired by Git, Lakota is a version-control system for numerical
 series. It is meant to be used on top of S3, on the local filesystem
 or in memory.
 
@@ -13,7 +13,7 @@ The following script will create a timeseries on a registry backed by
 a local folder and read it back.
 
 ``` python
-from jensen import Registry, Schema
+from lakota import Registry, Schema
 
 ts_schema = Schema(["timestamp timestamp*", "value float"])
 reg = Registry("my-data-folder")  # or Registry("s3://my-s3-bucket")
@@ -39,10 +39,10 @@ print(df)
 ```
 
 Let's try something more complex based on the WHO COVID dataset, we
-first load some data in Jensen:
+first load some data in Lakota:
 
 ``` python
-from jensen import Registry, Schema
+from lakota import Registry, Schema
 from requests import get
 from pandas import read_csv
 
@@ -75,7 +75,7 @@ for key, sub_df in df.groupby(['who_region', 'country']):
 Then we can read some data back:
 
 ``` python
-from jensen import Registry
+from lakota import Registry
 
 reg = Registry('db')
 series = reg.get('covid_EURO_Belgium')

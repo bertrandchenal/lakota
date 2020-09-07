@@ -1,6 +1,6 @@
 import pytest
 
-from jensen import POD
+from lakota import POD
 
 
 def test_cd(pod):

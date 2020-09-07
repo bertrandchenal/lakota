@@ -2,8 +2,8 @@ from itertools import islice
 
 import pytest
 
-from jensen import Registry, Schema
-from jensen.registry import LABEL_RE
+from lakota import Registry, Schema
+from lakota.registry import LABEL_RE
 
 labels = "zero one two three four five six seven eight nine".split()
 schema = Schema(

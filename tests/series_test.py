@@ -2,9 +2,9 @@ import pytest
 from numpy import array
 from pandas import DataFrame
 
-from jensen import POD, Frame, Schema, Series
-from jensen.schema import DTYPES
-from jensen.utils import tail
+from lakota import POD, Frame, Schema, Series
+from lakota.schema import DTYPES
+from lakota.utils import tail
 
 schema = Schema(["timestamp int *", "value float"])
 orig_frm = {
@@ -32,7 +32,7 @@ def test_write_df(series):
     df = DataFrame(orig_frm)
     series.write(df)  # TODO implement setitem
 
-    assert series.frame() == orig_frm
+    assert series[:] == orig_frm
 
 
 @pytest.mark.parametrize("how", ["left", "right"])
@@ -99,7 +99,7 @@ def test_adjacent_write(series, how):
         assert all(frm_copy["value"] == [3.3, 4.4, 5.5, 6.6])
 
     # Slice read - left slice
-    frm_copy = series[1589455902:1589455903].frame(closed="both")
+    frm_copy = series.closed("both")[1589455902:1589455903]
     if how == "left":
         assert all(frm_copy["timestamp"] == [1589455902, 1589455903])
         assert all(frm_copy["value"] == [2.2, 3.3])
@@ -109,7 +109,7 @@ def test_adjacent_write(series, how):
         assert all(frm_copy["value"] == [3.3])
 
     # Slice read - right slice
-    frm_copy = series[1589455905:1589455906].frame(closed="both")
+    frm_copy = series.closed("both")[1589455905:1589455906]
     if how == "left":
         assert all(frm_copy["timestamp"] == [1589455905])
         assert all(frm_copy["value"] == [5.5])
@@ -146,11 +146,11 @@ def test_rev_filter(series):
     (last_rev,) = tail(series.revisions())
 
     # Read initial commit
-    old_frm = series.frame(before=last_rev["epoch"])
+    old_frm = series.before(last_rev["epoch"]).frame()
     assert old_frm == orig_frm
 
     # Ignore initial commit
-    new_frm = series.frame(after=last_rev["epoch"])
+    new_frm = series.after(last_rev["epoch"]).frame()
     assert new_frm == second_frm
 
 
@@ -192,28 +192,28 @@ def test_paginate(series, extra_commit):
     assert res == list(range(1589455903, 1589455912))
 
     # Same with offset
-    frames = series.paginate(2, offset=1)
+    frames = series.offset(1).paginate(2)
     res = []
     for frm in frames:
         res.extend(frm["timestamp"])
     assert res == list(range(1589455904, 1589455912))
 
     # Same with offset and limit
-    frames = series.paginate(2, offset=1, limit=5)
+    frames = series.offset(1).limit(5).paginate(2)
     res = []
     for frm in frames:
         res.extend(frm["timestamp"])
     assert res == list(range(1589455904, 1589455909))
 
     # Same with offset and limit
-    frames = series.paginate(10, offset=1, limit=5)
+    frames = series.offset(1).limit(5).paginate(10)
     res = []
     for frm in frames:
         res.extend(frm["timestamp"])
     assert res == list(range(1589455904, 1589455909))
 
     # Same with offset and limit
-    frames = series.paginate(offset=10, limit=5)
+    frames = series.offset(10).limit(5).paginate()
     res = []
     for frm in frames:
         res.extend(frm["timestamp"])

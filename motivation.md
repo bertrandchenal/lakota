@@ -2,7 +2,7 @@
 
 # Context
 
-The problem Jensen is trying to solve is the storage of large
+The problem Lakota is trying to solve is the storage of large
 numerical series in general and timeseries in particular:
 
 - Write once, read many pattern
@@ -54,22 +54,22 @@ But:
 ## Zarr
 
 Beside Git, [Zarr](zarr.readthedocs.io/) is another important
-influence of Jensen It offers chunked storage of multi-dimensional
+influence of Lakota. It offers chunked storage of multi-dimensional
 arrays and a broad choice of storage backend, including S3. But it
 lacks the ability to change an existing array, it can only append to
 it. There is also no builtin concurrency control.
 
 
-# Jensen:
+# Lakota:
 
-Jensen organise reads and writes through a changelog inspired by Git
+Lakota organise reads and writes through a changelog inspired by Git
 (and by DVCSs in general). This changelog provides: historization,
 concurrency control and ease of synchronisation across different
 storages.
 
 - Supports S3 but local filesystem and in-memory storage
 - Compress numerical arrays thanks to [numcodecs](https://numcodecs.readthedocs.io)
-- The jensen changelog provides both versioning and indexing
+- The lakota changelog provides both versioning and indexing
 - Able to edit an existing array without full rewrite
 
 

@@ -1,6 +1,6 @@
 from numpy import array
 
-from jensen import Schema
+from lakota import Schema
 
 
 def test_vlen_codecs():

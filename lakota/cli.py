@@ -152,14 +152,14 @@ def print_help(parser, args):
 def run():
 
     # Take default uri from env variable, fallback to current dir
-    default_uri = os.environ.get("JENSEN_URI", "file://.")
+    default_uri = os.environ.get("LAKOTA_URI", "file://.")
 
     # top-level parser
     parser = argparse.ArgumentParser(
-        prog="jensen", formatter_class=argparse.RawDescriptionHelpFormatter,
+        prog="lakota", formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument(
-        "--uri", "-u", default=default_uri, help=f"Jensen URI (default: {default_uri}"
+        "--uri", "-u", default=default_uri, help=f"Lakota URI (default: {default_uri}"
     )
     parser.add_argument("--timing", "-t", action="store_true", help="Enable timing")
     parser.add_argument("--pretty", "-P", action="store_true", help="Tabulate output")
