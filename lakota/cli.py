@@ -156,7 +156,8 @@ def run():
 
     # top-level parser
     parser = argparse.ArgumentParser(
-        prog="lakota", formatter_class=argparse.RawDescriptionHelpFormatter,
+        prog="lakota",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument(
         "--uri", "-u", default=default_uri, help=f"Lakota URI (default: {default_uri}"
@@ -223,7 +224,6 @@ def run():
     parser_create = subparsers.add_parser("create")
     parser_create.add_argument("label")
     parser_create.add_argument("columns", nargs="+")
-    parser_create.add_argument("--idx-len", type=int)
     parser_create.set_defaults(func=create)
 
     # Add write command

@@ -120,7 +120,7 @@ def test_gc(pod):
 
 
 def test_label_regexp():
-    ok = ["abc", "abc-abc-123", "abc_abc-123"]
+    ok = ["abc", "abc-abc-123", "abc_abc-123.45"]
     for label in ok:
         match = LABEL_RE.match(label)
         assert match is not None

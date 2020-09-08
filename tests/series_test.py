@@ -37,6 +37,15 @@ def test_write_df(series):
     assert series.frame() == orig_frm
 
 
+def test_double_write(series):
+    # Write some values
+    commit = series.write(orig_frm)
+    revs = list(series.revisions())
+    assert commit is None
+    assert series.frame() == orig_frm
+    assert len(revs) == 1
+
+
 @pytest.mark.parametrize("how", ["left", "right"])
 def test_spill_write(series, how):
     if how == "left":

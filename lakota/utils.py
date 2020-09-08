@@ -47,6 +47,12 @@ def hextime(timestamp=None):
     return hex(int(timestamp * 1000))[2:]
 
 
+def encoder(*items):
+    "Auto-encode all items"
+    for item in items:
+        yield item.encode()
+
+
 def strpt(time_str):
     if isinstance(time_str, datetime):
         return time_str

@@ -4,7 +4,7 @@ from numpy import arange, lexsort
 
 from .changelog import Changelog, phi
 from .frame import Frame
-from .utils import hashed_path, hexdigest
+from .utils import encoder, hashed_path, hexdigest
 
 
 def intersect(revision, start, stop):
@@ -50,7 +50,12 @@ class Series:
         return self.changelog.walk()
 
     def read(
-        self, start=None, stop=None, after=None, before=None, closed="left",
+        self,
+        start=None,
+        stop=None,
+        after=None,
+        before=None,
+        closed="left",
     ):
         """
         Find all matching segments
@@ -136,7 +141,7 @@ class Series:
         sort_mask = lexsort([frame[n] for n in idx_cols])
         assert (sort_mask == arange(len(sort_mask))).all(), "Dataframe is not sorted!"
 
-        # Save segments (TODO auto-chunk)
+        # Save segments (TODO chunk large frames)
         all_dig = []
         for name in self.schema:
             arr = self.schema[name].cast(frame[name])
@@ -148,14 +153,17 @@ class Series:
 
         start = start or self.schema.row(frame, pos=0, full=False)
         stop = stop or self.schema.row(frame, pos=-1, full=False)
+        sstart = self.schema.serialize(start)
+        sstop = self.schema.serialize(stop)
         rev_info = {
-            "start": self.schema.serialize(start),
-            "stop": self.schema.serialize(stop),
+            "start": sstart,
+            "stop": sstop,
             "len": len(frame),
             "digests": all_dig,
             "epoch": time(),
         }
-        commit = self.changelog.commit(rev_info, force_parent=parent_commit)
+        key = hexdigest(*encoder(str(len(frame)), *all_dig, *sstart, *sstop))
+        commit = self.changelog.commit(rev_info, key=key, force_parent=parent_commit)
         return commit
 
     def truncate(self, *skip):

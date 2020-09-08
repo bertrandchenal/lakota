@@ -22,7 +22,7 @@ class Changelog:
     def __init__(self, pod):
         self.pod = pod
 
-    def commit(self, payload, _jitter=False, force_parent=None):
+    def commit(self, payload, key=None, force_parent=None, _jitter=False):
         # Find parent & write revisions
         if force_parent:
             parent = force_parent
@@ -44,7 +44,13 @@ class Changelog:
             ]  # XXX wrap payload like '{epoch: .., payload: payload}' this will make digest more stable
         arr = numpy.array(payload)
         data = self.schema["revision"].encode(arr)
-        key = hexdigest(data)
+        if key is None:
+            key = hexdigest(data)
+        if parent is not phi:
+            parent_key = parent.split("-", 1)[1]
+            if parent_key == key:
+                # Catch double writes
+                return
 
         # Construct new filename and save content
         child = hextime() + "-" + key

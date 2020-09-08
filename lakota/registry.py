@@ -7,7 +7,7 @@ from .schema import Schema
 from .series import Series
 from .utils import hashed_path, hexdigest, logger
 
-LABEL_RE = re.compile("^[a-zA-Z0-9-_]+$")
+LABEL_RE = re.compile("^[a-zA-Z0-9-_\.]+$")
 
 
 class Registry:
