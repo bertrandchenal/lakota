@@ -1,6 +1,6 @@
 from time import time
 
-from numpy import arange, lexsort
+from numpy import arange
 
 from .changelog import Changelog, phi
 from .frame import Frame
@@ -48,6 +48,9 @@ class Series:
 
     def revisions(self):
         return self.changelog.walk()
+
+    def refresh(self):
+        self.changelog.refresh()
 
     def read(
         self,
@@ -133,12 +136,12 @@ class Series:
                 yield from right_frm
             break
 
-    def write(self, frame, start=None, stop=None, parent_commit=None):
+    def write(self, frame, start=None, stop=None, root=False):
         if not isinstance(frame, Frame):
             frame = Frame(self.schema, frame)
-        # Make sure frame is sorted
-        idx_cols = reversed(list(self.schema.idx))
-        sort_mask = lexsort([frame[n] for n in idx_cols])
+        # Make sure frame is sorted, lexsort gives more weight to the
+        # left-most array
+        sort_mask = frame.lexsort()
         assert (sort_mask == arange(len(sort_mask))).all(), "Dataframe is not sorted!"
 
         # Save segments (TODO chunk large frames)
@@ -163,7 +166,8 @@ class Series:
             "epoch": time(),
         }
         key = hexdigest(*encoder(str(len(frame)), *all_dig, *sstart, *sstop))
-        commit = self.changelog.commit(rev_info, key=key, force_parent=parent_commit)
+        force_parent = phi if root else None
+        commit = self.changelog.commit(rev_info, key=key, force_parent=force_parent)
         return commit
 
     def truncate(self, *skip):
@@ -175,7 +179,7 @@ class Series:
         frames.
         """
         step = 500_000
-        commits = [self.write(frm, parent_commit=phi) for frm in self.paginate(step)]
+        commits = [self.write(frm, root=True) for frm in self.paginate(step)]
         self.truncate(*(c.path for c in commits))
         return commits
 
@@ -282,3 +286,23 @@ class Query:
                 limit -= len(frm)
             yield frm
             pos += step
+
+
+class KVSeries(Series):
+    def write(self, frame, start=None, stop=None, root=False):
+        if root or not (start is None is stop):
+            return super().write(frame, start=start, stop=stop, root=root)
+
+        if not isinstance(frame, Frame):
+            frame = Frame(self.schema, frame).sorted()
+
+        start = self.schema.row(frame, pos=0, full=False)
+        stop = self.schema.row(frame, pos=-1, full=False)
+        segments = self.read(start, stop, closed="both")
+        db_frm = Frame.from_segments(
+            self.schema, segments
+        )  # Maybe paginate on large results
+        new_frm = Frame.concat(frame, db_frm)
+        return super().write(new_frm)
+
+    # TODO migrate delete logic from Registry

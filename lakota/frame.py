@@ -1,7 +1,8 @@
 from bisect import bisect_left, bisect_right
+from collections import defaultdict
 
 import numexpr
-from numpy import array_equal, asarray, bincount, concatenate, ndarray, unique
+from numpy import array_equal, asarray, bincount, concatenate, lexsort, ndarray, unique
 
 from .utils import hashed_path
 
@@ -57,15 +58,51 @@ class Frame:
             raise ModuleNotFoundError("No module named 'pandas'")
         return DataFrame({c: self[c] for c in self.schema.columns})
 
+    def lexsort(self):
+        idx_cols = reversed(list(self.schema.idx))
+        return lexsort([self[n] for n in idx_cols])
+
+    @classmethod
+    def concat(cls, *frames):
+        # Corner cases
+        if len(frames) == 0:
+            return None
+        if len(frames) == 1:
+            return frames[0]
+
+        # General cases
+        schema = frames[0].schema
+        cols = defaultdict(list)
+        # Build dict of list
+        for frm in frames:
+            if not frm.schema == schema:
+                raise ValueError("Unable to concat frames with different schema")
+            for name in schema:
+                arr = frm[name]
+                if len(arr) == 0:
+                    continue
+                cols[name].append(arr)
+        # Concatenate all lists
+        for name in schema:
+            cols[name] = concatenate(cols[name])
+        # Create frame and sort it
+        return Frame(schema, cols).sorted()
+
+    def sorted(self):
+        return self.mask(self.lexsort())
+
     def mask(self, mask):
+        # if mask is a string, eval it first
         if isinstance(mask, str):
             mask = self.eval(mask)
         cols = {}
+        # Apply mask to each column
         for name in self.columns:
             arr = self.columns[name]
             if len(arr) == 0:
                 continue
             cols[name] = arr[mask]
+        # Return new frame
         return Frame(self.schema, cols)
 
     def eval(self, expr):
@@ -198,6 +235,12 @@ class Frame:
         # TODO adapt scheme (avg gives floats count gives integers)
 
         return Frame(self.schema, res)
+
+    def __repr__(self):
+        res = []
+        for name in self:
+            res.append(name + "-> " + str(self[name]))
+        return "\n".join(res)
 
 
 class ShallowSegment:

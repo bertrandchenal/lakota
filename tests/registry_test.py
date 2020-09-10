@@ -1,10 +1,10 @@
-from itertools import islice
 from time import sleep
 
 import pytest
 
 from lakota import Registry, Schema
 from lakota.registry import LABEL_RE
+from lakota.utils import chunky
 
 labels = "zero one two three four five six seven eight nine".split()
 schema = Schema(
@@ -28,7 +28,7 @@ def test_create_labels(pod):
         assert series.schema == schema
 
     # Same after packing
-    reg.schema_series.changelog.pack()
+    reg.label_series.changelog.pack()
     for label in labels:
         series = reg.get(label)
         assert series.schema == schema
@@ -39,13 +39,9 @@ def test_create_labels_chunks(pod, squash):
     """
     Create all labels in chunks
     """
-    it = iter(labels)
     reg = Registry(pod=pod)
-    while True:
-        sl_labels = list(islice(it, 3))
-        if not sl_labels:
-            break
-        reg.create(schema, *sl_labels)
+    for label_chunk in chunky(labels, 3):
+        reg.create(schema, *label_chunk)
 
     # Test that we can get back those series
     for label in labels:
@@ -53,7 +49,7 @@ def test_create_labels_chunks(pod, squash):
         assert series.schema == schema
 
     # Same after packing
-    reg.schema_series.changelog.pack()
+    reg.label_series.changelog.pack()
     if squash:
         reg.squash()
     for label in labels:

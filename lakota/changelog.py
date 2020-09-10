@@ -21,6 +21,7 @@ class Changelog:
 
     def __init__(self, pod):
         self.pod = pod
+        self._walk_cache = None
 
     def commit(self, payload, key=None, force_parent=None, _jitter=False):
         # Find parent & write revisions
@@ -56,7 +57,11 @@ class Changelog:
         child = hextime() + "-" + key
         commit = Commit(parent, child)
         self.pod.write(commit.path, data)
+        self.refresh()
         return commit
+
+    def refresh(self):
+        self._walk_cache = None
 
     def __iter__(self):
         yield from self.pod.ls(raise_on_missing=False)
@@ -92,13 +97,16 @@ class Changelog:
         """
         Iterator on the list of commits
         """
-        # [XXX] re-executing a full walk all the time is costly, we
-        # could cache the last result and (based on log content)
-        # bootstrap the loop
+        if self._walk_cache is not None:
+            return self._walk_cache
+        res = []
         for commit in self.log():
             rev_arr = self.extract(commit.path)
             for payload in rev_arr:
-                yield Revision(commit=commit, payload=payload)
+                res.append(Revision(commit=commit, payload=payload))
+
+        self._walk_cache = res
+        return res
 
     def extract(self, path):
         try:
@@ -116,6 +124,7 @@ class Changelog:
             new_paths.append(remote_path)
             payload = remote.pod.read(remote_path)
             self.pod.write(remote_path, payload)
+        self.refresh()
         return new_paths
 
     def pack(self):

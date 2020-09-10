@@ -20,7 +20,10 @@ def test_pull():
     rseries = remote_reg.get(label)
     for i in range(10):
         rseries.write(
-            {"timestamp": range(i, i + 10), "value": range(i + 100, i + 110),}
+            {
+                "timestamp": range(i, i + 10),
+                "value": range(i + 100, i + 110),
+            }
         )
     expected = rseries.frame()
 
@@ -46,7 +49,13 @@ def test_pull():
     # Test with existing series with existing data
     local_reg = Registry()
     lseries = local_reg.create(schema, label)
-    frm = Frame(schema, {"timestamp": range(0, 20), "value": range(10, 20),})
+    frm = Frame(
+        schema,
+        {
+            "timestamp": range(0, 20),
+            "value": range(10, 20),
+        },
+    )
     lseries.write(frm)
     local_reg.pull(remote_reg, label)
     assert lseries.frame() == frm
@@ -78,6 +87,8 @@ def test_label_delete_push(squash):
     local_reg.push(remote_reg)
     if squash:
         remote_reg.squash()
+    else:
+        remote_reg.refresh()
     assert all(remote_reg.search()["label"] == list("abd"))
     assert all(local_reg.search()["label"] == list("abd"))
 
@@ -86,7 +97,9 @@ def test_label_delete_push(squash):
     remote_reg.delete("d")
     local_reg.pull(remote_reg)
     if squash:
-        local_reg.schema_series.squash()
+        local_reg.label_series.squash()
+    else:
+        local_reg.refresh()
     assert all(remote_reg.search()["label"] == list("ab"))
     assert all(local_reg.search()["label"] == list("ab"))
 

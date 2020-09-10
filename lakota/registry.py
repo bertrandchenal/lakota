@@ -1,10 +1,9 @@
 import re
 from itertools import chain
 
-from .changelog import phi
 from .pod import POD
 from .schema import Schema
-from .series import Series
+from .series import KVSeries, Series
 from .utils import hashed_path, hexdigest, logger
 
 LABEL_RE = re.compile("^[a-zA-Z0-9-_\.]+$")
@@ -21,14 +20,14 @@ class Registry:
         # TODO add a repo and move all this pod setup in it
         self.pod = pod or POD.from_uri(uri)
         self.segment_pod = self.pod / "segment"
-        self.schema_series = Series(  # TODO rename into "series"
-            "__schema_series__", self.schema, self.pod / "registry", self.segment_pod
+        self.label_series = KVSeries(  # TODO rename into "series"
+            "__label_series__", self.schema, self.pod / "registry", self.segment_pod
         )
         self.series_pod = self.pod / "series"
 
     def pull(self, remote, *labels):
         # Pull schema
-        self.schema_series.pull(remote.schema_series)
+        self.label_series.pull(remote.label_series)
         # Extract frames
         local_cache = self.search()
         remote_cache = remote.search()
@@ -49,36 +48,12 @@ class Registry:
         return remote.pull(self, *labels)
 
     def create(self, schema, *labels, raise_if_exists=True):
-        res = []
-        current_labels = self.search()["label"]
-        max_label = len(current_labels) and current_labels[-1]
-        bigger_labels = []
         schema_dump = schema.dump()
-        for label in sorted(labels):
-            res.append(self.series(label, schema))
-            # Make sure label is valid
-            if not LABEL_RE.match(label):
-                raise ValueError(f'Invalid label: "{label}"')
-            # Optionally raise an exception if label exists
-            if label in current_labels:
-                if not raise_if_exists:
-                    continue
-                raise ValueError('Label "{label}" already exists')
+        self.label_series.write(
+            {"label": labels, "schema": [schema_dump] * len(labels)}
+        )
 
-            if not max_label or label > max_label:
-                # Accumulate labels in order to batch the write
-                bigger_labels.append(label)
-                continue
-            else:
-                # Write a frame of size one
-                self.schema_series.write({"label": [label], "schema": [schema_dump]})
-
-        # Create one write with all the labels that are bigger than the current range
-        if bigger_labels:
-            self.schema_series.write(
-                {"label": bigger_labels, "schema": [schema_dump] * len(bigger_labels)}
-            )
-
+        res = [self.series(l, schema) for l in labels]
         if len(labels) == 1:
             return res[0]
         return res
@@ -88,8 +63,7 @@ class Registry:
             start = stop = (label,)
         else:
             start = stop = None
-        # [XXX] add cache on schema_series ?
-        qr = self.schema_series[start:stop] @ {"closed": "both"}
+        qr = self.label_series[start:stop] @ {"closed": "both"}
         return qr.frame()
 
     def get(self, label, from_frm=None):
@@ -112,13 +86,13 @@ class Registry:
         return series
 
     def squash(self):
-        return self.schema_series.squash()
+        return self.label_series.squash()
 
     def delete(self, *labels):
         # Create a frame with all the existing labels contained
         # between max and min of labels
         start, stop = min(labels), max(labels)
-        frm = self.schema_series[start:stop].frame(closed="both")
+        frm = self.label_series[start:stop].frame(closed="both")
         # Keep only labels not given as argument
         items = [(l, s) for l, s in zip(frm["label"], frm["schema"]) if l not in labels]
         if len(items) == 0:
@@ -130,7 +104,10 @@ class Registry:
                 "schema": keep_schema,
             }
         # Write result to db
-        self.schema_series.write(new_frm, start=start, stop=stop, parent_commit=phi)
+        self.label_series.write(new_frm, start=start, stop=stop, root=True)
+
+    def refresh(self):
+        self.label_series.refresh()
 
     def gc(self, soft=True):
         """
@@ -143,7 +120,7 @@ class Registry:
         series = (self.get(l, frm) for l in labels)
         per_series = (s.digests() for s in series)
         active_digests = set(chain.from_iterable(per_series))
-        active_digests.update(self.schema_series.digests())
+        active_digests.update(self.label_series.digests())
         count = 0
         for filename in self.segment_pod.walk():
             digest = filename.replace("/", "")

@@ -1,5 +1,7 @@
 from lakota import Registry, Schema
 
+# TODO use a KVSeries instead (it solve the problem explained at the bottom)
+
 ts_schema = Schema(
     """
 timestamp timestamp*

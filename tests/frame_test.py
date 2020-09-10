@@ -153,3 +153,15 @@ def test_reduce(frm):
     assert len(reduced_frm) == 2
     assert list(reduced_frm["timestamp"]) == [1589455901, 1589455902]
     assert list(reduced_frm["value"]) == [3, 3]
+
+
+def test_concat(frm):
+    frm2 = Frame.concat(frm, frm)
+    for name in frm:
+        col = list(frm[name])
+        expected = sorted(col + col)
+        result = list(frm2[name])
+        assert result == expected
+
+    assert Frame.concat(frm) == frm
+    assert Frame.concat() is None
