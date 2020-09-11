@@ -1,5 +1,6 @@
 from bisect import bisect_left, bisect_right
 from collections import defaultdict
+from concurrent.futures import ThreadPoolExecutor
 
 import numexpr
 from numpy import array_equal, asarray, bincount, concatenate, lexsort, ndarray, unique
@@ -29,29 +30,39 @@ class Frame:
     def from_segments(cls, schema, segments, limit=None, offset=None, select=None):
         if not segments:
             return Frame(schema)
-        total_len = sum(len(s) for s in segments)
         select = select or schema.columns
-        columns = {}
-        for name in schema.columns:
-            if name not in select:
-                continue
-            arrays = []
-            start = offset or 0
-            stop = total_len + 1 if limit is None else start + limit
-            for sgm in segments:
-                if stop == 0:
-                    break
-                if start >= len(sgm):
-                    start = max(start - len(sgm), 0)
-                    stop = max(stop - len(sgm), 0)
+
+        futures = []
+        with ThreadPoolExecutor(4) as pool:
+            for name in schema.columns:
+                if name not in select:
                     continue
-                arr = sgm.read(name, start=start, stop=stop)
+                f = pool.submit(
+                    Frame.read_segments, segments, name, limit=limit, offset=offset
+                )
+                futures.append(f)
+
+        res = dict(f.result() for f in futures)
+        return Frame(schema, res)
+
+    @classmethod
+    def read_segments(cls, segments, name, limit=None, offset=None):
+        total_len = sum(len(s) for s in segments)
+        arrays = []
+        start = offset or 0
+        stop = total_len + 1 if limit is None else start + limit
+        for sgm in segments:
+            if stop == 0:
+                break
+            if start >= len(sgm):
                 start = max(start - len(sgm), 0)
                 stop = max(stop - len(sgm), 0)
-                arrays.append(arr)
-
-            columns[name] = concatenate(arrays) if arrays else []
-        return Frame(schema, columns)
+                continue
+            arr = sgm.read(name, start=start, stop=stop)
+            start = max(start - len(sgm), 0)
+            stop = max(stop - len(sgm), 0)
+            arrays.append(arr)
+        return name, concatenate(arrays) if arrays else []
 
     def df(self, *columns):
         if DataFrame is None:

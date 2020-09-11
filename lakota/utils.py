@@ -7,6 +7,8 @@ from datetime import date, datetime, timedelta
 from hashlib import sha1
 from itertools import islice
 from pathlib import PosixPath
+from queue import Queue
+from threading import Thread
 from time import perf_counter, time
 
 from numpy import arange

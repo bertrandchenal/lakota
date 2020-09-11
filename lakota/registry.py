@@ -1,4 +1,5 @@
 import re
+from concurrent.futures import ThreadPoolExecutor
 from itertools import chain
 
 from .pod import POD
@@ -20,13 +21,14 @@ class Registry:
         # TODO add a repo and move all this pod setup in it
         self.pod = pod or POD.from_uri(uri)
         self.segment_pod = self.pod / "segment"
-        self.label_series = KVSeries(  # TODO rename into "series"
+        self.label_series = KVSeries(
             "__label_series__", self.schema, self.pod / "registry", self.segment_pod
         )
         self.series_pod = self.pod / "series"
 
     def pull(self, remote, *labels):
         # Pull schema
+        logger.info("SYNC labels")
         self.label_series.pull(remote.label_series)
         # Extract frames
         local_cache = self.search()
@@ -35,14 +37,15 @@ class Registry:
         if not labels:
             labels = remote_cache["label"]
 
-        for label in labels:
-            logger.info("SYNC %s", label)
-            rseries = remote.get(label, remote_cache)
-            lseries = self.get(label, local_cache)
-            if lseries.schema != rseries.schema:
-                msg = f'Unable to pull label "{label}", incompatible schema.'
-                raise ValueError(msg)
-            lseries.pull(rseries)
+        with ThreadPoolExecutor(4) as pool:
+            for label in labels:
+                logger.info("SYNC %s", label)
+                rseries = remote.get(label, remote_cache)
+                lseries = self.get(label, local_cache)
+                if lseries.schema != rseries.schema:
+                    msg = f'Unable to pull label "{label}", incompatible schema.'
+                    raise ValueError(msg)
+                pool.submit(lseries.pull, rseries)
 
     def push(self, remote, *labels):
         return remote.pull(self, *labels)

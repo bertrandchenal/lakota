@@ -61,7 +61,7 @@ def revisions(args):
         series = get_series(args)
     else:
         reg = get_registry(args)
-        series = reg.schema_series
+        series = reg.label_series
     cols = ["start", "stop", "lenght"]
     rows = [(r["start"], r["stop"], r["len"]) for r in series.revisions()]
     if args.pretty:
@@ -109,7 +109,7 @@ def squash(args):
             series = reg.get(label)
             series.squash()
     else:
-        reg.schema_series.squash()
+        reg.label_series.squash()
 
 
 def push(args):

@@ -1,3 +1,4 @@
+from concurrent.futures import ThreadPoolExecutor
 from time import time
 
 from numpy import arange
@@ -146,13 +147,14 @@ class Series:
 
         # Save segments (TODO chunk large frames)
         all_dig = []
-        for name in self.schema:
-            arr = self.schema[name].cast(frame[name])
-            digest = hexdigest(arr.tobytes())
-            all_dig.append(digest)
-            data = self.schema[name].encode(arr)
-            folder, filename = hashed_path(digest)
-            self.segment_pod.cd(folder).write(filename, data)
+        with ThreadPoolExecutor(4) as pool:
+            for name in self.schema:
+                arr = self.schema[name].cast(frame[name])
+                digest = hexdigest(arr.tobytes())
+                all_dig.append(digest)
+                data = self.schema[name].encode(arr)
+                folder, filename = hashed_path(digest)
+                pool.submit(self.segment_pod.cd(folder).write, filename, data)
 
         start = start or self.schema.row(frame, pos=0, full=False)
         stop = stop or self.schema.row(frame, pos=-1, full=False)
@@ -273,7 +275,7 @@ class Query:
         segments = qr.read()
         select = qr.params.get("select")
         limit = qr.params.get("limit")
-        pos = qr.params.get("offset", 0)
+        pos = qr.params.get("offset") or 0
 
         while True:
             lmt = step if limit is None else min(step, limit)
