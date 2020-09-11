@@ -50,6 +50,14 @@ class Registry:
     def push(self, remote, *labels):
         return remote.pull(self, *labels)
 
+    # IDEA provide a series method that will either create either get
+    # a series (and handle schema implicitly based on first write
+
+    # TODO add support for pattern here under (or at least prefix)
+
+    def ls(self):
+        return self.search()["label"]
+
     def create(self, schema, *labels, raise_if_exists=True):
         schema_dump = schema.dump()
         self.label_series.write(

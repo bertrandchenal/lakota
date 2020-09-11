@@ -156,8 +156,8 @@ class Series:
                 folder, filename = hashed_path(digest)
                 pool.submit(self.segment_pod.cd(folder).write, filename, data)
 
-        start = start or self.schema.row(frame, pos=0, full=False)
-        stop = stop or self.schema.row(frame, pos=-1, full=False)
+        start = start or frame.start()
+        stop = stop or frame.stop()
         sstart = self.schema.serialize(start)
         sstop = self.schema.serialize(stop)
         rev_info = {

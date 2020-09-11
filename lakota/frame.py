@@ -181,6 +181,12 @@ class Frame:
     def keys(self):
         return iter(self.columns)
 
+    def start(self):
+        return self.schema.row(self, pos=0, full=False)
+
+    def stop(self):
+        return self.schema.row(self, pos=-1, full=False)
+
     def __setitem__(self, name, arr):
         # Make sure we have a numpy array
         arr = self.schema[name].cast(arr)

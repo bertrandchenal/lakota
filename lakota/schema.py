@@ -96,7 +96,6 @@ class ColumnDefinition:
 
     def dump(self):
         return {
-            "name": self.name,
             "dt": str(self.dt),
             "codecs": self.codecs,
             "idx": self.idx,
@@ -144,12 +143,12 @@ class Schema:
         return res
 
     @classmethod
-    def loads(self, items):
-        columns = [ColumnDefinition(**i) for i in items]
+    def loads(self, data):
+        columns = [ColumnDefinition(name, **opts) for name, opts in data.items()]
         return Schema(from_columns=columns)
 
     def dump(self):
-        return [c.dump() for c in self.columns.values()]
+        return {c.name: c.dump() for c in self.columns.values()}
 
     def __iter__(self):
         return iter(self.columns.keys())

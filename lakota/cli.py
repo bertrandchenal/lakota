@@ -38,6 +38,10 @@ def read(args):
 
     if args.pretty:
         for frm in frames:
+            if args.mask:
+                frm = frm.mask(args.mask)
+                if frm.empty:
+                    continue
             rows = zip(*(frm[col] for col in columns))
             if len(frm) == 0:
                 print(tabulate([], headers=columns))
@@ -47,6 +51,10 @@ def read(args):
         writer = csv.writer(sys.stdout)
         writer.writerow(columns)
         for frm in frames:
+            if args.mask:
+                frm = frm.mask(args.mask)
+                if frm.empty:
+                    continue
             rows = zip(*(frm[col] for col in columns))
             writer.writerows(rows)
 
@@ -74,7 +82,7 @@ def revisions(args):
 
 def ls(args):
     reg = get_registry(args)
-    rows = [[label] for label in reg.search()["label"]]
+    rows = [[label] for label in reg.ls()]
     if args.pretty:
         print(tabulate(rows, headers=["label"]))
     else:
@@ -176,11 +184,18 @@ def run():
     parser_read.add_argument("--limit", "-l", type=int, default=None)
     parser_read.add_argument("--offset", "-o", type=int, default=None)
     parser_read.add_argument("--paginate", "-p", type=int, default=None)
+    parser_read.add_argument("--mask", "-m", type=str, default=None)
     parser_read.add_argument(
-        "--greater-than", "--gt", nargs="+", help="Apply expression as mask"
+        "--greater-than",
+        "--gt",
+        nargs="+",
+        help="Keep rows where index is bigger the given value",
     )
     parser_read.add_argument(
-        "--less-than", "--lt", nargs="+", help="Apply expression as mask"
+        "--less-than",
+        "--lt",
+        nargs="+",
+        help="Keep rows where index is less than given value",
     )
     parser_read.set_defaults(func=read)
 
