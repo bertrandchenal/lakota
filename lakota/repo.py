@@ -2,6 +2,7 @@ import re
 from concurrent.futures import ThreadPoolExecutor
 from itertools import chain
 
+from .changelog import Changelog
 from .pod import POD
 from .schema import Schema
 from .series import KVSeries, Series
@@ -11,6 +12,7 @@ LABEL_RE = re.compile("^[a-zA-Z0-9-_\.]+$")
 
 
 # TODO add "tag" series to be able to tag revisions
+
 
 class Repo:
     """
@@ -56,13 +58,8 @@ class Repo:
         return self.search()["label"]
 
     def create(self, schema, *labels, collection=None, raise_if_exists=True):
-        info_dump = {
-            "collection": collection,
-            "schema": schema.dump()
-        }
-        self.label_series.write(
-            {"label": labels, "info": [info_dump] * len(labels)}
-        )
+        info_dump = {"collection": collection, "schema": schema.dump()}
+        self.label_series.write({"label": labels, "info": [info_dump] * len(labels)})
 
         res = [self.reify_series(l, schema, collection=collection) for l in labels]
         if len(labels) == 1:
@@ -94,9 +91,7 @@ class Repo:
         digest = hexdigest(key.encode())
         folder, filename = hashed_path(digest)
         series_pod = self.series_pod / folder / filename
-        series = Series(
-            label, schema, series_pod, self.segment_pod
-        )
+        series = Series(label, schema, series_pod, self.segment_pod)
         return series
 
     def squash(self):
@@ -123,6 +118,9 @@ class Repo:
     def refresh(self):
         self.label_series.refresh()
 
+    def collection(self, name):
+        return Collection(self, name)
+
     def gc(self, soft=True):
         """
         Loop on all series, collect all used digests, and delete obsolete
@@ -143,3 +141,29 @@ class Repo:
                 self.segment_pod.rm(filename)
 
         return count
+
+
+class Collection:
+    def __init__(self, repo, name):
+        self.repo = repo
+        self.name = name
+
+    def create(self, schema, *labels, raise_if_exists=True):
+        return self.repo.create(
+            schema, *labels, collection=self.name, raise_if_exists=raise_if_exists
+        )
+
+    def ls(self):
+        frm = self.repo.search()
+        res = []
+        for label, info in zip(frm["label"], frm["info"]):
+            if info["collection"] == self.name:
+                res.append(label)
+        return res
+
+    def revisions(self):
+        digest = hexdigest(self.name.encode())
+        folder, filename = hashed_path(digest)
+        pod = self.repo.series_pod / folder / filename / "changelog"
+        changelog = Changelog(pod)
+        return changelog.walk()

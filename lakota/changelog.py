@@ -21,7 +21,7 @@ class Changelog:
 
     def __init__(self, pod):
         self.pod = pod
-        self._walk_cache = None
+        self._walk_cache = {}
 
     def commit(self, payload, key=None, force_parent=None, _jitter=False):
         # Find parent & write revisions
@@ -61,7 +61,7 @@ class Changelog:
         return commit
 
     def refresh(self):
-        self._walk_cache = None
+        self._walk_cache = {}
 
     def __iter__(self):
         yield from self.pod.ls(raise_on_missing=False)
@@ -93,19 +93,24 @@ class Changelog:
             # Append children
             queue.extend(reversed(commits[item.child]))
 
-    def walk(self, parent=phi):
+    def walk(self, cond=None, parent=phi):
         """
         Iterator on the list of commits
         """
-        if self._walk_cache is not None:
-            return self._walk_cache
+        if self._walk_cache.get(cond) is not None:
+            return self._walk_cache[cond]
         res = []
+        key = value = None
+        if cond:
+            key, value = cond
         for commit in self.log():
             rev_arr = self.extract(commit.path)
             for payload in rev_arr:
+                if key and payload[key] != value:
+                    continue
                 res.append(Revision(commit=commit, payload=payload))
 
-        self._walk_cache = res
+        self._walk_cache[cond] = res
         return res
 
     def extract(self, path):

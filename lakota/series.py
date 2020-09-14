@@ -48,9 +48,8 @@ class Series:
                 self.segment_pod.write(path, payload)
 
     def revisions(self):
-        for rev in self.changelog.walk():
-            if rev["label"] == self.label:
-                yield rev
+        cond = ("label", self.label)
+        return self.changelog.walk(cond)
 
     def refresh(self):
         self.changelog.refresh()
@@ -170,7 +169,9 @@ class Series:
             "epoch": time(),
             "label": self.label,
         }
-        key = hexdigest(*encoder(str(len(frame)), *all_dig, *sstart, *sstop))
+        key = hexdigest(
+            *encoder(self.label, str(len(frame)), *all_dig, *sstart, *sstop)
+        )
         force_parent = phi if root else None
         commit = self.changelog.commit(rev_info, key=key, force_parent=force_parent)
         return commit
