@@ -1,8 +1,8 @@
 from .changelog import Changelog
 from .frame import Frame
 from .pod import POD
-from .registry import Registry
+from .repo import Repo
 from .schema import Schema
 from .series import Series
 
-__version__ = '0.1.2'
+__version__ = "0.1.2"

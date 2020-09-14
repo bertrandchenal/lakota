@@ -38,7 +38,7 @@ class Series:
         Pull remote series into self
         """
         self.changelog.pull(remote.changelog)
-        for revision in self.changelog.walk():
+        for revision in self.revisions():
             for dig in revision["digests"]:
                 folder, filename = hashed_path(dig)
                 path = folder / filename
@@ -48,7 +48,9 @@ class Series:
                 self.segment_pod.write(path, payload)
 
     def revisions(self):
-        return self.changelog.walk()
+        for rev in self.changelog.walk():
+            if rev["label"] == self.label:
+                yield rev
 
     def refresh(self):
         self.changelog.refresh()
@@ -70,7 +72,7 @@ class Series:
 
         # Collect all revisions
         all_revision = []
-        for rev in self.changelog.walk():
+        for rev in self.revisions():
             if after is not None and rev["epoch"] < after:  # closed on left
                 continue
             elif before is not None and rev["epoch"] >= before:  # right-opened
@@ -166,6 +168,7 @@ class Series:
             "len": len(frame),
             "digests": all_dig,
             "epoch": time(),
+            "label": self.label,
         }
         key = hexdigest(*encoder(str(len(frame)), *all_dig, *sstart, *sstop))
         force_parent = phi if root else None
@@ -186,7 +189,7 @@ class Series:
         return commits
 
     def digests(self):
-        for revision in self.changelog.walk():
+        for revision in self.revisions():
             yield from revision["digests"]
 
     def __getitem__(self, by):
@@ -307,4 +310,4 @@ class KVSeries(Series):
         new_frm = Frame.concat(frame, db_frm)
         return super().write(new_frm)
 
-    # TODO migrate delete logic from Registry
+    # TODO migrate delete logic from Repository

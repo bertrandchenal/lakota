@@ -6,17 +6,17 @@ import sys
 from tabulate import tabulate
 
 from . import __version__
-from .registry import Registry
+from .repo import Repo
 from .schema import Schema
 from .utils import logger, timeit
 
 
-def get_registry(args):
-    return Registry(args.uri)
+def get_repo(args):
+    return Repo(args.uri)
 
 
 def get_series(args):
-    reg = get_registry(args)
+    reg = get_repo(args)
     series = reg.get(args.label)
     if series is None:
         exit(f"Series '{args.label}' not found")
@@ -68,7 +68,7 @@ def revisions(args):
     if args.label:
         series = get_series(args)
     else:
-        reg = get_registry(args)
+        reg = get_repo(args)
         series = reg.label_series
     cols = ["start", "stop", "lenght"]
     rows = [(r["start"], r["stop"], r["len"]) for r in series.revisions()]
@@ -81,7 +81,7 @@ def revisions(args):
 
 
 def ls(args):
-    reg = get_registry(args)
+    reg = get_repo(args)
     rows = [[label] for label in reg.ls()]
     if args.pretty:
         print(tabulate(rows, headers=["label"]))
@@ -92,7 +92,7 @@ def ls(args):
 
 
 def create(args):
-    reg = get_registry(args)
+    reg = get_repo(args)
     schema = Schema(args.columns)
     reg.create(schema, args.label)
 
@@ -109,9 +109,9 @@ def write(args):
 def squash(args):
     """
     Squash changelog of given series. If not series is given, squash
-    registry changelog.
+    repo changelog.
     """
-    reg = get_registry(args)
+    reg = get_repo(args)
     if args.labels:
         for label in args.labels:
             series = reg.get(label)
@@ -121,14 +121,14 @@ def squash(args):
 
 
 def push(args):
-    reg = get_registry(args)
-    remote_reg = Registry(args.remote)
+    reg = get_repo(args)
+    remote_reg = Repo(args.remote)
     reg.push(remote_reg, *args.labels)
 
 
 def pull(args):
-    reg = get_registry(args)
-    remote_reg = Registry(args.remote)
+    reg = get_repo(args)
+    remote_reg = Repo(args.remote)
     reg.pull(remote_reg, *args.labels)
 
 
@@ -143,12 +143,12 @@ def truncate(args):
 
 
 def delete(args):
-    reg = get_registry(args)
+    reg = get_repo(args)
     reg.delete(args.label)
 
 
 def gc(args):
-    reg = get_registry(args)
+    reg = get_repo(args)
     cnt = reg.gc()
     print(f"{cnt} segments deleted")
 
@@ -168,7 +168,7 @@ def run():
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument(
-        "--uri", "-u", default=default_uri, help=f"Lakota URI (default: {default_uri}"
+        "--repo", "-r", default=default_uri, help=f"Lakota repo (default: {default_uri}"
     )
     parser.add_argument("--timing", "-t", action="store_true", help="Enable timing")
     parser.add_argument("--pretty", "-P", action="store_true", help="Tabulate output")

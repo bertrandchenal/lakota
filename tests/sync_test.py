@@ -2,7 +2,7 @@ from time import sleep
 
 import pytest
 
-from lakota import Frame, Registry, Schema
+from lakota import Frame, Repo, Schema
 from lakota.utils import drange
 
 schema = Schema(
@@ -15,9 +15,9 @@ value float
 
 def test_pull():
     label = "LABEL"
-    remote_reg = Registry()
-    remote_reg.create(schema, label)
-    rseries = remote_reg.get(label)
+    remote_repo = Repo()
+    remote_repo.create(schema, label)
+    rseries = remote_repo.get(label)
     for i in range(10):
         rseries.write(
             {
@@ -28,27 +28,27 @@ def test_pull():
     expected = rseries.frame()
 
     # Test pull
-    local_reg = Registry()
-    local_reg.pull(remote_reg, label)
-    lseries = local_reg.get(label)
+    local_repo = Repo()
+    local_repo.pull(remote_repo, label)
+    lseries = local_repo.get(label)
     assert lseries.frame() == expected
 
     # Test push
-    other_reg = Registry()
-    remote_reg.push(other_reg, label)
-    oseries = other_reg.get(label)
+    other_repo = Repo()
+    remote_repo.push(other_repo, label)
+    oseries = other_repo.get(label)
     assert oseries.frame() == expected
 
     # Test with existing series
-    local_reg = Registry()
-    local_reg.create(schema, label)
-    local_reg.pull(remote_reg, label)
-    lseries = other_reg.get(label)
+    local_repo = Repo()
+    local_repo.create(schema, label)
+    local_repo.pull(remote_repo, label)
+    lseries = other_repo.get(label)
     assert oseries.frame() == expected
 
     # Test with existing series with existing data
-    local_reg = Registry()
-    lseries = local_reg.create(schema, label)
+    local_repo = Repo()
+    lseries = local_repo.create(schema, label)
     frm = Frame(
         schema,
         {
@@ -57,59 +57,59 @@ def test_pull():
         },
     )
     lseries.write(frm)
-    local_reg.pull(remote_reg, label)
+    local_repo.pull(remote_repo, label)
     assert lseries.frame() == frm
 
     # Test with existing series with other schema
-    local_reg = Registry()
+    local_repo = Repo()
     other_schema = Schema(["timestamp int*", "value int"])
-    lseries = local_reg.create(other_schema, label)
+    lseries = local_repo.create(other_schema, label)
     with pytest.raises(ValueError):
-        local_reg.pull(remote_reg, label)
+        local_repo.pull(remote_repo, label)
 
 
 @pytest.mark.parametrize("squash", [False, True])
 def test_label_delete_push(squash):
     labels = list("abcd")
-    local_reg = Registry()
-    remote_reg = Registry()
+    local_repo = Repo()
+    remote_repo = Repo()
 
     # Create some labels and push them
-    local_reg.create(schema, *labels)
-    local_reg.push(remote_reg)
+    local_repo.create(schema, *labels)
+    local_repo.push(remote_repo)
     if squash:
-        remote_reg.squash()
-    assert all(local_reg.search()["label"] == labels)
-    assert all(remote_reg.search()["label"] == labels)
+        remote_repo.squash()
+    assert all(local_repo.search()["label"] == labels)
+    assert all(remote_repo.search()["label"] == labels)
 
     # Delete one local label and push again
-    local_reg.delete("c")
-    local_reg.push(remote_reg)
+    local_repo.delete("c")
+    local_repo.push(remote_repo)
     if squash:
-        remote_reg.squash()
+        remote_repo.squash()
     else:
-        remote_reg.refresh()
-    assert all(remote_reg.search()["label"] == list("abd"))
-    assert all(local_reg.search()["label"] == list("abd"))
+        remote_repo.refresh()
+    assert all(remote_repo.search()["label"] == list("abd"))
+    assert all(local_repo.search()["label"] == list("abd"))
 
     # Delete one remote label and pull
     sleep(0.1)  # Needed to avoid concurrent writes
-    remote_reg.delete("d")
-    local_reg.pull(remote_reg)
+    remote_repo.delete("d")
+    local_repo.pull(remote_repo)
     if squash:
-        local_reg.label_series.squash()
+        local_repo.label_series.squash()
     else:
-        local_reg.refresh()
-    assert all(remote_reg.search()["label"] == list("ab"))
-    assert all(local_reg.search()["label"] == list("ab"))
+        local_repo.refresh()
+    assert all(remote_repo.search()["label"] == list("ab"))
+    assert all(local_repo.search()["label"] == list("ab"))
 
 
 @pytest.mark.parametrize("squash", [True, False])
 def test_series_push(squash):
     label = "LABEL"
-    local_reg = Registry()
-    remote_reg = Registry()
-    series = local_reg.create(schema, label)
+    local_repo = Repo()
+    remote_repo = Repo()
+    series = local_repo.create(schema, label)
 
     months = list(range(1, 12))
     for start, stop in zip(months[:-1], months[1:]):
@@ -117,4 +117,4 @@ def test_series_push(squash):
         values = [start] * len(ts)
         series.write({"timestamp": ts, "value": values})
 
-    local_reg.push(remote_reg, label)
+    local_repo.push(remote_repo, label)

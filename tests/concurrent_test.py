@@ -2,7 +2,7 @@ import numpy
 from dask.distributed import Client, LocalCluster
 from pandas import DataFrame, date_range
 
-from lakota import POD, Frame, Registry, Schema
+from lakota import POD, Frame, Repo, Schema
 from lakota.utils import timeit
 
 schema = Schema(["timestamp M8[s] *", "value int"])
@@ -11,8 +11,8 @@ schema = Schema(["timestamp M8[s] *", "value int"])
 def insert(args):
     token, label, year = args
     pod = POD.from_token(token)
-    registry = Registry(pod=pod)
-    series = registry.get(label)
+    repo = Repo(pod=pod)
+    series = repo.get(label)
     ts = date_range(f"{year}-01-01", f"{year+1}-01-01", freq="1min", closed="left")
     df = DataFrame(
         {
@@ -29,9 +29,9 @@ def insert(args):
 def test_insert(pod):
     # Write with workers
     label = "my_label"
-    registry = Registry(pod=pod)
+    repo = Repo(pod=pod)
     token = pod.token
-    registry.create(schema, label)
+    repo.create(schema, label)
 
     cluster = LocalCluster(processes=False)
     client = Client(cluster)
@@ -45,7 +45,7 @@ def test_insert(pod):
 
     # Read it back
     with timeit(f"\nREAD ({pod.protocol})"):
-        series = registry.get(label)
+        series = repo.get(label)
         df = series["2015-01-01":"2015-01-02"].df()
         assert len(df) == 1440
         df = series["2015-12-31":"2016-01-02"].df()

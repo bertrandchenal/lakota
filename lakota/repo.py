@@ -10,19 +10,21 @@ from .utils import hashed_path, hexdigest, logger
 LABEL_RE = re.compile("^[a-zA-Z0-9-_\.]+$")
 
 
-class Registry:
+# TODO add "tag" series to be able to tag revisions
+
+class Repo:
     """
     Use a Series object to store all the series labels
     """
 
-    schema = Schema(["label str*", "schema O"])
+    schema = Schema(["label str*", "info O"])
 
     def __init__(self, uri=None, pod=None):
         # TODO add a repo and move all this pod setup in it
         self.pod = pod or POD.from_uri(uri)
         self.segment_pod = self.pod / "segment"
         self.label_series = KVSeries(
-            "__label_series__", self.schema, self.pod / "registry", self.segment_pod
+            "__label_series__", self.schema, self.pod / "repo", self.segment_pod
         )
         self.series_pod = self.pod / "series"
 
@@ -50,21 +52,19 @@ class Registry:
     def push(self, remote, *labels):
         return remote.pull(self, *labels)
 
-    # IDEA provide a series method that will either create either get
-    # a series (and handle schema implicitly based on first write
-
-    # TODO add support for pattern here under (or at least prefix)
-
     def ls(self):
         return self.search()["label"]
 
-    def create(self, schema, *labels, raise_if_exists=True):
-        schema_dump = schema.dump()
+    def create(self, schema, *labels, collection=None, raise_if_exists=True):
+        info_dump = {
+            "collection": collection,
+            "schema": schema.dump()
+        }
         self.label_series.write(
-            {"label": labels, "schema": [schema_dump] * len(labels)}
+            {"label": labels, "info": [info_dump] * len(labels)}
         )
 
-        res = [self.series(l, schema) for l in labels]
+        res = [self.reify_series(l, schema, collection=collection) for l in labels]
         if len(labels) == 1:
             return res[0]
         return res
@@ -85,14 +85,17 @@ class Registry:
 
         if frm.empty:
             return None
-        schema = Schema.loads(frm["schema"][-1])
-        return self.series(label, schema)
+        info = frm["info"][-1]
+        schema = Schema.loads(info["schema"])
+        return self.reify_series(label, schema, info["collection"])
 
-    def series(self, label, schema):
-        digest = hexdigest(label.encode())
+    def reify_series(self, label, schema, collection=None):
+        key = label if collection is None else collection
+        digest = hexdigest(key.encode())
         folder, filename = hashed_path(digest)
+        series_pod = self.series_pod / folder / filename
         series = Series(
-            label, schema, self.series_pod / folder / filename, self.segment_pod
+            label, schema, series_pod, self.segment_pod
         )
         return series
 
@@ -105,14 +108,14 @@ class Registry:
         start, stop = min(labels), max(labels)
         frm = self.label_series[start:stop].frame(closed="both")
         # Keep only labels not given as argument
-        items = [(l, s) for l, s in zip(frm["label"], frm["schema"]) if l not in labels]
+        items = [(l, s) for l, s in zip(frm["label"], frm["info"]) if l not in labels]
         if len(items) == 0:
             new_frm = self.schema.cast()
         else:
-            keep_labels, keep_schema = zip(*items)
+            keep_labels, keep_info = zip(*items)
             new_frm = {
                 "label": keep_labels,
-                "schema": keep_schema,
+                "info": keep_info,
             }
         # Write result to db
         self.label_series.write(new_frm, start=start, stop=stop, root=True)

@@ -2,8 +2,8 @@ from time import sleep
 
 import pytest
 
-from lakota import Registry, Schema
-from lakota.registry import LABEL_RE
+from lakota import Repo, Schema
+from lakota.repo import LABEL_RE
 from lakota.utils import chunky
 
 labels = "zero one two three four five six seven eight nine".split()
@@ -19,18 +19,18 @@ def test_create_labels(pod):
     """
     Create all labels in one go
     """
-    reg = Registry(pod=pod)
-    reg.create(schema, *labels)
+    repo = Repo(pod=pod)
+    repo.create(schema, *labels)
 
     # Test that we can get back those series
     for label in labels:
-        series = reg.get(label)
+        series = repo.get(label)
         assert series.schema == schema
 
     # Same after packing
-    reg.label_series.changelog.pack()
+    repo.label_series.changelog.pack()
     for label in labels:
-        series = reg.get(label)
+        series = repo.get(label)
         assert series.schema == schema
 
 
@@ -39,61 +39,61 @@ def test_create_labels_chunks(pod, squash):
     """
     Create all labels in chunks
     """
-    reg = Registry(pod=pod)
+    repo = Repo(pod=pod)
     for label_chunk in chunky(labels, 3):
-        reg.create(schema, *label_chunk)
+        repo.create(schema, *label_chunk)
 
     # Test that we can get back those series
     for label in labels:
-        series = reg.get(label)
+        series = repo.get(label)
         assert series.schema == schema
 
     # Same after packing
-    reg.label_series.changelog.pack()
+    repo.label_series.changelog.pack()
     if squash:
-        reg.squash()
+        repo.squash()
     for label in labels:
-        series = reg.get(label)
+        series = repo.get(label)
         assert series.schema == schema
 
     # Same after sqash
     for label in labels:
-        series = reg.get(label)
+        series = repo.get(label)
         assert series.schema == schema
 
 
 @pytest.mark.parametrize("squash", [True, False])
 def test_delete(pod, squash):
-    reg = Registry(pod=pod)
-    reg.create(schema, *labels)
+    repo = Repo(pod=pod)
+    repo.create(schema, *labels)
     expected = sorted(labels)
-    assert list(reg.search()["label"]) == expected
+    assert list(repo.search()["label"]) == expected
 
     # Remove one label and check result
     sleep(0.01)
-    reg.delete("seven")
+    repo.delete("seven")
     if squash:
-        reg.squash()
+        repo.squash()
     expected = [l for l in expected if l != "seven"]
-    assert list(reg.search()["label"]) == expected
+    assert list(repo.search()["label"]) == expected
 
     # Remove two labels and check result
-    reg.delete("nine", "zero")
+    repo.delete("nine", "zero")
     if squash:
-        reg.squash()
+        repo.squash()
     expected = [l for l in expected if l not in ("nine", "zero", "seven")]
-    assert list(reg.search()["label"]) == expected
+    assert list(repo.search()["label"]) == expected
 
     # Same after sqash
-    reg.squash()
-    assert list(reg.search()["label"]) == expected
+    repo.squash()
+    assert list(repo.search()["label"]) == expected
 
 
 def test_gc(pod):
-    reg = Registry(pod=pod)
-    reg.create(schema, "label_a", "label_b")
+    repo = Repo(pod=pod)
+    repo.create(schema, "label_a", "label_b")
     for offset, label in enumerate(("label_a", "label_b")):
-        series = reg.get(label)
+        series = repo.get(label)
         for i in range(offset, offset + 10):
             series.write(
                 {
@@ -103,11 +103,11 @@ def test_gc(pod):
             )
 
     # Squash label_a
-    series = reg.get("label_a")
+    series = repo.get("label_a")
     series.squash()
 
     # Launch garbage collection
-    count = reg.gc()
+    count = repo.gc()
 
     # Count must be 2 because the two series are identical except for
     # two data frames (the last write is offseted and contains two

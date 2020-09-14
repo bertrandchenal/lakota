@@ -1,7 +1,7 @@
 import pytest
 from numpy import array
 
-from lakota import Frame, Registry, Schema
+from lakota import Frame, Repo, Schema
 
 NAMES = list("abcde")
 VALUES = [1.1, 2.2, 3.3, 4.4, 5.5]
@@ -79,9 +79,9 @@ def test_double_slice(frame_values, frm):
     frm = frm.slice(1, None).slice(None, 2)
     assert all(frm["value"] == VALUES[1:][:2])
 
-    # frame created from registry
-    reg = Registry()
-    series = reg.create(frm.schema, "my-label")
+    # frame created from repo
+    repo = Repo()
+    series = repo.create(frm.schema, "my-label")
     series.write(frame_values)
     frm = series.frame()
     frm = frm.slice(1, None).slice(None, 2)
