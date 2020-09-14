@@ -3,7 +3,16 @@ from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor
 
 import numexpr
-from numpy import array_equal, asarray, bincount, concatenate, lexsort, ndarray, unique
+from numpy import (
+    all,
+    array_equal,
+    asarray,
+    bincount,
+    concatenate,
+    lexsort,
+    ndarray,
+    unique,
+)
 
 from .utils import hashed_path
 
