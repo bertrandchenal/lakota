@@ -45,6 +45,7 @@ class POD:
         # Instatiate pod object
         path = PurePosixPath(path)
         if protocol == "file":
+            path = Path(path).expanduser()
             return FilePOD(path, **fs_kwargs)
         elif protocol == "s3":
             return S3POD(path, **fs_kwargs)
@@ -250,7 +251,10 @@ class S3POD(POD):
     def __init__(self, path, fs=None, **kw):
         # TODO document use of param: endpoint_url='http://127.0.0.1:5300'
         self.path = path
-        self.fs = fs or s3fs.S3FileSystem(anon=False, **kw,)
+        self.fs = fs or s3fs.S3FileSystem(
+            anon=False,
+            **kw,
+        )
         super().__init__()
 
     def cd(self, *others):
