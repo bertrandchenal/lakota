@@ -161,6 +161,7 @@ class Series:
         stop = stop or frame.stop()
         sstart = self.schema.serialize(start)
         sstop = self.schema.serialize(stop)
+        # XXX rev_info = {self.label: {}} (to be able to write on several labels)
         rev_info = {
             "start": sstart,
             "stop": sstop,

@@ -106,7 +106,7 @@ class Changelog:
         for commit in self.log():
             rev_arr = self.extract(commit.path)
             for payload in rev_arr:
-                if key and payload[key] != value:
+                if key and payload.get(key) != value:
                     continue
                 res.append(Revision(commit=commit, payload=payload))
 

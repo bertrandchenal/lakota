@@ -12,7 +12,7 @@ from .utils import logger, timeit
 
 
 def get_repo(args):
-    return Repo(args.uri)
+    return Repo(args.repo)
 
 
 def get_series(args):
@@ -159,8 +159,8 @@ def print_help(parser, args):
 
 def run():
 
-    # Take default uri from env variable, fallback to current dir
-    default_uri = os.environ.get("LAKOTA_URI", "file://.")
+    # Take default repo from env variable, fallback to current dir
+    default_repo = os.environ.get("LAKOTA_REPO", "file://.")
 
     # top-level parser
     parser = argparse.ArgumentParser(
@@ -168,7 +168,10 @@ def run():
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument(
-        "--repo", "-r", default=default_uri, help=f"Lakota repo (default: {default_uri}"
+        "--repo",
+        "-r",
+        default=default_repo,
+        help=f"Lakota repo (default: {default_repo}",
     )
     parser.add_argument("--timing", "-t", action="store_true", help="Enable timing")
     parser.add_argument("--pretty", "-P", action="store_true", help="Tabulate output")

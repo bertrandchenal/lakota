@@ -5,11 +5,11 @@ from setuptools import setup
 
 
 def get_version():
-    ini_path = Path(__file__).parent / 'lakota' / '__init__.py'
+    ini_path = Path(__file__).parent / "lakota" / "__init__.py"
     for line in ini_path.open():
-        if line.startswith('__version__'):
-            return line.split('=')[1].strip("' \"\n")
-    raise ValueError(f'__version__ line not found in {ini_path}')
+        if line.startswith("__version__"):
+            return line.split("=")[1].strip("' \"\n")
+    raise ValueError(f"__version__ line not found in {ini_path}")
 
 
 long_description = """
@@ -31,6 +31,17 @@ setup(
     url="https://github.com/bertrandchenal/lakota",
     license="MIT",
     packages=["lakota"],
-    install_requires=["numpy", "numcodecs", "s3fs", "numexpr", "tabulate", "msgpack"],
-    entry_points={"console_scripts": ["lakota = lakota.cli:run",],},
+    install_requires=[
+        "numpy",
+        "numcodecs",
+        "s3fs<0.5",
+        "numexpr",
+        "tabulate",
+        "msgpack",
+    ],
+    entry_points={
+        "console_scripts": [
+            "lakota = lakota.cli:run",
+        ],
+    },
 )
