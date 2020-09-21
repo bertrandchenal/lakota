@@ -16,8 +16,12 @@ def get_repo(args):
 
 
 def get_series(args):
-    reg = get_repo(args)
-    series = reg.get(args.label)
+    repo = get_repo(args)
+    c_label, s_label = args.label.split("/", 1)
+    collection = repo.get(c_label)
+    if collection is None:
+        exit(f"Collection '{c_label}' not found")
+    series = collection.get(s_label)
     if series is None:
         exit(f"Series '{args.label}' not found")
     return series
@@ -92,9 +96,13 @@ def ls(args):
 
 
 def create(args):
-    reg = get_repo(args)
+    repo = get_repo(args)
+    collection, series = args.label.split("/", 1)
+
     schema = Schema(args.columns)
-    reg.create(schema, args.label)
+    coll = repo.create(collection)
+    if series:
+        coll.create(schema, series)
 
 
 def write(args):
@@ -111,13 +119,13 @@ def squash(args):
     Squash changelog of given series. If not series is given, squash
     repo changelog.
     """
-    reg = get_repo(args)
+    repo = get_repo(args)
     if args.labels:
         for label in args.labels:
-            series = reg.get(label)
-            series.squash()
+            collection = repo.get(label)
+            collection.squash()
     else:
-        reg.label_series.squash()
+        repo.label_series.squash()
 
 
 def push(args):
@@ -127,14 +135,15 @@ def push(args):
 
 
 def pull(args):
-    reg = get_repo(args)
+    repo = get_repo(args)
     remote_reg = Repo(args.remote)
     reg.pull(remote_reg, *args.labels)
 
 
 def pack(args):
-    series = get_series(args)
-    series.changelog.pack()
+    repo = get_repo(args)
+    collection = repo.get(args.label)
+    collection.changelog.pack()
 
 
 def truncate(args):
