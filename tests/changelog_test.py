@@ -56,7 +56,9 @@ def test_concurrent_commit(pod):
     # As we inserted datum in a random fashion we have no order
     # garantee
     expected = set(map(hexdigest, datum))
-    for rev in changelog.walk():
+    chlg = changelogs[0]
+    chlg.refresh()
+    for rev in chlg.walk():
         key, _ = rev.payload.split(" ", 1)
         expected.remove(key)
     assert not expected

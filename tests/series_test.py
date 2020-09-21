@@ -2,7 +2,7 @@ import pytest
 from numpy import array
 from pandas import DataFrame
 
-from lakota import POD, Frame, Schema, Series
+from lakota import POD, Changelog, Frame, Schema, Series
 from lakota.schema import DTYPES
 from lakota.utils import tail
 
@@ -18,7 +18,8 @@ orig_frm = {
 )
 def series(request):
     pod = POD.from_uri("memory://")
-    series = Series("_", schema, pod)
+    chlg = Changelog(pod / "chlg")
+    series = Series("_", schema, pod, chlg)
     series.write(orig_frm)
     return series
 
@@ -154,7 +155,8 @@ def test_column_types():
         pod = POD.from_uri("memory://")
         stars = ["*"] * idx_len + [""] * (len(cols) - idx_len)
         schema = Schema([c + star for c, star in zip(cols, stars)])
-        series = Series("_", schema, pod)
+        chlg = Changelog(pod / "chlg")
+        series = Series("_", schema, pod, chlg)
         series.write(df)
         frm = series.frame()
 

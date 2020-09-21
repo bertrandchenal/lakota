@@ -14,7 +14,7 @@ from numpy import (
     unique,
 )
 
-from .utils import hashed_path
+from .utils import hashed_path, settings
 
 try:
     from pandas import DataFrame
@@ -41,18 +41,42 @@ class Frame:
             return Frame(schema)
         select = select or schema.columns
 
-        futures = []
-        with ThreadPoolExecutor(4) as pool:
-            for name in schema.columns:
-                if name not in select:
-                    continue
+        if settings.threaded:
+            with ThreadPoolExecutor(4) as pool:
+                futures = list(
+                    Frame._read_segments(
+                        schema,
+                        segments,
+                        limit=limit,
+                        offset=offset,
+                        select=select,
+                        pool=pool,
+                    )
+                )
+                res = dict(f.result() for f in futures)
+        else:
+            res = dict(
+                Frame._read_segments(
+                    schema, segments, limit=limit, offset=offset, select=select
+                )
+            )
+
+        return Frame(schema, res)
+
+    @classmethod
+    def _read_segments(
+        cls, schema, segments, limit=None, offset=None, select=None, pool=None
+    ):
+        for name in schema.columns:
+            if name not in select:
+                continue
+            if pool:
                 f = pool.submit(
                     Frame.read_segments, segments, name, limit=limit, offset=offset
                 )
-                futures.append(f)
-
-        res = dict(f.result() for f in futures)
-        return Frame(schema, res)
+                yield f
+            else:
+                yield Frame.read_segments(segments, name, limit=limit, offset=offset)
 
     @classmethod
     def read_segments(cls, segments, name, limit=None, offset=None):

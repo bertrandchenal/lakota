@@ -12,7 +12,8 @@ def insert(args):
     token, label, year = args
     pod = POD.from_token(token)
     repo = Repo(pod=pod)
-    series = repo.get(label)
+    collection = repo.get("my_collection")
+    series = collection.get(label)
     ts = date_range(f"{year}-01-01", f"{year+1}-01-01", freq="1min", closed="left")
     df = DataFrame(
         {
@@ -30,8 +31,9 @@ def test_insert(pod):
     # Write with workers
     label = "my_label"
     repo = Repo(pod=pod)
+    collection = repo.create("my_collection")
     token = pod.token
-    repo.create(schema, label)
+    collection.create(schema, label)
 
     cluster = LocalCluster(processes=False)
     client = Client(cluster)
@@ -45,7 +47,7 @@ def test_insert(pod):
 
     # Read it back
     with timeit(f"\nREAD ({pod.protocol})"):
-        series = repo.get(label)
+        series = collection.get(label)
         df = series["2015-01-01":"2015-01-02"].df()
         assert len(df) == 1440
         df = series["2015-12-31":"2016-01-02"].df()

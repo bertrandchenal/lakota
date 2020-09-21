@@ -63,14 +63,21 @@ class POD:
                 continue
             self.rm(key, recursive=True)
 
-    def walk(self, root=""):
-        folders = [(root, f) for f in self.ls(root)]
+    def walk(self, max_depth=None):
+        if max_depth == 0:
+            return []
+
+        folders = [("", f, 1) for f in self.ls("")]
         while folders:
             folder = folders.pop()
-            root, name = folder
+            root, name, depth = folder
             full_path = str(PurePosixPath(root) / name)
             if self.isdir(full_path):
-                subfolders = [(full_path, c) for c in reversed(self.ls(full_path))]
+                if max_depth is not None and depth >= max_depth:
+                    continue
+                subfolders = [
+                    (full_path, c, depth + 1) for c in reversed(self.ls(full_path))
+                ]
                 folders.extend(subfolders)
             else:
                 yield full_path

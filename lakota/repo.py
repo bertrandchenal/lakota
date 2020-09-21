@@ -2,7 +2,7 @@ import re
 from concurrent.futures import ThreadPoolExecutor
 from itertools import chain
 
-from .changelog import Changelog
+from .changelog import Changelog, phi
 from .pod import POD
 from .schema import Schema
 from .series import KVSeries, Series
@@ -11,24 +11,22 @@ from .utils import hashed_path, hexdigest, logger
 LABEL_RE = re.compile("^[a-zA-Z0-9-_\.]+$")
 
 
-# TODO add "tag" series to be able to tag revisions
+# TODO add "tag" series to be able to tag revisions/series/collections
 
 
-class Repo:
+class Registry:
     """
-    Use a Series object to store all the series labels
+    Use a Series object to store collections or series labels
     """
 
-    schema = Schema(["label str*", "info O"])
+    schema = Schema(["label str*", "meta O"])
 
-    def __init__(self, uri=None, pod=None):
-        # TODO add a repo and move all this pod setup in it
-        self.pod = pod or POD.from_uri(uri)
-        self.segment_pod = self.pod / "segment"
+    def __init__(self, pod, path):
+        self.pod = pod
+        self.changelog = Changelog(self.pod / path)
         self.label_series = KVSeries(
-            "__label_series__", self.schema, self.pod / "repo", self.segment_pod
+            ":registry:", self.schema, pod=pod, changelog=self.changelog
         )
-        self.series_pod = self.pod / "series"
 
     def pull(self, remote, *labels):
         # Pull schema
@@ -46,8 +44,8 @@ class Repo:
                 logger.info("SYNC %s", label)
                 rseries = remote.get(label, remote_cache)
                 lseries = self.get(label, local_cache)
-                if lseries.schema != rseries.schema:
-                    msg = f'Unable to pull label "{label}", incompatible schema.'
+                if lseries.meta != rseries.meta:
+                    msg = f'Unable to pull label "{label}", incompatible meta-info.'
                     raise ValueError(msg)
                 pool.submit(lseries.pull, rseries)
 
@@ -57,11 +55,12 @@ class Repo:
     def ls(self):
         return self.search()["label"]
 
-    def create(self, schema, *labels, collection=None, raise_if_exists=True):
-        info_dump = {"collection": collection, "schema": schema.dump()}
-        self.label_series.write({"label": labels, "info": [info_dump] * len(labels)})
-
-        res = [self.reify_series(l, schema, collection=collection) for l in labels]
+    def create(self, meta, *labels, raise_if_exists=True):
+        for label in labels:
+            if not LABEL_RE.match(label):
+                raise ValueError(f'Invalid label "{label}"')
+        self.label_series.write({"label": labels, "meta": meta})
+        res = [self.reify(l, m) for l, m in zip(labels, meta)]
         if len(labels) == 1:
             return res[0]
         return res
@@ -82,19 +81,11 @@ class Repo:
 
         if frm.empty:
             return None
-        info = frm["info"][-1]
-        schema = Schema.loads(info["schema"])
-        return self.reify_series(label, schema, info["collection"])
-
-    def reify_series(self, label, schema, collection=None):
-        key = label if collection is None else collection
-        digest = hexdigest(key.encode())
-        folder, filename = hashed_path(digest)
-        series_pod = self.series_pod / folder / filename
-        series = Series(label, schema, series_pod, self.segment_pod)
-        return series
+        meta = frm["meta"][-1]
+        return self.reify(label, meta)
 
     def squash(self):
+        # TODO pack
         return self.label_series.squash()
 
     def delete(self, *labels):
@@ -103,14 +94,14 @@ class Repo:
         start, stop = min(labels), max(labels)
         frm = self.label_series[start:stop].frame(closed="both")
         # Keep only labels not given as argument
-        items = [(l, s) for l, s in zip(frm["label"], frm["info"]) if l not in labels]
+        items = [(l, s) for l, s in zip(frm["label"], frm["meta"]) if l not in labels]
         if len(items) == 0:
             new_frm = self.schema.cast()
         else:
-            keep_labels, keep_info = zip(*items)
+            keep_labels, keep_meta = zip(*items)
             new_frm = {
                 "label": keep_labels,
-                "info": keep_info,
+                "meta": keep_meta,
             }
         # Write result to db
         self.label_series.write(new_frm, start=start, stop=stop, root=True)
@@ -118,8 +109,50 @@ class Repo:
     def refresh(self):
         self.label_series.refresh()
 
+    def revisions(self):
+        return self.label_series.revisions()
+
+
+class Collection(Registry):
+    def __init__(self, label, path, pod):
+        self.pod = pod
+        self.label = label
+        self.changelog = Changelog(self.pod / path)
+        super().__init__(pod, path)
+
+    def create(self, schema, *labels, raise_if_exists=True):
+        meta = {"schema": schema.dump()}
+        meta = [meta] * len(labels)
+        return super().create(meta, *labels, raise_if_exists=raise_if_exists)
+
+    def series(self, name):
+        return self.get(name)
+
+    def reify(self, name, meta):
+        schema = Schema.loads(meta["schema"])
+        return Series(name, schema, self.pod, self.changelog)
+
+
+class Repo(Registry):
+    def __init__(self, uri=None, pod=None):
+        pod = pod or POD.from_uri(uri)
+        folder, filename = hashed_path(phi)
+        super().__init__(pod, folder / filename)
+
     def collection(self, name):
-        return Collection(self, name)
+        return self.get(name)
+
+    def create(self, *labels, raise_if_exists=True):
+        meta = []
+        for label in labels:
+            key = label.encode()
+            digest = hexdigest(key)
+            folder, filename = hashed_path(digest)
+            meta.append({"path": str(folder / filename)})
+        return super().create(meta, *labels, raise_if_exists=raise_if_exists)
+
+    def reify(self, name, meta):
+        return Collection(name, meta["path"], self.pod)
 
     def gc(self, soft=True):
         """
@@ -127,43 +160,28 @@ class Repo:
         ones. If soft if true, obsolete revision are moved to an
         archive location. If soft is false, obsolete revisions are deleted.
         """
-        frm = self.search()
-        labels = set(frm["label"])
-        series = (self.get(l, frm) for l in labels)
-        per_series = (s.digests() for s in series)
-        active_digests = set(chain.from_iterable(per_series))
-        active_digests.update(self.label_series.digests())
+        coll_frm = self.search()
+        coll_labels = set(coll_frm["label"])
+
+        active_digests = set(self.label_series.digests())
+        for clabel in coll_labels:
+            coll = self.get(clabel, from_frm=coll_frm)
+            series_frm = coll.search()
+            series_labels = set(series_frm["label"])
+            series = (coll.get(l, series_frm) for l in series_labels)
+            per_series = (s.digests() for s in series)
+            active_digests.update(chain.from_iterable(per_series))
+            active_digests.update(coll.label_series.digests())
+
         count = 0
-        for filename in self.segment_pod.walk():
+        for filename in self.pod.walk(max_depth=3):
+            if self.pod.isdir(filename):
+                # A directory contains a changelog
+                continue
             digest = filename.replace("/", "")
             if digest not in active_digests:
                 count += 1
-                self.segment_pod.rm(filename)
+                print("DEL", filename)
+                self.pod.rm(filename)
 
         return count
-
-
-class Collection:
-    def __init__(self, repo, name):
-        self.repo = repo
-        self.name = name
-
-    def create(self, schema, *labels, raise_if_exists=True):
-        return self.repo.create(
-            schema, *labels, collection=self.name, raise_if_exists=raise_if_exists
-        )
-
-    def ls(self):
-        frm = self.repo.search()
-        res = []
-        for label, info in zip(frm["label"], frm["info"]):
-            if info["collection"] == self.name:
-                res.append(label)
-        return res
-
-    def revisions(self):
-        digest = hexdigest(self.name.encode())
-        folder, filename = hashed_path(digest)
-        pod = self.repo.series_pod / folder / filename / "changelog"
-        changelog = Changelog(pod)
-        return changelog.walk()

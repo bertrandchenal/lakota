@@ -3,9 +3,9 @@ from time import time
 
 from numpy import arange
 
-from .changelog import Changelog, phi
+from .changelog import phi
 from .frame import Frame
-from .utils import encoder, hashed_path, hexdigest
+from .utils import encoder, hashed_path, hexdigest, settings
 
 
 def intersect(revision, start, stop):
@@ -25,12 +25,10 @@ class Series:
     concurrent management of series.
     """
 
-    def __init__(self, label, schema, pod, segment_pod=None):
+    def __init__(self, label, schema, pod, changelog):
         self.schema = schema
         self.pod = pod
-        self.segment_pod = segment_pod or pod / "segment"
-        self.chl_pod = self.pod / "changelog"
-        self.changelog = Changelog(self.chl_pod)
+        self.changelog = changelog
         self.label = label
 
     def pull(self, remote):
@@ -42,10 +40,10 @@ class Series:
             for dig in revision["digests"]:
                 folder, filename = hashed_path(dig)
                 path = folder / filename
-                if self.segment_pod.isfile(path):
+                if self.pod.isfile(path):
                     continue
-                payload = remote.segment_pod.read(path)
-                self.segment_pod.write(path, payload)
+                payload = remote.pod.read(path)
+                self.pod.write(path, payload)
 
     def revisions(self):
         cond = ("label", self.label)
@@ -138,6 +136,19 @@ class Series:
                 yield from right_frm
             break
 
+    def _write_frame(self, frame, pool=None):
+        for name in self.schema:
+            arr = self.schema[name].cast(frame[name])
+            digest = hexdigest(arr.tobytes())
+            data = self.schema[name].encode(arr)
+            folder, filename = hashed_path(digest)
+
+            if pool:
+                pool.submit(self.pod.cd(folder).write, filename, data)
+            else:
+                self.pod.cd(folder).write(filename, data)
+            yield digest
+
     def write(self, frame, start=None, stop=None, root=False):
         if not isinstance(frame, Frame):
             frame = Frame(self.schema, frame)
@@ -147,15 +158,11 @@ class Series:
         assert (sort_mask == arange(len(sort_mask))).all(), "Dataframe is not sorted!"
 
         # Save segments (TODO chunk large frames)
-        all_dig = []
-        with ThreadPoolExecutor(4) as pool:
-            for name in self.schema:
-                arr = self.schema[name].cast(frame[name])
-                digest = hexdigest(arr.tobytes())
-                all_dig.append(digest)
-                data = self.schema[name].encode(arr)
-                folder, filename = hashed_path(digest)
-                pool.submit(self.segment_pod.cd(folder).write, filename, data)
+        if settings.threaded:
+            with ThreadPoolExecutor(4) as pool:
+                all_dig = list(self._write_frame(frame, pool))
+        else:
+            all_dig = list(self._write_frame(frame))
 
         start = start or frame.start()
         stop = stop or frame.stop()
@@ -178,7 +185,7 @@ class Series:
         return commit
 
     def truncate(self, *skip):
-        self.chl_pod.clear(*skip)
+        self.changelog.pod.clear(*skip)
 
     def squash(self, expected=None):
         """

@@ -21,7 +21,7 @@ class Changelog:
 
     def __init__(self, pod):
         self.pod = pod
-        self._walk_cache = {}
+        self._walk_cache = None
 
     def commit(self, payload, key=None, force_parent=None, _jitter=False):
         # Find parent & write revisions
@@ -61,7 +61,7 @@ class Changelog:
         return commit
 
     def refresh(self):
-        self._walk_cache = {}
+        self._walk_cache = None
 
     def __iter__(self):
         yield from self.pod.ls(raise_on_missing=False)
@@ -93,25 +93,27 @@ class Changelog:
             # Append children
             queue.extend(reversed(commits[item.child]))
 
-    def walk(self, cond=None, parent=phi):
+    def walk(self, cond=None):
         """
         Iterator on the list of commits
         """
-        if self._walk_cache.get(cond) is not None:
-            return self._walk_cache[cond]
-        res = []
-        key = value = None
-        if cond:
-            key, value = cond
-        for commit in self.log():
-            rev_arr = self.extract(commit.path)
-            for payload in rev_arr:
-                if key and payload.get(key) != value:
-                    continue
-                res.append(Revision(commit=commit, payload=payload))
+        if not self._walk_cache:
+            revs = []
+            for commit in self.log():
+                rev_arr = self.extract(commit.path)
+                revs.extend(
+                    Revision(commit=commit, payload=payload) for payload in rev_arr
+                )
+            self._walk_cache = revs
 
-        self._walk_cache[cond] = res
-        return res
+        if not cond:
+            yield from self._walk_cache
+            return
+
+        key, value = cond
+        for rev in self._walk_cache:
+            if rev[key] == value:
+                yield rev
 
     def extract(self, path):
         try:
@@ -171,7 +173,7 @@ class Revision:
     def segment(self, series):
         return ShallowSegment(
             series.schema,
-            series.segment_pod,
+            series.pod,
             self["digests"],
             start=self["start"],
             stop=self["stop"],

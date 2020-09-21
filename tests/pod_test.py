@@ -54,3 +54,17 @@ def test_write_clear(pod):
     assert len(pod.ls("ham/spam")) == 1
     pod.clear()
     assert pod.ls() == []
+
+
+def test_walk(pod):
+    data = b""
+    pod.write("ham/spam/foo", data)
+    pod.write("bar/baz", data)
+    pod.write("qux", data)
+
+    assert sorted(pod.walk()) == ["bar/baz", "ham/spam/foo", "qux"]
+    assert sorted(pod.walk(max_depth=10)) == ["bar/baz", "ham/spam/foo", "qux"]
+    assert sorted(pod.walk(max_depth=3)) == ["bar/baz", "ham/spam/foo", "qux"]
+    assert sorted(pod.walk(max_depth=2)) == ["bar/baz", "qux"]
+    assert sorted(pod.walk(max_depth=1)) == ["qux"]
+    assert sorted(pod.walk(max_depth=0)) == []

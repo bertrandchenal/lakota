@@ -1,27 +1,42 @@
-from lakota import Repo, Schema
+from lakota.repo import Repo, Schema
 
-# TODO implement squash on top of collection
+schema = Schema(["timestamp timestamp*", "value float"])
+frame = {"timestamp": [1, 2, 3], "value": [11, 12, 13]}
 
 
 def test_create():
+    frame = {"timestamp": [1, 2, 3], "value": [11, 12, 13]}
+    # Create repo / collection / series
     repo = Repo()
-    schema = Schema(
-        [
-            "timestamp int*",
-            "value float",
-        ]
-    )
-    frame = {
-        "timestamp": [0, 1, 2],
-        "value": [0, 10, 20],
-    }
-    series_a, series_b = repo.create(schema, "label_a", "label_b", collection="test")
-    c1 = series_a.write(frame)
-    c2 = series_b.write(frame)
+    temperature = repo.create("temperature")
+    temp_bru = temperature.create(schema, "Brussels")
+    temp_bru.write(frame)
 
-    assert c2 != c1
-    assert len(series_a.revisions()) == 1
-    assert len(series_b.revisions()) == 1
+    # Read it back
+    temperature = repo.collection("temperature")
+    temp_bru = temperature.series("Brussels")
+    assert temp_bru.frame() == frame
 
-    collection = repo.collection("test")
-    assert len(collection.revisions()) == 2
+    assert list(repo.ls()) == ["temperature"]
+    assert list(temperature.ls()) == ["Brussels"]
+
+
+def test_multi():
+    repo = Repo()
+    temperature = repo.create("temperature")
+    temp_bru = temperature.create(schema, "Brussels")
+    temp_bru.write(frame)
+
+    frame_ory = frame.copy()
+    frame_ory["value"] = [21, 22, 23]
+    temp_ory = temperature.create(schema, "Paris")
+    temp_ory.write(frame_ory)
+
+    assert temp_bru.frame() == frame
+    assert temp_ory.frame() == frame_ory
+
+    assert len(list(repo.revisions())) == 1
+    assert len(list(temperature.revisions())) == 2
+    assert len(list(temp_bru.revisions())) == 1
+
+    assert list(temperature.ls()) == ["Brussels", "Paris"]

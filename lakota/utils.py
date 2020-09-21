@@ -3,12 +3,11 @@ import logging
 import sys
 from collections import deque
 from contextlib import contextmanager
+from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 from hashlib import sha1
 from itertools import islice
 from pathlib import PosixPath
-from queue import Queue
-from threading import Thread
 from time import perf_counter, time
 
 from numpy import arange
@@ -23,6 +22,15 @@ fmt = "%(levelname)s:%(asctime).19s: %(message)s"
 logging.basicConfig(format=fmt)
 logger = logging.getLogger("lakota")
 DEBUG = False
+
+
+# Global settings
+@dataclass
+class Settings:
+    threaded: bool
+
+
+settings = Settings(threaded=False)
 
 
 def chunky(collection, size=100):

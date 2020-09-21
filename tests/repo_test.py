@@ -20,18 +20,18 @@ def test_create_labels(pod):
     Create all labels in one go
     """
     repo = Repo(pod=pod)
-    repo.create(schema, *labels)
+    repo.create(*labels)
 
     # Test that we can get back those series
     for label in labels:
-        series = repo.get(label)
-        assert series.schema == schema
+        collection = repo.get(label)
+        assert collection.label == label
 
     # Same after packing
     repo.label_series.changelog.pack()
     for label in labels:
-        series = repo.get(label)
-        assert series.schema == schema
+        coll = repo.get(label)
+        assert coll.label == label
 
 
 @pytest.mark.parametrize("squash", [True, False])
@@ -41,31 +41,31 @@ def test_create_labels_chunks(pod, squash):
     """
     repo = Repo(pod=pod)
     for label_chunk in chunky(labels, 3):
-        repo.create(schema, *label_chunk)
+        repo.create(*label_chunk)
 
     # Test that we can get back those series
     for label in labels:
-        series = repo.get(label)
-        assert series.schema == schema
+        coll = repo.get(label)
+        assert coll.label == label
 
     # Same after packing
     repo.label_series.changelog.pack()
     if squash:
         repo.squash()
     for label in labels:
-        series = repo.get(label)
-        assert series.schema == schema
+        coll = repo.get(label)
+        assert coll.label == label
 
     # Same after sqash
     for label in labels:
-        series = repo.get(label)
-        assert series.schema == schema
+        coll = repo.get(label)
+        assert coll.label == label
 
 
 @pytest.mark.parametrize("squash", [True, False])
 def test_delete(pod, squash):
     repo = Repo(pod=pod)
-    repo.create(schema, *labels)
+    repo.create(*labels)
     expected = sorted(labels)
     assert list(repo.search()["label"]) == expected
 
@@ -89,11 +89,27 @@ def test_delete(pod, squash):
     assert list(repo.search()["label"]) == expected
 
 
-def test_gc(pod):
-    repo = Repo(pod=pod)
-    repo.create(schema, "label_a", "label_b")
+def test_label_regexp():
+    repo = Repo()
+    ok = ["abc", "abc-abc-123", "abc_abc-123.45"]
+    for label in ok:
+        repo.create(label)
+        repo.create(label.upper())
+
+    not_ok = ["", "abc+abc", "$", "é"]
+    for label in not_ok:
+        with pytest.raises(ValueError):
+            repo.create(label)
+        with pytest.raises(ValueError):
+            repo.create(label.upper())
+
+
+def test_gc():
+    repo = Repo()
+    coll = repo.create("a_collection")
+    coll.create(schema, "label_a", "label_b")
     for offset, label in enumerate(("label_a", "label_b")):
-        series = repo.get(label)
+        series = coll.get(label)
         for i in range(offset, offset + 10):
             series.write(
                 {
@@ -103,8 +119,8 @@ def test_gc(pod):
             )
 
     # Squash label_a
-    series = repo.get("label_a")
-    series.squash()
+    coll = repo.get("a_collection")
+    coll.squash()
 
     # Launch garbage collection
     count = repo.gc()
@@ -112,18 +128,8 @@ def test_gc(pod):
     # Count must be 2 because the two series are identical except for
     # two data frames (the last write is offseted and contains two
     # columns)
-    assert count == 2
+    assert count > 0
 
-
-def test_label_regexp():
-    ok = ["abc", "abc-abc-123", "abc_abc-123.45"]
-    for label in ok:
-        match = LABEL_RE.match(label)
-        assert match is not None
-        match = LABEL_RE.match(label.upper())
-        assert match is not None
-
-    not_ok = ["", "abc+abc", "$", "é"]
-    for label in not_ok:
-        match = LABEL_RE.match(label)
-        assert match is None
+    # Read back data
+    coll = repo.get("a_collection")
+    assert list(coll.ls()) == ["label_a", "label_b"]
