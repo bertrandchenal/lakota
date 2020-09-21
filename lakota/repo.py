@@ -181,7 +181,6 @@ class Repo(Registry):
             digest = filename.replace("/", "")
             if digest not in active_digests:
                 count += 1
-                print("DEL", filename)
                 self.pod.rm(filename)
 
         return count
