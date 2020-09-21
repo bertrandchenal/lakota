@@ -11,7 +11,7 @@ ALIASES = {
     "str": "<U",
 }
 
-# TODO AGGRAGTES: define column aggregate (avg, weighted avg, sum,
+# TODO AGGREGATES: define column aggregate (avg, weighted avg, sum,
 # count, min, max, first; last).  We can have simple rule to infer types of those (sum ->
 # keep initial type, avg -> float, count -> int)
 
