@@ -3,7 +3,6 @@ from time import sleep
 import pytest
 
 from lakota import Repo, Schema
-from lakota.repo import LABEL_RE
 from lakota.utils import chunky
 
 labels = "zero one two three four five six seven eight nine".split()
@@ -15,12 +14,12 @@ value float
 )
 
 
-def test_create_labels(pod):
+def test_create_collections(pod):
     """
     Create all labels in one go
     """
     repo = Repo(pod=pod)
-    repo.create(*labels)
+    repo.create_collection(*labels)
 
     # Test that we can get back those series
     for label in labels:
@@ -41,7 +40,7 @@ def test_create_labels_chunks(pod, squash):
     """
     repo = Repo(pod=pod)
     for label_chunk in chunky(labels, 3):
-        repo.create(*label_chunk)
+        repo.create_collection(*label_chunk)
 
     # Test that we can get back those series
     for label in labels:
@@ -65,9 +64,9 @@ def test_create_labels_chunks(pod, squash):
 @pytest.mark.parametrize("squash", [True, False])
 def test_delete(pod, squash):
     repo = Repo(pod=pod)
-    repo.create(*labels)
+    repo.create_collection(*labels)
     expected = sorted(labels)
-    assert list(repo.search()["label"]) == expected
+    assert list(repo) == expected
 
     # Remove one label and check result
     sleep(0.01)
@@ -75,39 +74,39 @@ def test_delete(pod, squash):
     if squash:
         repo.squash()
     expected = [l for l in expected if l != "seven"]
-    assert list(repo.search()["label"]) == expected
+    assert list(repo) == expected
 
     # Remove two labels and check result
     repo.delete("nine", "zero")
     if squash:
         repo.squash()
     expected = [l for l in expected if l not in ("nine", "zero", "seven")]
-    assert list(repo.search()["label"]) == expected
+    assert list(repo) == expected
 
     # Same after sqash
     repo.squash()
-    assert list(repo.search()["label"]) == expected
+    assert list(repo) == expected
 
 
 def test_label_regexp():
     repo = Repo()
     ok = ["abc", "abc-abc-123", "abc_abc-123.45"]
     for label in ok:
-        repo.create(label)
-        repo.create(label.upper())
+        repo.create_collection(label)
+        repo.create_collection(label.upper())
 
     not_ok = ["", "abc+abc", "$", "é"]
     for label in not_ok:
         with pytest.raises(ValueError):
-            repo.create(label)
+            repo.create_collection(label)
         with pytest.raises(ValueError):
-            repo.create(label.upper())
+            repo.create_collection(label.upper())
 
 
 def test_gc():
     repo = Repo()
-    coll = repo.create("a_collection")
-    coll.create(schema, "label_a", "label_b")
+    coll = repo.create_collection("a_collection")
+    coll.create_series(schema, "label_a", "label_b")
     for offset, label in enumerate(("label_a", "label_b")):
         series = coll.get(label)
         for i in range(offset, offset + 10):

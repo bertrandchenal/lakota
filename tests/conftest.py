@@ -5,6 +5,7 @@ import pytest
 from moto import mock_s3
 
 from lakota import POD
+from lakota.utils import settings
 
 
 @pytest.yield_fixture(scope="function", params=["file", "memory", "s3", "cache"])
@@ -36,3 +37,9 @@ def pod(request):
 
     else:
         raise
+
+
+@pytest.fixture(scope="function", params=[False, True])
+def threaded(request):
+    settings.threaded = request.param
+    return request.param

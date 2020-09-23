@@ -1,6 +1,5 @@
 from bisect import bisect_left, bisect_right
 from collections import defaultdict
-from concurrent.futures import ThreadPoolExecutor
 
 import numexpr
 from numpy import (
@@ -14,7 +13,7 @@ from numpy import (
     unique,
 )
 
-from .utils import hashed_path, settings
+from .utils import Pool, hashed_path
 
 try:
     from pandas import DataFrame
@@ -41,42 +40,16 @@ class Frame:
             return Frame(schema)
         select = select or schema.columns
 
-        if settings.threaded:
-            with ThreadPoolExecutor(4) as pool:
-                futures = list(
-                    Frame._read_segments(
-                        schema,
-                        segments,
-                        limit=limit,
-                        offset=offset,
-                        select=select,
-                        pool=pool,
-                    )
-                )
-                res = dict(f.result() for f in futures)
-        else:
-            res = dict(
-                Frame._read_segments(
-                    schema, segments, limit=limit, offset=offset, select=select
-                )
-            )
-
-        return Frame(schema, res)
-
-    @classmethod
-    def _read_segments(
-        cls, schema, segments, limit=None, offset=None, select=None, pool=None
-    ):
-        for name in schema.columns:
-            if name not in select:
-                continue
-            if pool:
-                f = pool.submit(
+        with Pool() as pool:
+            for name in schema.columns:
+                if name not in select:
+                    continue
+                pool.submit(
                     Frame.read_segments, segments, name, limit=limit, offset=offset
                 )
-                yield f
-            else:
-                yield Frame.read_segments(segments, name, limit=limit, offset=offset)
+
+        res = dict(pool.results)
+        return Frame(schema, res)
 
     @classmethod
     def read_segments(cls, segments, name, limit=None, offset=None):

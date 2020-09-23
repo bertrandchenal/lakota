@@ -13,11 +13,13 @@ value float
 )
 
 
-def test_pull():
-    label = "LABEL"
+def test_pull(threaded):
+    c_label = "a_collection"
+    s_label = "a_series"
     remote_repo = Repo()
-    remote_repo.create(schema, label)
-    rseries = remote_repo.get(label)
+    remote_coll = remote_repo.create_collection(c_label)
+    remote_coll.create_series(schema, s_label)
+    rseries = remote_coll.get(s_label)
     for i in range(10):
         rseries.write(
             {
@@ -29,26 +31,29 @@ def test_pull():
 
     # Test pull
     local_repo = Repo()
-    local_repo.pull(remote_repo, label)
-    lseries = local_repo.get(label)
+    local_coll = local_repo + c_label
+    local_coll.pull(remote_coll)
+    lseries = local_coll / s_label
     assert lseries.frame() == expected
 
     # Test push
     other_repo = Repo()
-    remote_repo.push(other_repo, label)
-    oseries = other_repo.get(label)
+    other_coll = other_repo + c_label
+    remote_coll.push(other_coll)
+    oseries = other_coll / s_label
     assert oseries.frame() == expected
 
     # Test with existing series
     local_repo = Repo()
-    local_repo.create(schema, label)
-    local_repo.pull(remote_repo, label)
-    lseries = other_repo.get(label)
+    local_coll = local_repo.create_collection(c_label)
+    local_coll.pull(remote_coll)
+    lseries = other_repo / c_label / s_label
     assert oseries.frame() == expected
 
     # Test with existing series with existing data
     local_repo = Repo()
-    lseries = local_repo.create(schema, label)
+    local_coll = local_repo + c_label
+    lseries = local_coll.create_series(schema, s_label)
     frm = Frame(
         schema,
         {
@@ -57,59 +62,65 @@ def test_pull():
         },
     )
     lseries.write(frm)
-    local_repo.pull(remote_repo, label)
+    local_coll.pull(remote_coll, s_label)
     assert lseries.frame() == frm
 
     # Test with existing series with other schema
     local_repo = Repo()
     other_schema = Schema(["timestamp int*", "value int"])
-    lseries = local_repo.create(other_schema, label)
+    local_coll = local_repo + c_label
+    lseries = local_coll + other_schema @ s_label
+
     with pytest.raises(ValueError):
-        local_repo.pull(remote_repo, label)
+        local_repo.pull(remote_repo)
 
 
 @pytest.mark.parametrize("squash", [False, True])
 def test_label_delete_push(squash):
     labels = list("abcd")
     local_repo = Repo()
+    local_coll = local_repo + "a_collection"
     remote_repo = Repo()
+    remote_coll = remote_repo + "a_collection"
 
     # Create some labels and push them
-    local_repo.create(schema, *labels)
-    local_repo.push(remote_repo)
+    local_coll.create_series(schema, *labels)
+    local_coll.push(remote_coll)
     if squash:
-        remote_repo.squash()
-    assert all(local_repo.search()["label"] == labels)
-    assert all(remote_repo.search()["label"] == labels)
+        remote_coll.squash()
+    assert list(local_coll) == labels
+    assert list(remote_coll) == labels
 
     # Delete one local label and push again
-    local_repo.delete("c")
-    local_repo.push(remote_repo)
+    local_coll.delete("c")
+    local_coll.push(remote_coll)
     if squash:
-        remote_repo.squash()
+        remote_coll.squash()
     else:
-        remote_repo.refresh()
-    assert all(remote_repo.search()["label"] == list("abd"))
-    assert all(local_repo.search()["label"] == list("abd"))
+        remote_coll.refresh()
+    assert list(remote_coll) == list("abd")
+    assert list(local_coll) == list("abd")
 
     # Delete one remote label and pull
     sleep(0.1)  # Needed to avoid concurrent writes
-    remote_repo.delete("d")
-    local_repo.pull(remote_repo)
+    remote_coll.delete("d")
+    local_coll.pull(remote_coll)
     if squash:
-        local_repo.label_series.squash()
+        local_coll.squash()
     else:
-        local_repo.refresh()
-    assert all(remote_repo.search()["label"] == list("ab"))
-    assert all(local_repo.search()["label"] == list("ab"))
+        local_coll.refresh()
+    assert list(remote_coll) == list("ab")
+    assert list(local_coll) == list("ab")
 
 
 @pytest.mark.parametrize("squash", [True, False])
 def test_series_push(squash):
     label = "LABEL"
     local_repo = Repo()
+    local_coll = local_repo + "a_collection"
     remote_repo = Repo()
-    series = local_repo.create(schema, label)
+    remote_coll = remote_repo + "a_collection"
+    series = local_coll.create_series(schema, label)
 
     months = list(range(1, 12))
     for start, stop in zip(months[:-1], months[1:]):
@@ -117,4 +128,4 @@ def test_series_push(squash):
         values = [start] * len(ts)
         series.write({"timestamp": ts, "value": values})
 
-    local_repo.push(remote_repo, label)
+    local_coll.push(remote_coll, label)

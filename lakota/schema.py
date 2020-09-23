@@ -1,4 +1,5 @@
 import shlex
+from dataclasses import dataclass
 
 from numcodecs import registry
 from numpy import asarray, dtype, frombuffer
@@ -179,3 +180,14 @@ class Schema:
         """
         cols = self.columns if full else self.idx
         return tuple(df[n][pos] for n in cols)
+
+    def __matmul__(self, labels):
+        if not isinstance(labels, (list, tuple)):
+            labels = [labels]
+        return SeriesDefinition(self, labels)
+
+
+@dataclass
+class SeriesDefinition:
+    schema: Schema
+    labels: list

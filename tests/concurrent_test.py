@@ -31,10 +31,11 @@ def test_insert(pod):
     # Write with workers
     label = "my_label"
     repo = Repo(pod=pod)
-    collection = repo.create("my_collection")
-    token = pod.token
-    collection.create(schema, label)
+    # Create collection and label
+    collection = repo + "my_collection"
+    collection + schema @ label
 
+    token = pod.token
     cluster = LocalCluster(processes=False)
     client = Client(cluster)
     years = list(range(2000, 2020))
@@ -47,7 +48,7 @@ def test_insert(pod):
 
     # Read it back
     with timeit(f"\nREAD ({pod.protocol})"):
-        series = collection.get(label)
+        series = collection / label
         df = series["2015-01-01":"2015-01-02"].df()
         assert len(df) == 1440
         df = series["2015-12-31":"2016-01-02"].df()

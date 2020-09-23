@@ -1,12 +1,11 @@
 import re
-from concurrent.futures import ThreadPoolExecutor
 from itertools import chain
 
 from .changelog import Changelog, phi
 from .pod import POD
-from .schema import Schema
+from .schema import Schema, SeriesDefinition
 from .series import KVSeries, Series
-from .utils import hashed_path, hexdigest, logger
+from .utils import Pool, hashed_path, hexdigest, logger
 
 LABEL_RE = re.compile("^[a-zA-Z0-9-_\.]+$")
 
@@ -28,34 +27,16 @@ class Registry:
             ":registry:", self.schema, pod=pod, changelog=self.changelog
         )
 
-    def pull(self, remote, *labels):
-        # Pull schema
-        logger.info("SYNC labels")
-        self.label_series.pull(remote.label_series)
-        # Extract frames
-        local_cache = self.search()
-        remote_cache = remote.search()
+    def ls(self):
+        return (item.label for item in self.search())
 
-        if not labels:
-            labels = remote_cache["label"]
-
-        with ThreadPoolExecutor(4) as pool:
-            for label in labels:
-                logger.info("SYNC %s", label)
-                rseries = remote.get(label, remote_cache)
-                lseries = self.get(label, local_cache)
-                if lseries.meta != rseries.meta:
-                    msg = f'Unable to pull label "{label}", incompatible meta-info.'
-                    raise ValueError(msg)
-                pool.submit(lseries.pull, rseries)
+    def __iter__(self):
+        return self.ls()
 
     def push(self, remote, *labels):
         return remote.pull(self, *labels)
 
-    def ls(self):
-        return self.search()["label"]
-
-    def create(self, meta, *labels, raise_if_exists=True):
+    def _create(self, meta, *labels, raise_if_exists=True):
         for label in labels:
             if not LABEL_RE.match(label):
                 raise ValueError(f'Invalid label "{label}"')
@@ -71,22 +52,21 @@ class Registry:
         else:
             start = stop = None
         qr = self.label_series[start:stop] @ {"closed": "both"}
-        return qr.frame()
+        frm = qr.frame()  # XXX cache frame and use frm.slice to filter
+        for l in frm["label"]:
+            yield self.get(l, frm)
 
     def get(self, label, from_frm=None):
         if from_frm:
             frm = from_frm.index_slice([label], [label], closed="both")
         else:
-            frm = self.search(label)
+            qr = self.label_series[label:label] @ {"closed": "both"}
+            frm = qr.frame()  # XXX cache frame and use frm.slice to filter
 
         if frm.empty:
             return None
         meta = frm["meta"][-1]
         return self.reify(label, meta)
-
-    def squash(self):
-        # TODO pack
-        return self.label_series.squash()
 
     def delete(self, *labels):
         # Create a frame with all the existing labels contained
@@ -112,6 +92,12 @@ class Registry:
     def revisions(self):
         return self.label_series.revisions()
 
+    def truncate(self, *skip):
+        self.changelog.pod.clear(*skip)
+
+    def __truediv__(self, name):
+        return self.get(name)
+
 
 class Collection(Registry):
     def __init__(self, label, path, pod):
@@ -120,10 +106,10 @@ class Collection(Registry):
         self.changelog = Changelog(self.pod / path)
         super().__init__(pod, path)
 
-    def create(self, schema, *labels, raise_if_exists=True):
+    def create_series(self, schema, *labels, raise_if_exists=True):
         meta = {"schema": schema.dump()}
         meta = [meta] * len(labels)
-        return super().create(meta, *labels, raise_if_exists=raise_if_exists)
+        return super()._create(meta, *labels, raise_if_exists=raise_if_exists)
 
     def series(self, name):
         return self.get(name)
@@ -131,6 +117,55 @@ class Collection(Registry):
     def reify(self, name, meta):
         schema = Schema.loads(meta["schema"])
         return Series(name, schema, self.pod, self.changelog)
+
+    def __add__(self, other):
+        if not isinstance(other, SeriesDefinition):
+            raise ValueError("Incorrect invocation")
+        return self.create_series(other.schema, *other.labels)
+
+    def squash(self):
+        """
+        Remove all past revisions, collapse history into one or few large
+        frames.
+        """
+        # TODO accumulate all writes in one commit
+
+        step = 500_000
+        all_series = list(self.search())
+        # Re-write registry
+        commits = [
+            self.label_series.write(frm, root=True)
+            for frm in self.label_series.paginate(step)
+        ]
+        for series in all_series:
+            # Re-write each series
+            commits.extend(
+                series.write(frm, root=True) for frm in series.paginate(step)
+            )
+        self.truncate(*(c.path for c in commits))
+        return commits
+
+    def pull(self, remote, *labels):
+        assert isinstance(remote, Collection), "A Collection instance is required"
+
+        # Pull schema
+        self.label_series.pull(remote.label_series)
+        # Extract frames
+        local_cache = {l.label: l for l in self.search()}
+        remote_cache = {r.label: r for r in remote.search()}
+
+        if not labels:
+            labels = remote_cache.keys()
+
+        with Pool() as pool:
+            for label in labels:
+                logger.info("Sync series: %s", label)
+                rseries = remote_cache[label]
+                lseries = local_cache[label]
+                if lseries.schema != rseries.schema:
+                    msg = f'Unable to pull label "{label}", incompatible meta-info.'
+                    raise ValueError(msg)
+                pool.submit(lseries.pull, rseries)
 
 
 class Repo(Registry):
@@ -142,34 +177,65 @@ class Repo(Registry):
     def collection(self, name):
         return self.get(name)
 
-    def create(self, *labels, raise_if_exists=True):
+    def create_collection(self, *labels, raise_if_exists=True):
         meta = []
         for label in labels:
             key = label.encode()
             digest = hexdigest(key)
             folder, filename = hashed_path(digest)
             meta.append({"path": str(folder / filename)})
-        return super().create(meta, *labels, raise_if_exists=raise_if_exists)
+        return super()._create(meta, *labels, raise_if_exists=raise_if_exists)
+
+    def __add__(self, label):
+        return self.create_collection(label, raise_if_exists=False)
 
     def reify(self, name, meta):
         return Collection(name, meta["path"], self.pod)
 
-    def gc(self, soft=True):
+    def pull(self, remote, *labels):
+        assert isinstance(remote, Repo), "A Repo instance is required"
+        # Pull schema
+        self.label_series.pull(remote.label_series)
+        # Extract frames
+        local_cache = {l.label: l for l in self.search()}
+        remote_cache = {r.label: r for r in remote.search()}
+        if not labels:
+            labels = remote_cache.keys()
+
+        with Pool() as pool:
+            for label in labels:
+                logger.info("Sync collection: %s", label)
+                rcoll = remote_cache[label]
+                lcoll = local_cache[label]
+                pool.submit(lcoll.pull, rcoll)
+
+    def squash(self):
+        """
+        Remove all past revisions, collapse history into one or few large
+        frames.
+        """
+        # TODO accumulate all writes in one commit
+
+        step = 500_000
+        # Re-write registry
+        commits = [
+            self.label_series.write(frm, root=True)
+            for frm in self.label_series.paginate(step)
+        ]
+        self.truncate(*(c.path for c in commits))
+        return commits
+
+    def gc(self):
         """
         Loop on all series, collect all used digests, and delete obsolete
-        ones. If soft if true, obsolete revision are moved to an
-        archive location. If soft is false, obsolete revisions are deleted.
+        ones.
         """
-        coll_frm = self.search()
-        coll_labels = set(coll_frm["label"])
+        collections = self.search()
 
         active_digests = set(self.label_series.digests())
-        for clabel in coll_labels:
-            coll = self.get(clabel, from_frm=coll_frm)
-            series_frm = coll.search()
-            series_labels = set(series_frm["label"])
-            series = (coll.get(l, series_frm) for l in series_labels)
-            per_series = (s.digests() for s in series)
+        for coll in collections:
+            all_series = coll.search()
+            per_series = (s.digests() for s in all_series)
             active_digests.update(chain.from_iterable(per_series))
             active_digests.update(coll.label_series.digests())
 

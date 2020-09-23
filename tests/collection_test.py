@@ -8,13 +8,13 @@ def test_create():
     frame = {"timestamp": [1, 2, 3], "value": [11, 12, 13]}
     # Create repo / collection / series
     repo = Repo()
-    temperature = repo.create("temperature")
-    temp_bru = temperature.create(schema, "Brussels")
+    temperature = repo.create_collection("temperature")
+    temp_bru = temperature.create_series(schema, "Brussels")
     temp_bru.write(frame)
 
     # Read it back
-    temperature = repo.collection("temperature")
-    temp_bru = temperature.series("Brussels")
+    temperature = repo / "temperature"
+    temp_bru = temperature / "Brussels"
     assert temp_bru.frame() == frame
 
     assert list(repo.ls()) == ["temperature"]
@@ -23,13 +23,13 @@ def test_create():
 
 def test_multi():
     repo = Repo()
-    temperature = repo.create("temperature")
-    temp_bru = temperature.create(schema, "Brussels")
+    temperature = repo + "temperature"  # aka repo.create_collection("temperature")
+    temp_bru = temperature.create_series(schema, "Brussels")
     temp_bru.write(frame)
 
     frame_ory = frame.copy()
     frame_ory["value"] = [21, 22, 23]
-    temp_ory = temperature.create(schema, "Paris")
+    temp_ory = temperature.create_series(schema, "Paris")
     temp_ory.write(frame_ory)
 
     assert temp_bru.frame() == frame
@@ -39,4 +39,26 @@ def test_multi():
     assert len(list(temperature.revisions())) == 2
     assert len(list(temp_bru.revisions())) == 1
 
-    assert list(temperature.ls()) == ["Brussels", "Paris"]
+    assert list(temperature) == ["Brussels", "Paris"]
+
+
+def test_squash():
+    repo = Repo()
+    other_frame = frame.copy()
+    other_frame["value"] = [1, 2, 3]
+    temperature = repo + "temperature"
+    temp_bru = temperature.create_series(schema, "Brussels")
+    temp_bru.write(other_frame)
+    temp_bru.write(frame)
+
+    temp_ory = temperature.create_series(schema, "Paris")
+    temp_ory.write(frame)
+
+    # Squash collection
+    temperature.squash()
+
+    # Read data back
+    assert list(temperature) == ["Brussels", "Paris"]
+    for label in ("Brussels", "Paris"):
+        series = temperature / label
+        assert len(list(series.revisions())) == 1

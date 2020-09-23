@@ -2,6 +2,7 @@ import bisect
 import logging
 import sys
 from collections import deque
+from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
@@ -135,3 +136,29 @@ def memoize(fn):
         return res
 
     return wrapper
+
+
+class Pool:
+    """
+    Threadpoolexecutor wrapper to simplify it's usage
+    """
+
+    def __init__(self):
+        self.futures = []
+        self.results = []
+        self.pool = None
+
+    def __enter__(self):
+        if settings.threaded:
+            self.pool = ThreadPoolExecutor(4)
+        return self
+
+    def submit(self, fn, *a, **kw):
+        if settings.threaded:
+            self.futures.append(self.pool.submit(fn, *a, **kw))
+        else:
+            self.results.append(fn(*a, **kw))
+
+    def __exit__(self, type, value, traceback):
+        if settings.threaded:
+            self.results = [fut.result() for fut in self.futures]

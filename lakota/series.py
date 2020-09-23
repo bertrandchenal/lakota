@@ -1,11 +1,10 @@
-from concurrent.futures import ThreadPoolExecutor
 from time import time
 
 from numpy import arange
 
 from .changelog import phi
 from .frame import Frame
-from .utils import encoder, hashed_path, hexdigest, settings
+from .utils import Pool, encoder, hashed_path, hexdigest
 
 
 def intersect(revision, start, stop):
@@ -136,19 +135,6 @@ class Series:
                 yield from right_frm
             break
 
-    def _write_frame(self, frame, pool=None):
-        for name in self.schema:
-            arr = self.schema[name].cast(frame[name])
-            digest = hexdigest(arr.tobytes())
-            data = self.schema[name].encode(arr)
-            folder, filename = hashed_path(digest)
-
-            if pool:
-                pool.submit(self.pod.cd(folder).write, filename, data)
-            else:
-                self.pod.cd(folder).write(filename, data)
-            yield digest
-
     def write(self, frame, start=None, stop=None, root=False):
         if not isinstance(frame, Frame):
             frame = Frame(self.schema, frame)
@@ -158,12 +144,17 @@ class Series:
         assert (sort_mask == arange(len(sort_mask))).all(), "Dataframe is not sorted!"
 
         # Save segments (TODO chunk large frames)
-        if settings.threaded:
-            with ThreadPoolExecutor(4) as pool:
-                all_dig = list(self._write_frame(frame, pool))
-        else:
-            all_dig = list(self._write_frame(frame))
+        all_dig = []
+        with Pool() as pool:
+            for name in self.schema:
+                arr = self.schema[name].cast(frame[name])
+                digest = hexdigest(arr.tobytes())
+                all_dig.append(digest)
+                data = self.schema[name].encode(arr)
+                folder, filename = hashed_path(digest)
+                pool.submit(self.pod.cd(folder).write, filename, data)
 
+        # Build commit info
         start = start or frame.start()
         stop = stop or frame.stop()
         sstart = self.schema.serialize(start)
@@ -183,19 +174,6 @@ class Series:
         force_parent = phi if root else None
         commit = self.changelog.commit(rev_info, key=key, force_parent=force_parent)
         return commit
-
-    def truncate(self, *skip):
-        self.changelog.pod.clear(*skip)
-
-    def squash(self, expected=None):
-        """
-        Remove all past revisions, collapse history into one or few large
-        frames.
-        """
-        step = 500_000
-        commits = [self.write(frm, root=True) for frm in self.paginate(step)]
-        self.truncate(*(c.path for c in commits))
-        return commits
 
     def digests(self):
         for revision in self.revisions():
