@@ -90,6 +90,8 @@ def ls(args):
     repo = get_repo(args)
     if args.label:
         collection = repo / args.label
+        if collection is None:
+            exit(f'Collection "{args.label}" not found')
         header = "series"
     else:
         collection = repo
