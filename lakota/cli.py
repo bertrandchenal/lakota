@@ -17,6 +17,8 @@ def get_repo(args):
 
 def get_series(args):
     repo = get_repo(args)
+    if not "/" in args.label:
+        exit(f'Label argument should have the form "collection/series"')
     c_label, s_label = args.label.split("/", 1)
     collection = repo.get(c_label)
     if collection is None:
@@ -74,7 +76,7 @@ def revisions(args):
     else:
         reg = get_repo(args)
         series = reg.label_series
-    cols = ["start", "stop", "lenght"]
+    cols = ["start", "stop", "length"]
     rows = [(r["start"], r["stop"], r["len"]) for r in series.revisions()]
     if args.pretty:
         print(tabulate(rows, headers=cols))
@@ -85,13 +87,20 @@ def revisions(args):
 
 
 def ls(args):
-    reg = get_repo(args)
-    rows = [[label] for label in reg.ls()]
+    repo = get_repo(args)
+    if args.label:
+        collection = repo / args.label
+        header = "series"
+    else:
+        collection = repo
+        header = "collection"
+
+    rows = [[label] for label in collection.ls()]
     if args.pretty:
-        print(tabulate(rows, headers=["label"]))
+        print(tabulate(rows, headers=[header]))
     else:
         writer = csv.writer(sys.stdout)
-        writer.writerow(["label"])
+        writer.writerow([header])
         writer.writerows(rows)
 
 
@@ -137,7 +146,7 @@ def push(args):
 def pull(args):
     repo = get_repo(args)
     remote_reg = Repo(args.remote)
-    reg.pull(remote_reg, *args.labels)
+    repo.pull(remote_reg, *args.labels)
 
 
 def pack(args):
@@ -222,8 +231,9 @@ def run():
     parser_rev.set_defaults(func=revisions)
 
     # Add len command
-    parser_len = subparsers.add_parser("ls")
-    parser_len.set_defaults(func=ls)
+    parser_ls = subparsers.add_parser("ls")
+    parser_ls.add_argument("label", nargs="?")
+    parser_ls.set_defaults(func=ls)
 
     # Add squash command
     parser_squash = subparsers.add_parser("squash")
