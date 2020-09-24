@@ -3,13 +3,13 @@ from collections import defaultdict
 
 import numexpr
 from numpy import (
-    all,
     array_equal,
     asarray,
     bincount,
     concatenate,
     lexsort,
     ndarray,
+    r_,
     unique,
 )
 
@@ -171,7 +171,7 @@ class Frame:
         slc = slice(*(slice(start, stop).indices(len(self))))
         # Build new frame
         cols = {}
-        for name in self.schema.columns:
+        for name in self.columns:
             cols[name] = self.columns[name][slc]
         return Frame(self.schema, cols)
 
@@ -199,6 +199,10 @@ class Frame:
         if len(arr) != len(self):
             raise ValueError("Lenght mismatch")
         self.columns[name] = arr
+
+    def select(self, keep):
+        cols = {k: v for k, v in self.columns.items() if k in keep}
+        return Frame(self.schema, cols)
 
     def __getitem__(self, by):
         # By slice -> return a frame

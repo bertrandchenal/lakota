@@ -165,3 +165,7 @@ def test_concat(frm):
 
     assert Frame.concat(frm) == frm
     assert Frame.concat() is None
+
+
+def test_eq(frm):
+    assert (frm == frm) is True

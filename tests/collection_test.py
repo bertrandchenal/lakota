@@ -20,6 +20,12 @@ def test_create():
     assert list(repo.ls()) == ["temperature"]
     assert list(temperature.ls()) == ["Brussels"]
 
+    # Test double creation
+    repo.create_collection("temperature")
+    assert sorted(repo.ls()) == ["temperature"]
+    repo.create_collection("temperature", "wind")
+    assert sorted(repo.ls()) == ["temperature", "wind"]
+
 
 def test_multi():
     repo = Repo()

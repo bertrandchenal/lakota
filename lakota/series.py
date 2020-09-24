@@ -1,6 +1,6 @@
 from time import time
 
-from numpy import arange
+from numpy import arange, unique
 
 from .changelog import phi
 from .frame import Frame
@@ -294,7 +294,14 @@ class KVSeries(Series):
         db_frm = Frame.from_segments(
             self.schema, segments
         )  # Maybe paginate on large results
+        if db_frm == frame:
+            return
         new_frm = Frame.concat(frame, db_frm)
+        idx_cols = [new_frm[c] for c in new_frm.schema.idx]
+        # In case of duplicate rows (wtr to index), keep the new one
+        # Unique return the index of the first occurrence of each "row"
+        _, keep = unique(idx_cols, return_index=True, axis=1)
+        new_frm = new_frm.mask(keep)
         return super().write(new_frm)
 
-    # TODO migrate delete logic from Repository
+    # TODO migrate delete logic from Registry class

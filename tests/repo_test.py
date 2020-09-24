@@ -32,6 +32,10 @@ def test_create_collections(pod):
         coll = repo.get(label)
         assert coll.label == label
 
+    # Test double creation
+    repo.create_collection(*labels)
+    assert sorted(repo.ls()) == sorted(labels)
+
 
 @pytest.mark.parametrize("squash", [True, False])
 def test_create_labels_chunks(pod, squash):
