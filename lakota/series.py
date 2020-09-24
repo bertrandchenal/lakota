@@ -186,6 +186,7 @@ class Series:
         return Query(self) @ by
 
     def __len__(self):
+        # TODO select only index columns
         return len(Query(self))
 
     def paginate(self, step=100_000, **kw):
@@ -294,14 +295,14 @@ class KVSeries(Series):
         db_frm = Frame.from_segments(
             self.schema, segments
         )  # Maybe paginate on large results
-        if db_frm == frame:
-            return
         new_frm = Frame.concat(frame, db_frm)
         idx_cols = [new_frm[c] for c in new_frm.schema.idx]
         # In case of duplicate rows (wtr to index), keep the new one
         # Unique return the index of the first occurrence of each "row"
         _, keep = unique(idx_cols, return_index=True, axis=1)
         new_frm = new_frm.mask(keep)
+        if db_frm == new_frm:
+            return
         return super().write(new_frm)
 
     # TODO migrate delete logic from Registry class
