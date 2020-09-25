@@ -162,3 +162,18 @@ class Pool:
     def __exit__(self, type, value, traceback):
         if settings.threaded:
             self.results = [fut.result() for fut in self.futures]
+
+
+def profile_object(*roots):
+    # Monkey patch functions in module to add profiling decorator
+    from inspect import isfunction
+
+    import line_profiler
+
+    profiler = line_profiler.LineProfiler()
+    for root in roots:
+        for key, item in root.__dict__.items():
+            if isfunction(item):
+                print(f"Enable profiler on {item.__name__} " f"in {root.__name__}")
+                setattr(root, key, profiler(item))
+    return profiler
