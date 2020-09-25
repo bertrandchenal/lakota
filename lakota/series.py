@@ -148,9 +148,10 @@ class Series:
         with Pool() as pool:
             for name in self.schema:
                 arr = self.schema[name].cast(frame[name])
-                digest = hexdigest(arr.tobytes())
-                all_dig.append(digest)
+                # digest = hexdigest(arr.tobytes())
                 data = self.schema[name].encode(arr)
+                digest = hexdigest(data)
+                all_dig.append(digest)
                 folder, filename = hashed_path(digest)
                 pool.submit(self.pod.cd(folder).write, filename, data)
 
@@ -187,7 +188,7 @@ class Series:
 
     def __len__(self):
         # TODO select only index columns
-        return len(Query(self))
+        return len(Query(self, select=list(self.schema.idx)))
 
     def paginate(self, step=100_000, **kw):
         return Query(self).paginate(step=step, **kw)
