@@ -20,10 +20,10 @@ def get_series(args):
     if not "/" in args.label:
         exit(f'Label argument should have the form "collection/series"')
     c_label, s_label = args.label.split("/", 1)
-    collection = repo.get(c_label)
+    collection = repo / c_label
     if collection is None:
         exit(f"Collection '{c_label}' not found")
-    series = collection.get(s_label)
+    series = collection / s_label
     if series is None:
         exit(f"Series '{args.label}' not found")
     return series
@@ -133,7 +133,7 @@ def squash(args):
     repo = get_repo(args)
     if args.labels:
         for label in args.labels:
-            collection = repo.get(label)
+            collection = repo / label
             collection.squash()
     else:
         repo.label_series.squash()
@@ -153,7 +153,7 @@ def pull(args):
 
 def pack(args):
     repo = get_repo(args)
-    collection = repo.get(args.label)
+    collection = repo / args.label
     collection.changelog.pack()
 
 

@@ -2,16 +2,7 @@ from bisect import bisect_left, bisect_right
 from collections import defaultdict
 
 import numexpr
-from numpy import (
-    array_equal,
-    asarray,
-    bincount,
-    concatenate,
-    lexsort,
-    ndarray,
-    r_,
-    unique,
-)
+from numpy import array_equal, asarray, bincount, concatenate, lexsort, ndarray, unique
 
 from .utils import Pool, hashed_path
 

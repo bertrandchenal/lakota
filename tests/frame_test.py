@@ -80,8 +80,8 @@ def test_double_slice(frame_values, frm):
     assert all(frm["value"] == VALUES[1:][:2])
 
     # frame created from repo
-    collection = Repo().create_collection("collection")
-    series = collection.create_series(frm.schema, "my-label")
+    collection = Repo().create_collection(frm.schema, "collection")
+    series = collection / "my-label"
     series.write(frame_values)
     frm = series.frame()
     frm = frm.slice(1, None).slice(None, 2)

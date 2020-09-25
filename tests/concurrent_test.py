@@ -12,8 +12,8 @@ def insert(args):
     token, label, year = args
     pod = POD.from_token(token)
     repo = Repo(pod=pod)
-    collection = repo.get("my_collection")
-    series = collection.get(label)
+    collection = repo / "my_collection"
+    series = collection / label
     ts = date_range(f"{year}-01-01", f"{year+1}-01-01", freq="1min", closed="left")
     df = DataFrame(
         {
@@ -32,8 +32,7 @@ def test_insert(pod):
     label = "my_label"
     repo = Repo(pod=pod)
     # Create collection and label
-    collection = repo + "my_collection"
-    collection + schema @ label
+    collection = repo.create_collection(schema, "my_collection")
 
     token = pod.token
     cluster = LocalCluster(processes=False)
