@@ -78,9 +78,9 @@ def test_pull(threaded):
 def test_label_delete_push(squash):
     labels = list("abcd")
     local_repo = Repo()
-    local_coll = local_repo.create_collection(schema, "a_collection")
+    local_clct = local_repo.create_collection(schema, "a_collection")
     remote_repo = Repo()
-    remote_coll = remote_repo.create_collection(schema, "a_collection")
+    remote_clct = remote_repo.create_collection(schema, "a_collection")
 
     # Write some data
     frm = {
@@ -88,38 +88,38 @@ def test_label_delete_push(squash):
         "value": [1, 2, 3],
     }
     for label in labels:
-        series = local_coll / label
+        series = local_clct / label
         series.write(frm)
 
     # Create some labels and push them
-    local_coll.push(remote_coll)
+    local_clct.push(remote_clct)
     if squash:
-        remote_coll.squash()
-    assert list(local_coll) == labels
-    assert list(remote_coll) == labels
+        remote_clct.squash()
+    assert list(local_clct) == labels
+    assert list(remote_clct) == labels
 
     # FIXME !
 
-    # # Delete one local label and push again
-    # local_coll.delete("c")
-    # local_coll.push(remote_coll)
-    # if squash:
-    #     remote_coll.squash()
-    # else:
-    #     remote_coll.refresh()
-    # assert list(remote_coll) == list("abd")
-    # assert list(local_coll) == list("abd")
+    # Delete one local label and push again
+    local_clct.delete("c")
+    local_clct.push(remote_clct)
+    if squash:
+        remote_clct.squash()
+    else:
+        remote_clct.refresh()
+    assert list(remote_clct) == list("abd")
+    assert list(local_clct) == list("abd")
 
-    # # Delete one remote label and pull
-    # sleep(0.1)  # Needed to avoid concurrent writes
-    # remote_coll.delete("d")
-    # local_coll.pull(remote_coll)
-    # if squash:
-    #     local_coll.squash()
-    # else:
-    #     local_coll.refresh()
-    # assert list(remote_coll) == list("ab")
-    # assert list(local_coll) == list("ab")
+    # Delete one remote label and pull
+    sleep(0.1)  # Needed to avoid concurrent writes
+    remote_clct.delete("d")
+    local_clct.pull(remote_clct)
+    if squash:
+        local_clct.squash()
+    else:
+        local_clct.refresh()
+    assert list(remote_clct) == list("ab")
+    assert list(local_clct) == list("ab")
 
 
 @pytest.mark.parametrize("squash", [True, False])

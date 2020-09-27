@@ -23,7 +23,7 @@ class Changelog:
         self.pod = pod
         self._walk_cache = None
 
-    def commit(self, payload, key=None, force_parent=None, _jitter=False):
+    def commit(self, payload, key=None, force_parent=None, pack=False, _jitter=False):
         # Find parent & write revisions
         if force_parent:
             parent = force_parent
@@ -55,7 +55,7 @@ class Changelog:
 
         # Construct new filename and save content
         child = hextime() + "-" + key
-        commit = Commit(parent, child)
+        commit = Commit(parent, child, pack=pack)
         self.pod.write(commit.path, data)
         self.refresh()
         return commit
@@ -79,10 +79,11 @@ class Changelog:
         # Extract parent->children relations
         commits = defaultdict(list)
         for name in sorted(self):
-            parent, child = name.split(".")
+            parent, child, *ext = name.split(".")
             if parent == child:
                 continue
-            commits[parent].append(Commit(parent, child))
+            pack = ext and "pack" in ext
+            commits[parent].append(Commit(parent, child, pack=pack))
 
         # Depth first traversal of the tree(see
         # https://stackoverflow.com/a/5278667)
@@ -93,27 +94,29 @@ class Changelog:
             # Append children
             queue.extend(reversed(commits[item.child]))
 
-    def walk(self, cond=None):
+    def walk(self, fltr=None):
         """
         Iterator on the list of commits
         """
         if not self._walk_cache:
             revs = []
+            # TODO build a frame of revision instead of a list of objects
             for commit in self.log():
+                if commit.pack:
+                    # A packing commit "hides" previous revisions
+                    revs = []
                 rev_arr = self.extract(commit.path)
                 revs.extend(
                     Revision(commit=commit, payload=payload) for payload in rev_arr
                 )
             self._walk_cache = revs
 
-        if not cond:
+        if not fltr:
             yield from self._walk_cache
             return
 
-        key, value = cond
-        for rev in self._walk_cache:
-            if rev[key] == value:
-                yield rev
+        for rev in filter(fltr, self._walk_cache):
+            yield rev
 
     def extract(self, path):
         try:
@@ -134,22 +137,21 @@ class Changelog:
         self.refresh()
         return new_paths
 
-    def pack(self):
+    def pack(self, fltr=None):
         """
-        Combine the current list of revisions into one array of revision
+        Combine the current list of revisions into one array of revision.
+        The filter function `fltr` allows to keep only some items (and
+        so remove the others).
         """
 
         # TODO: allow to only pack commit that are old enough (so not
         # the most recent ones) to not disturb concurrent writes. Also
         # prevent dangling commits (when the parent has already been
         # packed)
-        revs = list(self.walk())
-        if len(revs) == 1:
-            return
-        self.commit([r.payload for r in revs], force_parent=phi)
+        revs = list(self.walk(fltr=fltr))
+        self.commit([r.payload for r in revs], force_parent=phi, pack=True)
         # Clean old revisions
-        for path in set(r.path for r in revs):
-            self.pod.rm(path)
+        self.refresh()
 
 
 class Revision:
@@ -182,13 +184,17 @@ class Revision:
 
 
 class Commit:
-    def __init__(self, parent, child):
+    def __init__(self, parent, child, pack=False):
         self.parent = parent
         self.child = child
+        self.pack = pack
 
     @property
     def path(self):
-        return self.parent + "." + self.child
+        p = self.parent + "." + self.child
+        if self.pack:
+            return p + ".pack"
+        return p
 
     def __repr__(self):
         return f"<Commit {self.path}>"

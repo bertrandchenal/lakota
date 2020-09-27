@@ -10,7 +10,6 @@ from .utils import Pool, hashed_path, hexdigest, logger
 LABEL_RE = re.compile("^[a-zA-Z0-9-_\.]+$")
 
 # TODO add "tag" series to be able to tag revisions/series/collections
-# XXX move schema info on collection?
 
 
 class Collection:
@@ -37,6 +36,15 @@ class Collection:
 
     def pack(self):
         self.changelog.pack()
+
+    def delete(self, *labels):
+        if not labels:
+            return
+        keep = lambda rev: rev["label"] not in labels
+        self.changelog.pack(keep)
+
+    def refresh(self):
+        self.changelog.refresh()
 
     def squash(self):
         """
@@ -129,22 +137,7 @@ class Repo:
         return self.reify(label, meta)
 
     def delete(self, *labels):
-        # Create a frame with all the existing labels contained
-        # between max and min of labels
-        start, stop = min(labels), max(labels)
-        frm = self.collection_series[start:stop].frame(closed="both")
-        # Keep only labels not given as argument
-        items = [(l, s) for l, s in zip(frm["label"], frm["meta"]) if l not in labels]
-        if len(items) == 0:
-            new_frm = self.schema.cast()
-        else:
-            keep_labels, keep_meta = zip(*items)
-            new_frm = {
-                "label": keep_labels,
-                "meta": keep_meta,
-            }
-        # Write result to db
-        self.collection_series.write(new_frm, start=start, stop=stop, root=True)
+        self.collection_series.delete(*labels)
 
     def refresh(self):
         self.collection_series.refresh()
@@ -215,6 +208,8 @@ class Repo:
         ones.
         """
         collections = self.search()
+
+        # TODO remove old revisions (anything before a pack commit)
 
         active_digests = set(self.collection_series.digests())
         for clct in collections:

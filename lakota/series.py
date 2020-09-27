@@ -1,6 +1,6 @@
 from time import time
 
-from numpy import arange, unique
+from numpy import arange, intersect1d, unique
 
 from .changelog import phi
 from .frame import Frame
@@ -45,8 +45,8 @@ class Series:
                 self.pod.write(path, payload)
 
     def revisions(self):
-        cond = ("label", self.label)
-        return self.changelog.walk(cond)
+        fltr = lambda rev: rev["label"] == self.label
+        return self.changelog.walk(fltr)
 
     def refresh(self):
         self.changelog.refresh()
@@ -296,6 +296,7 @@ class KVSeries(Series):
         db_frm = Frame.from_segments(
             self.schema, segments
         )  # Maybe paginate on large results
+
         new_frm = Frame.concat(frame, db_frm)
         idx_cols = [new_frm[c] for c in new_frm.schema.idx]
         # In case of duplicate rows (wtr to index), keep the new one
@@ -306,4 +307,24 @@ class KVSeries(Series):
             return
         return super().write(new_frm)
 
-    # TODO migrate delete logic from Registry class
+    def delete(self, *labels):
+        # Create a frame with all the existing labels contained
+        # between max and min of labels
+        if not labels:
+            return
+
+        # XXX use changelog pack ?
+        start, stop = min(labels), max(labels)
+        frm = self[start:stop].frame(closed="both")
+        # Keep only labels not given as argument
+        items = [(l, s) for l, s in zip(frm["label"], frm["meta"]) if l not in labels]
+        if len(items) == 0:
+            new_frm = self.schema.cast()
+        else:
+            keep_labels, keep_meta = zip(*items)
+            new_frm = {
+                "label": keep_labels,
+                "meta": keep_meta,
+            }
+        # Write result to db
+        self.write(new_frm, start=start, stop=stop, root=True)
