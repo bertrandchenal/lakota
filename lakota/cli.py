@@ -2,13 +2,13 @@ import argparse
 import csv
 import os
 import sys
-
+from datetime import datetime
 from tabulate import tabulate
 
 from . import __version__
 from .repo import Repo
 from .schema import Schema
-from .utils import logger, timeit
+from .utils import logger, timeit, strpt
 
 
 def get_repo(args):
@@ -32,9 +32,16 @@ def get_series(args):
 def read(args):
     series = get_series(args)
     columns = args.columns or list(series.schema.columns)
+    after = strpt(args.after)
+    before = strpt(args.before)
+    after = after and after.timestamp()
+    before = before and before.timestamp()
+
     query = series[columns][args.greater_than : args.less_than] @ {
         "limit": args.limit,
         "offset": args.offset,
+        "after": after,
+        "before": before,
     }
 
     if args.paginate:
@@ -71,13 +78,25 @@ def length(args):
 
 
 def revisions(args):
+    repo = get_repo(args)
+    collection = series = None
+    cols = ["start", "stop", "len", "epoch"]
     if args.label:
-        series = get_series(args)
+        if '/' in args.label:
+            series = get_series(args)
+        else:
+            collection = repo / args.label
+            cols = ["label"] + cols
     else:
-        reg = get_repo(args)
-        series = reg.label_series
-    cols = ["start", "stop", "length"]
-    rows = [(r["start"], r["stop"], r["len"]) for r in series.revisions()]
+        series = repo.label_series
+
+    what = collection or series
+
+    rows = []
+    for r in what.revisions():
+        r['epoch'] = datetime.fromtimestamp(r['epoch'])
+        rows.append(tuple(r[c] for c in cols))
+
     if args.pretty:
         print(tabulate(rows, headers=cols))
     else:
@@ -207,6 +226,8 @@ def run():
     parser_read.add_argument("--limit", "-l", type=int, default=None)
     parser_read.add_argument("--offset", "-o", type=int, default=None)
     parser_read.add_argument("--paginate", "-p", type=int, default=None)
+    parser_read.add_argument("--before", "-B", default=None)
+    parser_read.add_argument("--after", "-A", default=None)
     parser_read.add_argument("--mask", "-m", type=str, default=None)
     parser_read.add_argument(
         "--greater-than",
