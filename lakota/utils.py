@@ -65,6 +65,8 @@ def encoder(*items):
 
 
 def strpt(time_str):
+    if time_str is None:
+        return None
     if isinstance(time_str, datetime):
         return time_str
     elif isinstance(time_str, date):
@@ -72,6 +74,8 @@ def strpt(time_str):
 
     candidates = [
         "%Y-%m-%d",
+        "%Y-%m-%dT%H:%M",
+        "%Y-%m-%dT%H:%M:%S",
         "%Y-%m-%d %H:%M",
         "%Y-%m-%d %H:%M:%S",
     ]
