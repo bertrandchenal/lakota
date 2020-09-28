@@ -1,6 +1,6 @@
 from time import time
 
-from numpy import arange, intersect1d, unique
+from numpy import arange, unique
 
 from .changelog import phi
 from .frame import Frame

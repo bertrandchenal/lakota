@@ -146,6 +146,9 @@ class Repo:
         return self.collection_series.revisions()
 
     def create_collection(self, schema, *labels, raise_if_exists=True):
+        assert isinstance(
+            schema, Schema
+        ), "The schema parameter must be an instance of lakota.Schema"
         meta = []
         schema_dump = schema.dump()
         for label in labels:

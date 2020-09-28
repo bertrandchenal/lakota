@@ -22,7 +22,7 @@ class Frame:
         if DataFrame is not None and isinstance(columns, DataFrame):
             columns = {c: columns[c].values for c in columns}
         else:
-            columns = schema.cast(columns or {})
+            columns = schema.cast(columns)
         self.columns = columns
 
     @classmethod
