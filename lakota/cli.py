@@ -131,9 +131,7 @@ def create(args):
     collection, series = args.label.split("/", 1)
 
     schema = Schema(args.columns)
-    coll = repo.create(collection)
-    if series:
-        coll.create(schema, series)
+    repo.create_collection(schema, collection)
 
 
 def write(args):

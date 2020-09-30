@@ -181,3 +181,12 @@ def profile_object(*roots):
                 print(f"Enable profiler on {item.__name__} " f"in {root.__name__}")
                 setattr(root, key, profiler(item))
     return profiler
+
+
+def floor(arr, unit):
+    '''
+    Floor the datetime array to the selected unit.
+    unit can be 'Y', 'M', 'D', 'h', 'm' or 's'.
+    '''
+    assert unit in "YMDhms"
+    return arr.astype(f"M8[{unit}]")

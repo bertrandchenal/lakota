@@ -2,7 +2,8 @@ from bisect import bisect_left, bisect_right
 from collections import defaultdict
 
 import numexpr
-from numpy import array_equal, asarray, bincount, concatenate, lexsort, ndarray, unique
+from numpy import (array_equal, asarray, bincount, concatenate, lexsort,
+                   ndarray, unique)
 
 from .utils import Pool, hashed_path
 
@@ -114,6 +115,7 @@ class Frame:
         return Frame(self.schema, cols)
 
     def eval(self, expr):
+        # See also https://github.com/mapbox/snuggs
         res = numexpr.evaluate(expr, local_dict=self)
         return res
 
