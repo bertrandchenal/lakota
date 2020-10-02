@@ -5,13 +5,14 @@ from collections import deque
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
 from dataclasses import dataclass
-from datetime import date, datetime, timedelta
+from datetime import date, datetime
 from hashlib import sha1
 from itertools import islice
 from pathlib import PosixPath
 from time import perf_counter, time
 
-from numpy import arange
+from numpy import asarray
+from dateutil.relativedelta import relativedelta
 
 default_hash = sha1
 head = lambda it, n=1: list(islice(it, 0, n))
@@ -87,10 +88,15 @@ def strpt(time_str):
     raise ValueError('Unable to parse "%s" as datetime' % time_str)
 
 
-def drange(start, end, **time_delta_args):
+def drange(start, end, right_closed=False, **delta_args):
     start = strpt(start)
     end = strpt(end)
-    return arange(start, end, timedelta(**time_delta_args))
+    res = []
+    delta = relativedelta(**delta_args)
+    while start <= end if right_closed else start < end:
+        res.append(start)
+        start += delta
+    return asarray(res, dtype='M8[s]')
 
 
 def hashed_path(digest, depth=2):
@@ -169,9 +175,16 @@ class Pool:
 
 
 def profile_object(*roots):
+    '''
+    Usage:
+
+    profiler = profile_object(SomeClass_or_some_object)
+    ... run code
+    profiler.print_stats()
+
+    '''
     # Monkey patch functions in module to add profiling decorator
     from inspect import isfunction
-
     import line_profiler
 
     profiler = line_profiler.LineProfiler()

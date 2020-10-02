@@ -1,5 +1,6 @@
 from bisect import bisect_left, bisect_right
 from collections import defaultdict
+from functools import lru_cache
 
 import numexpr
 from numpy import (array_equal, asarray, bincount, concatenate, lexsort,
@@ -271,7 +272,8 @@ class ShallowSegment:
         self.stop = stop
         self.length = length
         self.digest = dict(zip(schema, digests))
-        self._array_cache = {}
+        self._read = lru_cache(len(schema.columns))(self._read)
+
 
     def slice(self, start, stop, closed="left"):
         assert stop >= start
@@ -310,13 +312,14 @@ class ShallowSegment:
     def __len__(self):
         return self.length
 
+    def _read(self, name):
+        folder, filename = hashed_path(self.digest[name])
+        data = self.pod.cd(folder).read(filename)
+        return data
+
     def read(self, name, start=None, stop=None):
-        arr = self._array_cache.get(name)
-        if arr is None:
-            folder, filename = hashed_path(self.digest[name])
-            data = self.pod.cd(folder).read(filename)
-            arr = self.schema[name].decode(data)
-            self._array_cache[name] = arr
+        data = self._read(name)
+        arr = self.schema[name].decode(data)
         if start is stop is None:
             return arr
         return arr[start:stop]
