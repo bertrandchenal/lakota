@@ -122,7 +122,7 @@ def test_gc():
 
     # Squash label_a
     coll = repo / "a_collection"
-    coll.squash()
+    coll.squash(archive=False)
 
     # Launch garbage collection
     count = repo.gc()

@@ -104,10 +104,13 @@ class ColumnDefinition:
 
 
 class Schema:
-    def __init__(self, from_ui=None, from_columns=None):
+    def __init__(self, from_ui=None, from_columns=None, kind="Series"):
         assert (
             from_ui or from_columns
         ), "At least one of from_ui or from_columns is needed"
+        assert kind in ("Series", "KVSeries")
+        self.kind = kind
+
         if from_columns:
             self.columns = {c.name: c for c in from_columns}
         else:
@@ -145,11 +148,14 @@ class Schema:
 
     @classmethod
     def loads(self, data):
-        columns = [ColumnDefinition(name, **opts) for name, opts in data.items()]
-        return Schema(from_columns=columns)
+        columns = [
+            ColumnDefinition(name, **opts) for name, opts in data["columns"].items()
+        ]
+        return Schema(from_columns=columns, kind=data["kind"])
 
     def dump(self):
-        return {c.name: c.dump() for c in self.columns.values()}
+        columns = {c.name: c.dump() for c in self.columns.values()}
+        return {"kind": self.kind, "columns": columns}
 
     def __iter__(self):
         return iter(self.columns.keys())

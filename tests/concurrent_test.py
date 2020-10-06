@@ -33,7 +33,6 @@ def test_insert(pod):
     repo = Repo(pod=pod)
     # Create collection and label
     collection = repo.create_collection(schema, "my_collection")
-
     token = pod.token
     cluster = LocalCluster(processes=False)
     client = Client(cluster)

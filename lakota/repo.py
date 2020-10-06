@@ -8,13 +8,13 @@ from .series import KVSeries, Series
 from .utils import Pool, hashed_path, hexdigest, logger
 
 LABEL_RE = re.compile("^[a-zA-Z0-9-_\.]+$")
-
-# TODO add "tag" series to be able to tag revisions/series/collections
+ARCHIVE_LABEL_RE = re.compile("^[a-zA-Z0-9-_\.]+:archive$")
 
 
 class Collection:
-    def __init__(self, label, schema, path, pod):
-        self.pod = pod
+    def __init__(self, label, schema, path, repo):
+        self.repo = repo
+        self.pod = repo.pod
         self.schema = schema
         self.label = label
         self.changelog = Changelog(self.pod / path)
@@ -22,7 +22,8 @@ class Collection:
     def series(self, label):
         if not LABEL_RE.match(label):
             raise ValueError(f'Invalid label "{label}"')
-        return Series(label, self.schema, self.pod, self.changelog)
+        cls = KVSeries if self.schema.kind == "KVSeries" else Series
+        return cls(label, self.schema, self.pod, self.changelog)
 
     def __truediv__(self, name):
         return self.series(name)
@@ -46,7 +47,7 @@ class Collection:
     def refresh(self):
         self.changelog.refresh()
 
-    def squash(self):
+    def squash(self, archive=True):
         """
         Remove all past revisions, collapse history into one or few large
         frames.
@@ -61,6 +62,12 @@ class Collection:
             commits.extend(
                 series.write(frm, root=True) for frm in series.paginate(step)
             )
+
+        if archive:
+            archive_pod = self.repo.archive(self).changelog.pod
+            for path in self.changelog:
+                data = self.changelog.pod.read(path)
+                archive_pod.write(path, data)
 
         self.changelog.pod.clear(*(c.path for c in commits))
         return commits
@@ -93,16 +100,15 @@ class Collection:
 
 
 class Repo:
-    schema = Schema(["label str*", "meta O"])
+    schema = Schema(["label str*", "meta O"], kind="KVSeries")
 
     def __init__(self, uri=None, pod=None):
         pod = pod or POD.from_uri(uri)
         folder, filename = hashed_path(phi)
         self.pod = pod
-        self.changelog = Changelog(self.pod / folder / filename)
-        self.collection_series = KVSeries(
-            "collection", self.schema, pod=pod, changelog=self.changelog
-        )
+        path = folder / filename
+        self.registry = Collection("registry", self.schema, path, self)
+        self.collection_series = self.registry.series("collection")
 
     def ls(self):
         return (item.label for item in self.search())
@@ -136,23 +142,21 @@ class Repo:
         meta = frm["meta"][-1]
         return self.reify(label, meta)
 
-    def delete(self, *labels):
-        self.collection_series.delete(*labels)
-
-    def refresh(self):
-        self.collection_series.refresh()
-
-    def revisions(self):
-        return self.collection_series.revisions()
-
-    def create_collection(self, schema, *labels, raise_if_exists=True):
+    def create_collection(self, schema, *labels, raise_if_exists=True, mode=None):
         assert isinstance(
             schema, Schema
         ), "The schema parameter must be an instance of lakota.Schema"
         meta = []
         schema_dump = schema.dump()
+        regexp = LABEL_RE
+        if mode is not None:
+            if mode == "archive":
+                regexp = ARCHIVE_LABEL_RE
+            else:
+                raise ValueError(f'Unexpected mode "{mode}"')
+
         for label in labels:
-            if not LABEL_RE.match(label):
+            if not regexp.match(label):
                 raise ValueError(f'Invalid label "{label}"')
             key = label.encode()
             digest = hexdigest(key)
@@ -167,7 +171,23 @@ class Repo:
 
     def reify(self, name, meta):
         schema = Schema.loads(meta["schema"])
-        return Collection(name, schema, meta["path"], self.pod)
+        return Collection(name, schema, meta["path"], self)
+
+    def archive(self, collection):
+        label = collection.label + ":archive"
+        archive = self.collection(label)
+        if archive:
+            return archive
+        return self.create_collection(collection.schema, label, mode="archive")
+
+    def delete(self, *labels):
+        self.collection_series.delete(*labels)
+
+    def refresh(self):
+        self.collection_series.refresh()
+
+    def revisions(self):
+        return self.collection_series.revisions()
 
     def pull(self, remote, *labels):
         assert isinstance(remote, Repo), "A Repo instance is required"
@@ -187,23 +207,10 @@ class Repo:
                 pool.submit(l_clct.pull, r_clct)
 
     def squash(self):
-        """
-        Remove all past revisions, collapse history into one or few large
-        frames.
-        """
-        # TODO accumulate all writes in one commit
-
-        step = 500_000
-        # Re-write registry
-        commits = [
-            self.collection_series.write(frm, root=True)
-            for frm in self.collection_series.paginate(step)
-        ]
-        self.changelog.pod.clear(*(c.path for c in commits))
-        return commits
+        return self.registry.squash()
 
     def pack(self):
-        self.collection_series.changelog.pack()
+        self.registry.pack()
 
     def gc(self):
         """

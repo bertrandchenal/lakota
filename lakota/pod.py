@@ -211,7 +211,9 @@ class MemPOD(POD):
         if not pod:
             raise FileNotFoundError(f"{relpath} not found")
         if leaf not in pod.store:
-            raise FileNotFoundError("{leaf} not found in {pod.path}")
+            raise FileNotFoundError(f"{leaf} not found in {pod.path}")
+        if isinstance(pod.store[leaf], POD):
+            raise FileNotFoundError(f"{leaf} is a directory in {pod.path}")
         return pod.store[leaf]
 
     def write(self, relpath, data, mode="wb"):
