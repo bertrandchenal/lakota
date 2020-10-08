@@ -36,6 +36,11 @@ def list_to_dict(items):
     return dict(zip(it, it))
 
 
+class KWargs:
+    def __init__(self, items):
+        self.value = list_to_dict(items)
+
+
 class Token:
     def __init__(self, value):
         self.value = value[0] if len(value) == 1 else value
@@ -81,6 +86,7 @@ class Operator(Token):
         "in": lambda x: x[0] in x[1:],
         "list": list,
         "dict": list_to_dict,
+        "#": KWargs,
     }
 
     def eval(self, tokens, env):
@@ -126,6 +132,15 @@ class AST:
                 raise NameError(f"{ident} is not defined")
             if not callable(fn):
                 raise TypeError(f"{ident} is not callable")
+
+            # Extract kwargs & execute
+            kw = [a for a in args if isinstance(a, KWargs)]
+            args = [a for a in args if not isinstance(a, KWargs)]
+            if kw:
+                kw, *other_kw = [k.value for k in kw]
+                for okw in other_kw:
+                    kw.update(okw)
+                return fn(*args, **kw)
             return fn(*args)
 
         if len(self.tokens) > 1:

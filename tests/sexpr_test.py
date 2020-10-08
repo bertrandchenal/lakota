@@ -1,6 +1,6 @@
 from numpy import asarray
 
-from lakota.sexpr import AST
+from lakota.sexpr import AST, KWargs
 
 trueish_expr = [
     "(true)",
@@ -18,7 +18,12 @@ def test_trueish_expr():
     for code in trueish_expr:
         ast = AST.parse(code)
         res = ast.eval()
-        assert res
+        assert res is True
+
+
+def test_kw():
+    res = AST.parse("(# 'return_counts' true)").eval()
+    assert isinstance(res, KWargs)
 
 
 def test_numpy_fun():
@@ -32,6 +37,10 @@ def test_numpy_fun():
     res = AST.parse("(unique arr true)").eval({"arr": arr})
     assert all(res[0] == [1, 2])
     assert all(res[1] == [0, 1])
+
+    res = AST.parse("(unique arr (# 'return_counts' true))").eval({"arr": arr})
+    assert all(res[0] == [1, 2])
+    assert all(res[1] == [2, 2])
 
 
 def test_some_expr_with_env():
