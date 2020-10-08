@@ -34,6 +34,7 @@ def test_numpy_fun():
     assert res == 3
 
     arr = asarray([1, 2, 1, 2])
+    # First arg of unique must be an array, the second one is "return_index"
     res = AST.parse("(unique arr true)").eval({"arr": arr})
     assert all(res[0] == [1, 2])
     assert all(res[1] == [0, 1])
