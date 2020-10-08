@@ -1,3 +1,5 @@
+import pytest
+
 from lakota.repo import Repo, Schema
 
 schema = Schema(["timestamp timestamp*", "value float"])
@@ -48,23 +50,54 @@ def test_multi():
     assert list(temperature) == ["Brussels", "Paris"]
 
 
-def test_squash():
+@pytest.mark.parametrize("archive", [False, True])
+def test_squash(archive):
     repo = Repo()
     other_frame = frame.copy()
     other_frame["value"] = [1, 2, 3]
     temperature = repo.create_collection(schema, "temperature")
+    assert temperature.squash(archive=archive) is None
+
     temp_bru = temperature / "Brussels"
     temp_bru.write(other_frame)
-    temp_bru.write(frame)
 
+    # Capture changelog state
+    prev_commits = list(temperature.changelog)
+    assert len(prev_commits) == 1
+
+    # Squash
+    new_commit = temperature.squash(archive=archive)
+    # New commit should have the same key (timestamp may change)
+    old_key = prev_commits[0].rsplit("-", 1)[1]
+    new_key = new_commit.child.rsplit("-", 1)[1]
+    assert old_key == new_key
+    assert len(list(temperature.changelog)) == 1
+
+    temp_bru.write(frame)
     temp_ory = temperature / "Paris"
     temp_ory.write(frame)
 
     # Squash collection
-    temperature.squash()
+    temperature.squash(archive=archive)
+    assert len(list(temperature.changelog)) == 1
 
     # Read data back
     assert list(temperature) == ["Brussels", "Paris"]
     for label in ("Brussels", "Paris"):
         series = temperature / label
         assert len(list(series.revisions())) == 1
+
+
+def test_pack():
+    repo = Repo()
+    other_frame = frame.copy()
+    other_frame["value"] = [1, 2, 3]
+    temperature = repo.create_collection(schema, "temperature")
+    assert temperature.pack() is None
+
+    temp_bru = temperature / "Brussels"
+    temp_bru.write(other_frame)
+    assert temperature.pack() is None
+    temp_ory = temperature / "Paris"
+    temp_ory.write(frame)
+    assert temperature.pack() is not None

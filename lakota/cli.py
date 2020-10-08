@@ -89,7 +89,7 @@ def revisions(args):
             collection = repo / args.label
             cols = ["label"] + cols
     else:
-        series = repo.label_series
+        series = repo.collection_series
 
     what = collection or series
 
@@ -152,9 +152,11 @@ def squash(args):
     if args.labels:
         for label in args.labels:
             collection = repo / label
+            if not collection:
+                exit(f'Collection "{label}" not found')
             collection.squash()
     else:
-        repo.label_series.squash()
+        repo.squash()
 
 
 def push(args):
@@ -172,6 +174,8 @@ def pull(args):
 def pack(args):
     repo = get_repo(args)
     collection = repo / args.label
+    if not collection:
+        exit(f'Collection "{args.label}" not found')
     collection.changelog.pack()
 
 

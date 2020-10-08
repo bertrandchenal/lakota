@@ -36,7 +36,7 @@ class Collection:
         return sorted(set(r["label"] for r in revs))
 
     def pack(self):
-        self.changelog.pack()
+        return self.changelog.pack()
 
     def delete(self, *labels):
         if not labels:
@@ -52,25 +52,48 @@ class Collection:
         Remove all past revisions, collapse history into one or few large
         frames.
         """
-        # TODO accumulate all writes in one commit
 
+        # Accumulate commit info in a list
         step = 500_000
         all_labels = self.ls()
-        commits = []
+        batch = []
         for series in (self.series(l) for l in all_labels):
             # Re-write each series
-            commits.extend(
-                series.write(frm, root=True) for frm in series.paginate(step)
-            )
+            for frm in series.paginate(step):
+                res = series.write(frm, batch=True)
+                # res is either None, either a tuple formed by a dict
+                # containing commit payload and a key
+                if res is None:
+                    import pdb
+
+                    pdb.set_trace()
+                    continue
+                batch.append(res)
+        if len(batch) == 0:
+            return
+
+        # Build key
+        all_revs, keys = list(zip(*batch))
+        if len(keys) == 1:
+            (key,) = keys
+        else:
+            key = hexdigest(*(k.encode() for k in keys))
+        # Create combined commit
+        commit = self.changelog.commit(all_revs, key=key, force_parent=phi)
 
         if archive:
+            # TODO make sure similar commit does not already exists
+            # (when squash is called several time without intermediate
+            # changes)
             archive_pod = self.repo.archive(self).changelog.pod
             for path in self.changelog:
+                if path == commit.path:
+                    continue
                 data = self.changelog.pod.read(path)
                 archive_pod.write(path, data)
 
-        self.changelog.pod.clear(*(c.path for c in commits))
-        return commits
+        self.changelog.pod.clear(commit.path)
+        return commit
 
     def push(self, remote, *labels):
         return remote.pull(self, *labels)
@@ -210,7 +233,7 @@ class Repo:
         return self.registry.squash()
 
     def pack(self):
-        self.registry.pack()
+        return self.registry.pack()
 
     def gc(self):
         """

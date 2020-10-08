@@ -135,7 +135,7 @@ class Series:
                 yield from right_frm
             break
 
-    def write(self, frame, start=None, stop=None, root=False):
+    def write(self, frame, start=None, stop=None, root=False, batch=False):
         if not isinstance(frame, Frame):
             frame = Frame(self.schema, frame)
         # Make sure frame is sorted, lexsort gives more weight to the
@@ -173,6 +173,9 @@ class Series:
             *encoder(self.label, str(len(frame)), *all_dig, *sstart, *sstop)
         )
         force_parent = phi if root else None
+
+        if batch:
+            return rev_info, key
         commit = self.changelog.commit(rev_info, key=key, force_parent=force_parent)
         return commit
 
@@ -283,9 +286,9 @@ class Query:
 
 
 class KVSeries(Series):
-    def write(self, frame, start=None, stop=None, root=False):
+    def write(self, frame, start=None, stop=None, root=False, batch=False):
         if root or not (start is None is stop):
-            return super().write(frame, start=start, stop=stop, root=root)
+            return super().write(frame, start=start, stop=stop, root=root, batch=batch)
 
         if not isinstance(frame, Frame):
             frame = Frame(self.schema, frame).sorted()
@@ -303,9 +306,10 @@ class KVSeries(Series):
         # Unique return the index of the first occurrence of each "row"
         _, keep = unique(idx_cols, return_index=True, axis=1)
         new_frm = new_frm.mask(keep)
-        if db_frm == new_frm:
-            return
-        return super().write(new_frm)
+        # if db_frm == new_frm:
+        #     import pdb;pdb.set_trace()
+        #     return
+        return super().write(new_frm, batch=batch)
 
     def delete(self, *labels):
         # Create a frame with all the existing labels contained

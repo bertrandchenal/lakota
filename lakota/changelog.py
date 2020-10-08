@@ -8,7 +8,9 @@ from .frame import ShallowSegment
 from .schema import Schema
 from .utils import hexdigest, hextime, tail
 
-phi = "0" * 40
+zero_hex = "0" * 11
+zero_hash = "0" * 40
+phi = f"{zero_hex}-{zero_hash}"
 
 
 class Changelog:
@@ -40,9 +42,7 @@ class Changelog:
 
         # Create array and encode it
         if not isinstance(payload, (list, tuple)):
-            payload = [
-                payload
-            ]  # XXX wrap payload like '{epoch: .., payload: payload}' this will make digest more stable
+            payload = [payload]
         arr = numpy.array(payload)
         data = self.schema["revision"].encode(arr)
         if key is None:
@@ -82,7 +82,7 @@ class Changelog:
             parent, child, *ext = name.split(".")
             if parent == child:
                 continue
-            pack = ext and "pack" in ext
+            pack = "pack" in ext
             commits[parent].append(Commit(parent, child, pack=pack))
 
         # Depth first traversal of the tree(see
@@ -149,9 +149,20 @@ class Changelog:
         # prevent dangling commits (when the parent has already been
         # packed)
         revs = list(self.walk(fltr=fltr))
-        self.commit([r.payload for r in revs], force_parent=phi, pack=True)
+        if not revs:
+            return
+        if not fltr:
+            # we can skip packing if there is only one previous commit
+            # or if previous commit is alreay a packing one
+            if len(set(r.path for r in revs)) == 1:
+                return
+            elif revs[-1].commit.pack:
+                return
+
+        commit = self.commit([r.payload for r in revs], force_parent=phi, pack=True)
         # Clean old revisions
         self.refresh()
+        return commit
 
 
 class Revision:
@@ -185,6 +196,7 @@ class Revision:
 
 class Commit:
     def __init__(self, parent, child, pack=False):
+        assert pack in (True, False)
         self.parent = parent
         self.child = child
         self.pack = pack

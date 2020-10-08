@@ -1,6 +1,7 @@
 from concurrent.futures import ThreadPoolExecutor
 
 from lakota import Changelog
+from lakota.changelog import phi
 from lakota.utils import hexdigest
 
 
@@ -11,6 +12,10 @@ def populate(changelog, datum):
         author = "Doe"
         info = f"{key} {timestamp} {author}"
         changelog.commit(info)
+
+
+def test_phi():
+    assert len(phi) == 52
 
 
 def test_simple_commit(pod):
