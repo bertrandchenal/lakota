@@ -3,8 +3,7 @@ from collections import defaultdict
 from functools import lru_cache
 
 import numexpr
-from numpy import (array_equal, asarray, bincount, concatenate, lexsort,
-                   ndarray, unique)
+from numpy import array_equal, asarray, bincount, concatenate, lexsort, ndarray, unique
 
 from .utils import Pool, hashed_path
 
@@ -238,8 +237,10 @@ class Frame:
         else:
             partial_index = asarray([self[c] for c in idx_cols])
             axis = 1
+        # Binning
         keys, bins = unique(partial_index, axis=axis, return_inverse=True)
 
+        # Aggregation
         res = {}
         for other_col in self.columns:
             if other_col in idx_cols:
@@ -273,7 +274,6 @@ class ShallowSegment:
         self.length = length
         self.digest = dict(zip(schema, digests))
         self._read = lru_cache(len(schema.columns))(self._read)
-
 
     def slice(self, start, stop, closed="left"):
         assert stop >= start

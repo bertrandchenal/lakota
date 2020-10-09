@@ -1,6 +1,8 @@
 from numpy import asarray
 
+from lakota import Frame, Schema
 from lakota.sexpr import AST, KWargs
+from lakota.utils import floor
 
 trueish_expr = [
     "(true)",
@@ -42,6 +44,30 @@ def test_numpy_fun():
     res = AST.parse("(unique arr (# 'return_counts' true))").eval({"arr": arr})
     assert all(res[0] == [1, 2])
     assert all(res[1] == [2, 2])
+
+
+def test_with_frame():
+    schema = Schema(
+        """
+        timestamp timestamp*
+        value int
+        """
+    )
+    values = {
+        "timestamp": ["2020-01-01T11:30", "2020-01-02T12:30", "2020-01-03T13:30"],
+        "value": [1, 2, 3],
+    }
+    frm = Frame(schema, values)
+    env = {"frm": frm, "floor": floor}
+    res = AST.parse("(floor frm.timestamp 'Y')").eval(env)
+    expect = asarray(["2020", "2020", "2020"], dtype="datetime64[Y]")
+    assert all(res == expect)
+
+    res = AST.parse("(floor frm.timestamp 'h')").eval(env)
+    expect = asarray(
+        ["2020-01-01T11", "2020-01-02T12", "2020-01-03T13"], dtype="datetime64"
+    )
+    assert all(res == expect)
 
 
 def test_some_expr_with_env():

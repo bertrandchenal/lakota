@@ -9,7 +9,6 @@ from pyparsing import (
     QuotedString,
     Suppress,
     Word,
-    ZeroOrMore,
     alphanums,
     oneOf,
     pyparsing_common,
