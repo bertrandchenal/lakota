@@ -1,168 +1,188 @@
 import operator
-from functools import partial, reduce
+import shlex
+from functools import reduce
 
 import numpy
-from pyparsing import (
-    Forward,
-    Group,
-    ParseResults,
-    QuotedString,
-    Suppress,
-    Word,
-    alphanums,
-    oneOf,
-    pyparsing_common,
-)
-
-_getter_default = object()
 
 
-def getter(obj, field, default=_getter_default):
-    try:
-        return obj[field]
-    except KeyError:
-        pass
-    try:
-        return getattr(obj, field)
-    except AttributeError:
-        if default != _getter_default:
-            return default
-        raise
-
-
-def list_to_dict(items):
+def list_to_dict(*items):
     it = iter(items)
     return dict(zip(it, it))
 
 
 class KWargs:
-    def __init__(self, items):
-        self.value = list_to_dict(items)
+    def __init__(self, *items):
+        self.value = list_to_dict(*items)
+
+
+class Env:
+    def __init__(self, values):
+        if isinstance(values, Env):
+            # Un-wrap env
+            values = values.values
+        self.values = values
+
+    def get(self, key):
+        res = self.values
+        for part in key.split("."):
+            try:
+                res = getattr(res, part)
+            except AttributeError:
+                res = res[part]
+        return res
 
 
 class Token:
     def __init__(self, value):
-        self.value = value[0] if len(value) == 1 else value
+        self.value = value
+
+    def as_string(self):
+        res = self.value.strip("'\"")
+        if len(res) < len(self.value):
+            return res
+        return None
 
     def __repr__(self):
-        return f"<{type(self).__name__} {self.value}>"
+        return f"<Token {self.value}>"
 
+    def as_number(self):
+        try:
+            return int(self.value)
+        except ValueError:
+            pass
 
-class Identifier(Token):
+        try:
+            return float(self.value)
+        except ValueError:
+            pass
+
+        return None
+
     def eval(self, env):
-        head, *tail = self.value.split(".")
-        res = getter(env, head)
-        for item in tail:
-            res = getter(res, item)
-        return res
+        # Eval builtins
+        if self.value in AST.builtins:
+            return AST.builtins[self.value]
+        # Eval floats and int
+        res = self.as_number()
+        if res is not None:
+            return res
+        # Eval strings
+        res = self.as_string()
+        if res is not None:
+            return res
+        # Eval end
+        try:
+            return env.get(self.value)
+        except KeyError:
+            pass
+        # Eval numpy function
+        fn = getattr(numpy, self.value, None)
+        if fn:
+            return fn
+
+        raise ValueError(f'Unexpected token: "{self.value}"')
 
 
-class Bool(Token):
-    def eval(self, env):
-        return self.value == "true"
+def tokenize(expr):
+    lexer = shlex.shlex(expr)
+    lexer.wordchars += ".!=<>:{}-"
+    for i in lexer:
+        yield Token(i)
 
 
-class Litteral(Token):
-    def eval(self, env):
-        return self.value
+def scan(tokens, end_tk=")"):
+    res = []
+    for tk in tokens:
+        if tk.value == end_tk:
+            return res
+        elif tk.value == "(":
+            res.append(scan(tokens))
+        else:
+            res.append(tk)
+
+    tail = next(tokens, None)
+    if tail:
+        raise ValueError(f'Unexpected token: "{tail.value}"')
+    return res
 
 
-class Operator(Token):
-    op_table = {
-        "+": partial(reduce, operator.add),
-        "-": partial(reduce, operator.sub),
-        "*": partial(reduce, operator.mul),
-        "/": partial(reduce, operator.truediv),
-        "and": partial(reduce, operator.and_),
-        "or": partial(reduce, operator.or_),
-        "<": partial(reduce, operator.lt),
-        "<=": partial(reduce, operator.le),
-        "=": partial(reduce, operator.eq),
-        "!=": partial(reduce, operator.ne),
-        ">=": partial(reduce, operator.ge),
-        ">": partial(reduce, operator.gt),
-        "~": lambda xs: all(not x for x in xs),
-        "in": lambda x: x[0] in x[1:],
-        "list": list,
-        "dict": list_to_dict,
-        "#": KWargs,
-    }
-
-    def eval(self, tokens, env):
-        op = self.op_table[self.value]
-        return op(tokens)
+# def scan(tokens, end_tk=')'):
+#     res = []
+#     for tk in tokens:
+#         if tk.value == end_tk:
+#             return res
+#         elif tk.value == '(':
+#             res.append(scan(tokens))
+#         elif res and tk.value in ('+', '-'):
+#             # unary op -> merge tokens
+#             new_tk = next(tokens)
+#             new_tk.value = tk.value + new_tk.value
+#             res.append(new_tk)
+#         # elif tk.value == '[':
+#         #     res.append(scan(tokens, end_tk=']'))
+#         # elif tk.value == '{':
+#         #     res.append(scan(tokens, end_tk='}'))
+#         else:
+#             res.append(tk)
+#     tail = next(tokens, None)
+#     if tail:
+#         raise ValueError('Unexpected token: {tail}')
+#     return res
 
 
 class AST:
+    builtins = {
+        "true": True,
+        "false": False,
+        "+": lambda *x: reduce(operator.add, x),
+        "-": lambda *x: reduce(operator.sub, x),
+        "*": lambda *x: reduce(operator.mul, x),
+        "/": lambda *x: reduce(operator.truediv, x),
+        "and": lambda *x: reduce(operator.and_, x),
+        "or": lambda *x: reduce(operator.or_, x),
+        "<": lambda *x: reduce(operator.lt, x),
+        "<=": lambda *x: reduce(operator.le, x),
+        "=": lambda *x: reduce(operator.eq, x),
+        "!=": lambda *x: reduce(operator.ne, x),
+        ">=": lambda *x: reduce(operator.ge, x),
+        ">": lambda *x: reduce(operator.gt, x),
+        "~": lambda *xs: all(not x for x in xs),
+        "in": lambda *x: x[0] in x[1:],
+        "list": lambda *x: list(x),
+        "dict": list_to_dict,
+        "kw": KWargs,
+    }
+
     def __init__(self, tokens):
         self.tokens = tokens
 
     @classmethod
-    def parse(cls, code):
-        tokens = sexp.parseString(code)[0]
+    def parse(cls, expr):
+        res = tokenize(expr)
+        tokens = scan(res)[0]
         return AST(tokens)
 
-    def eval_token(self, tk, env):
-        if isinstance(tk, Token):
-            value = tk.eval(env)
-        elif isinstance(tk, (list, ParseResults)):
-            value = AST(tk).eval(env)
-        else:
-            raise ValueError(f"unexpected item: {tk}")
-        return value
-
     def eval(self, env=None):
-        env = env or {}
-        args = []
-        # Eval args
-        for a in self.tokens[1:]:
-            value = self.eval_token(a, env)
-            args.append(value)
-        # Eval operator
-        head = self.tokens[0]
-        if isinstance(head, Operator):
-            return head.eval(args, env)
-        elif isinstance(head, Identifier):
-            ident = head.value
-            fn = getter(env, ident, None)
-            if fn is None:
-                fn = getattr(numpy, ident, None)
-            if fn is None:
-                raise NameError(f"{ident} is not defined")
-            if not callable(fn):
-                raise TypeError(f"{ident} is not callable")
+        env = Env(env or {})
+        if isinstance(self.tokens, Token):
+            return self.tokens.eval(env)
+        head, tail = self.tokens[0], self.tokens[1:]
+        args = [AST(tk).eval(env) for tk in tail]
 
-            # Extract kwargs & execute
-            kw = [a for a in args if isinstance(a, KWargs)]
-            args = [a for a in args if not isinstance(a, KWargs)]
-            if kw:
-                kw, *other_kw = [k.value for k in kw]
-                for okw in other_kw:
-                    kw.update(okw)
-                return fn(*args, **kw)
-            return fn(*args)
+        # Split normal and kw arhs
+        simple_args = []
+        kw_args = {}
+        for a in args:
+            if isinstance(a, KWargs):
+                kw_args.update(a.value)
+            else:
+                simple_args.append(a)
 
-        if len(self.tokens) > 1:
-            values = " ".join(str(t.value) for t in self.tokens[1:])
-            raise ValueError(f"Unexpected items: {values}")
-        return self.eval_token(head, env)
+        fn = head.eval(env)
+        return fn(*simple_args, **kw_args)
 
-
-# define grammar
-LPAR, RPAR, LBRK, RBRK = (Suppress(c) for c in "()[]")
-number = pyparsing_common.number.setParseAction(Litteral)
-identifier = Word(alphanums, alphanums + "_-.:")
-op = oneOf(" ".join(Operator.op_table))
-bools = oneOf("true false").setParseAction(Bool)
-string_ = QuotedString('"') | QuotedString("'")
-item = (
-    number
-    | op.setParseAction(Operator)
-    | bools
-    | identifier.setParseAction(Identifier)
-    | string_.setParseAction(Litteral)
-)
-
-sexp = Forward()
-sexpList = Group(LPAR + sexp[...] + RPAR)
-sexp <<= item | sexpList
+    def is_aggregate(self):
+        for tk in self.tokens:
+            if tk.is_aggregate():
+                return True
+        return False

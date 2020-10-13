@@ -1,3 +1,4 @@
+import pytest
 from numpy import asarray
 
 from lakota import Frame, Schema
@@ -5,7 +6,7 @@ from lakota.sexpr import AST, KWargs
 from lakota.utils import floor
 
 trueish_expr = [
-    "(true)",
+    "true",
     "(~ false)",
     "(= (- (+ 1 1) (+ 2 2)) -2)",
     "(= (* (/ 3 2) (/ 7 2)) 5.25)",
@@ -17,15 +18,20 @@ trueish_expr = [
 
 
 def test_trueish_expr():
-    for code in trueish_expr:
-        ast = AST.parse(code)
+    for expr in trueish_expr:
+        ast = AST.parse(expr)
         res = ast.eval()
         assert res is True
 
 
 def test_kw():
-    res = AST.parse("(# 'return_counts' true)").eval()
+    res = AST.parse("(kw 'return_counts' true)").eval()
     assert isinstance(res, KWargs)
+
+
+def test_env():
+    res = AST.parse("hello").eval(env={"hello": "world"})
+    assert res == "world"
 
 
 def test_numpy_fun():
@@ -41,7 +47,7 @@ def test_numpy_fun():
     assert all(res[0] == [1, 2])
     assert all(res[1] == [0, 1])
 
-    res = AST.parse("(unique arr (# 'return_counts' true))").eval({"arr": arr})
+    res = AST.parse("(unique arr (kw 'return_counts' true))").eval({"arr": arr})
     assert all(res[0] == [1, 2])
     assert all(res[1] == [2, 2])
 
@@ -74,7 +80,7 @@ def test_some_expr_with_env():
     env = {
         "a": asarray([1, 1]),
         "b": asarray([2, 2]),
-        "x-x": 1,
+        "x_x": 1,
         "y_y": 2,
         "frame": {
             "u": 1,
@@ -85,7 +91,7 @@ def test_some_expr_with_env():
     expected = asarray([3, 3])
     assert all(res == expected)
 
-    ast = AST.parse("(+ x-x y_y)")
+    ast = AST.parse("(+ x_x y_y)")
     assert ast.eval(env) == 3
 
     ast = AST.parse("(+ frame.u frame.v)")
@@ -96,12 +102,24 @@ def test_only_litterals():
     res = AST.parse("(list 1 2 3)").eval()
     assert res == [1, 2, 3]
 
-    res = AST.parse("(1)").eval()
+    res = AST.parse("1").eval()
     assert res == 1
 
-    res = AST.parse('("spam")').eval()
+    res = AST.parse('"spam"').eval()
     assert res == "spam"
 
     res = AST.parse('(dict "ham" 1 "spam" 2)').eval()
     assert res["ham"] == 1
     assert res["spam"] == 2
+
+
+def test_pathologic_inputs():
+    exprs = [
+        "(true)",
+        "(1)",
+        "(1",
+        "(bar spam)",
+    ]
+    for expr in exprs:
+        with pytest.raises(Exception):
+            AST.parse(expr).eval()
