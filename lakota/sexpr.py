@@ -3,6 +3,9 @@ import shlex
 from functools import reduce
 
 import numpy
+from numpy import bincount, inf, max, maximum, minimum, repeat
+
+UNSET = object()
 
 
 def list_to_dict(*items):
@@ -22,13 +25,19 @@ class Env:
             values = values.values
         self.values = values
 
-    def get(self, key):
+    def get(self, key, default=UNSET):
         res = self.values
         for part in key.split("."):
             try:
                 res = getattr(res, part)
             except AttributeError:
+                pass
+            try:
                 res = res[part]
+            except KeyError:
+                if default is not UNSET:
+                    return default
+                raise
         return res
 
 
@@ -62,6 +71,9 @@ class Token:
         # Eval builtins
         if self.value in AST.builtins:
             return AST.builtins[self.value]
+        # Eval aggregates
+        if self.value in AST.aggregates:
+            return Agg(self.value, env)
         # Eval floats and int
         res = self.as_number()
         if res is not None:
@@ -81,6 +93,55 @@ class Token:
             return fn
 
         raise ValueError(f'Unexpected token: "{self.value}"')
+
+
+class Agg:
+    def __init__(self, op, env):
+        self.op = op
+        self.env = env
+
+    def __call__(self, arr):
+        bins = self.env.get("_bins", None)
+        keys = self.env.get("_keys", None)
+        if bins is not None:
+            return self.binned(arr, bins, keys)
+        return self.plain(arr)
+
+    def plain(self, arr):
+        """
+        Plain aggregates
+        """
+        if self.op == "max":
+            return max(arr)
+        raise ValueError(f'Aggregation "{self.op}" is not supported')
+
+    def binned(self, arr, bins, keys):
+        if self.op == "sum":
+            return bincount(bins, weights=arr)
+        elif self.op in ("mean", "average"):
+            res = bincount(bins, weights=arr)
+            counts = bincount(bins)
+            return res / counts
+        elif self.op == "max":
+            res = repeat(-inf, len(keys))
+            maximum.at(res, bins, arr)
+            return res
+        elif self.op == "min":
+            res = repeat(inf, len(keys))
+            minimum.at(res, bins, arr)
+            return res
+        elif self.op == "last":
+            res = repeat(None, len(keys))
+            # Repeated index keep last value
+            res[bins] = arr
+            return res
+        elif self.op == "first":
+            res = repeat(None, len(keys))
+            # Repeated (revsersed) index gives first value
+            res[bins[::-1]] = arr[::-1]
+            return res
+
+        raise ValueError(f'Aggregation "{self.op}" is not supported')
 
 
 def tokenize(expr):
@@ -153,6 +214,8 @@ class AST:
         "kw": KWargs,
     }
 
+    aggregates = {"min", "max", "sum", "first", "last", "mean", "average"}
+
     def __init__(self, tokens):
         self.tokens = tokens
 
@@ -183,6 +246,9 @@ class AST:
 
     def is_aggregate(self):
         for tk in self.tokens:
+            if isinstance(tk, Token):
+                if tk.value in self.aggregates:
+                    return True
             if tk.is_aggregate():
                 return True
         return False

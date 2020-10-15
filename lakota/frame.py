@@ -5,6 +5,7 @@ from functools import lru_cache
 import numexpr
 from numpy import array_equal, asarray, bincount, concatenate, lexsort, ndarray, unique
 
+from .sexpr import AST
 from .utils import Pool, hashed_path
 
 try:
@@ -193,9 +194,58 @@ class Frame:
             raise ValueError("Lenght mismatch")
         self.columns[name] = arr
 
-    def select(self, keep):
-        cols = {k: v for k, v in self.columns.items() if k in keep}
-        return Frame(self.schema, cols)
+    def reduce(self, *col_list, **col_dict):
+        """
+        Return a new frame containing the choosen columns. A column can be
+        one of the existing column or an s-expression that we be automatically
+        evaluated.
+        """
+
+        # Merge all args in one dict
+        columns = dict(zip(col_list, col_list))
+        columns.update(col_dict)
+
+        # Detect aggregations
+        all_ast = {}
+        for alias, expr in columns.items():
+            if expr.startswith("("):
+                all_ast[alias] = AST.parse(expr)
+        agg_ast = {}
+        other_ast = {}
+        for alias, ast in all_ast.items():
+            if ast.is_aggregate():
+                agg_ast[alias] = ast
+            else:
+                other_ast[alias] = ast
+
+        # TODO shortcut computated ig agg_ast is empty
+
+        non_agg = {}
+        for alias, expr in columns.items():
+            if alias in agg_ast:
+                continue
+            ast = other_ast.get(alias)
+            if ast:
+                arr = ast.eval(env=self)
+            else:
+                arr = self.columns[expr]
+            non_agg[alias] = arr
+
+        # Compute binning
+        bin_arrays = list(non_agg.values())
+        keys, bins = unique(bin_arrays, return_inverse=True)
+
+        res = {}
+        for alias, arr in zip(non_agg, keys):
+            res[alias] = keys
+
+        # Compute aggregates
+        env = dict(self)
+        env.update({"_keys": keys, "_bins": bins})
+        for alias, expr in agg_ast.items():
+            arr = expr.eval(env)
+            res[alias] = arr
+        return Frame(self.schema, res)
 
     def __getitem__(self, by):
         # By slice -> return a frame
@@ -211,52 +261,16 @@ class Frame:
             return self.columns[by]
         return self.schema[by].cast([])
 
-    def drop(self, *column_names):
-        names = (c for c in self.columns if c not in column_names)
-        frm = Frame(self.schema, {c: self.columns[c] for c in names})
-        return frm
+    def drop(self, *columns):
+        keep_columns = (c for c in self.columns if c not in columns)
+        return self.select(*keep_columns)
 
     def __iter__(self):
         return iter(self.columns)
 
-    def reduce(self):
-        # Index columns that are present in the frame
-        idx_cols = [c for c in self.schema.idx if c in self.columns]
-
-        # Handle corner cases
-        if len(idx_cols) == 0:
-            return Frame(self.schema, {c: [self[c].sum()] for c in self.columns})
-        elif len(idx_cols) == len(self.schema.idx):
-            # Full index, unicity is guaranteed
-            return self
-
-        # Handle general case
-        if len(idx_cols) == 1:
-            partial_index = self[idx_cols[0]]
-            axis = 0
-        else:
-            partial_index = asarray([self[c] for c in idx_cols])
-            axis = 1
-        # Binning
-        keys, bins = unique(partial_index, axis=axis, return_inverse=True)
-
-        # Aggregation
-        res = {}
-        for other_col in self.columns:
-            if other_col in idx_cols:
-                continue
-            res[other_col] = bincount(bins, weights=self[other_col])
-
-        if len(idx_cols) == 1:
-            res[idx_cols[0]] = keys
-        else:
-            for pos, col in enumerate(idx_cols):
-                res[col] = keys[pos]
-
-        # TODO handle other aggregate (beside a simple sum)
-        # TODO adapt scheme (avg gives floats count gives integers)
-
-        return Frame(self.schema, res)
+    def select(self, keep):
+        cols = {k: v for k, v in self.columns.items() if k in keep}
+        return Frame(self.schema, cols)
 
     def __repr__(self):
         res = []

@@ -88,71 +88,37 @@ def test_double_slice(frame_values, frm):
     assert all(frm["value"] == VALUES[1:][:2])
 
 
-def test_reduce(frm):
-    # Basic frame with only one index columns
-    frm = frm.drop("category").reduce()
-    assert len(frm) == 1
-
-    # more complex schema
+def test_reduce_sexpr():
     schema = Schema(
         f"""
-    timestamp int*
-    category str*
-    value int
-    """
-    )
-
-    values = {
-        "timestamp": [1589455901, 1589455901, 1589455902, 1589455902],
-        "category": list("abab"),
-        "value": [1, 2, 1, 2],
-    }
-
-    # drop first col
-    frm = Frame(schema, values)
-    partial_frm = frm.drop("timestamp")
-    reduced_frm = partial_frm.reduce()
-    assert len(reduced_frm) == 2
-    assert list(reduced_frm["category"]) == ["a", "b"]
-    assert list(reduced_frm["value"]) == [2, 4]
-
-    # drop second
-    partial_frm = frm.drop("category")
-    reduced_frm = partial_frm.reduce()
-    assert len(reduced_frm) == 2
-    assert list(reduced_frm["timestamp"]) == [1589455901, 1589455902]
-    assert list(reduced_frm["value"]) == [3, 3]
-
-    # test with a 2-col partial index
-    schema = Schema(
-        f"""
-    timestamp int*
-    version int*
-    category str*
-    value int
-    """
+        timestamp int*
+        category str*
+        value int
+        """
     )
     values = {
         "timestamp": [1589455901, 1589455901, 1589455902, 1589455902],
-        "version": [1589455901, 1589455901, 1589455902, 1589455902],
         "category": list("abab"),
-        "value": [1, 2, 1, 2],
+        "value": [1, 2, 3, 4],
     }
 
-    # drop first col
     frm = Frame(schema, values)
-    partial_frm = frm.drop("timestamp")
-    reduced_frm = partial_frm.reduce()
-    assert len(reduced_frm) == 4
-    assert list(reduced_frm["category"]) == ["a", "b", "a", "b"]
-    assert list(reduced_frm["value"]) == [1, 2, 1, 2]
-
-    # drop third
-    partial_frm = frm.drop("category")
-    reduced_frm = partial_frm.reduce()
-    assert len(reduced_frm) == 2
-    assert list(reduced_frm["timestamp"]) == [1589455901, 1589455902]
-    assert list(reduced_frm["value"]) == [3, 3]
+    for op in ("sum", "min", "max", "first", "last", "mean"):
+        new_frm = frm.reduce("category", value=f"({op} value)")
+        if op == "min":
+            assert list(new_frm["value"]) == [1, 2]
+        elif op == "max":
+            assert list(new_frm["value"]) == [3, 4]
+        elif op == "sum":
+            assert list(new_frm["value"]) == [4, 6]
+        elif op == "mean":
+            assert list(new_frm["value"]) == [2, 3]
+        elif op == "first":
+            assert list(new_frm["value"]) == [1, 2]
+        elif op == "last":
+            assert list(new_frm["value"]) == [3, 4]
+        else:
+            raise
 
 
 def test_concat(frm):
