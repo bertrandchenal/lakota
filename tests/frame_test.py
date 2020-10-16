@@ -91,7 +91,7 @@ def test_double_slice(frame_values, frm):
 def test_reduce_sexpr():
     schema = Schema(
         f"""
-        timestamp int*
+        timestamp timestamp*
         category str*
         value int
         """
@@ -104,7 +104,7 @@ def test_reduce_sexpr():
 
     frm = Frame(schema, values)
     for op in ("sum", "min", "max", "first", "last", "mean"):
-        new_frm = frm.reduce("category", value=f"({op} value)")
+        new_frm = frm.reduce(category="category", value=f"({op} self.value)")
         if op == "min":
             assert list(new_frm["value"]) == [1, 2]
         elif op == "max":
@@ -117,6 +117,25 @@ def test_reduce_sexpr():
             assert list(new_frm["value"]) == [1, 2]
         elif op == "last":
             assert list(new_frm["value"]) == [3, 4]
+        else:
+            raise
+
+    for op in ("sum", "min", "max", "first", "last", "mean"):
+        new_frm = frm.reduce(
+            timestamp='(floor self.timestamp "D")', value=f"({op} self.value)"
+        )
+        if op == "min":
+            assert list(new_frm["value"]) == [1]
+        elif op == "max":
+            assert list(new_frm["value"]) == [4]
+        elif op == "sum":
+            assert list(new_frm["value"]) == [10]
+        elif op == "mean":
+            assert list(new_frm["value"]) == [2.5]
+        elif op == "first":
+            assert list(new_frm["value"]) == [1]
+        elif op == "last":
+            assert list(new_frm["value"]) == [4]
         else:
             raise
 

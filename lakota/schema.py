@@ -2,14 +2,14 @@ import shlex
 from dataclasses import dataclass
 
 from numcodecs import registry
-from numpy import asarray, dtype, frombuffer
+from numpy import asarray, dtype, frombuffer, issubdtype
 
-DTYPES = [dtype(s) for s in ("<M8[s]", "int64", "float64", "<U", "O")]
+DTYPES = [dtype(s) for s in ("M8[s]", "int64", "float64", "U", "O")]
 ALIASES = {
-    "timestamp": "<M8[s]",
-    "float": "float64",
-    "int": "int64",
-    "str": "<U",
+    "timestamp": "M8[s]",
+    "float": "f8",
+    "int": "i8",
+    "str": "U",
 }
 
 # TODO AGGREGATES: define column aggregate (avg, weighted avg, sum,
@@ -33,8 +33,12 @@ class ColumnDefinition:
         self.name = name
         # Make sure dtype is valid
         dt = dtype(ALIASES.get(dt, dt))
-        if dt not in DTYPES:
-            raise ValueError("Column type '{dt}' not supported")
+        for base_type in DTYPES:
+            if issubdtype(dt, base_type):
+                dt = base_type
+                break
+        else:
+            raise ValueError(f"Column type '{dt}' not supported")
         self.dt = dt
         # Build list of codecs
         if codecs:
@@ -129,6 +133,19 @@ class Schema:
             raise ValueError(
                 "Invalid schema, no index defined: " + str(from_ui or from_columns)
             )
+
+    @classmethod
+    def from_frame(cls, frame, idx_columns):
+        """
+        Instantiate a schema based on the column names and type if the given frame (a dict or a dataframe)
+        """
+        col_defs = []
+        for name in frame:
+            arr = frame[name]
+            col_defs.append(
+                ColumnDefinition(name, arr.dtype, None, name in idx_columns)
+            )
+        return Schema(from_columns=col_defs)
 
     def serialize(self, values):
         if not values:

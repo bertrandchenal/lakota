@@ -67,12 +67,15 @@ class Token:
 
         return None
 
+    def is_aggregate(self):
+        return self.value in AST.aggregates
+
     def eval(self, env):
         # Eval builtins
         if self.value in AST.builtins:
             return AST.builtins[self.value]
         # Eval aggregates
-        if self.value in AST.aggregates:
+        if self.is_aggregate():
             return Agg(self.value, env)
         # Eval floats and int
         res = self.as_number()

@@ -3,10 +3,11 @@ from collections import defaultdict
 from functools import lru_cache
 
 import numexpr
-from numpy import array_equal, asarray, bincount, concatenate, lexsort, ndarray, unique
+from numpy import array_equal, concatenate, lexsort, ndarray, unique
 
+from .schema import Schema
 from .sexpr import AST
-from .utils import Pool, hashed_path
+from .utils import Pool, floor, hashed_path
 
 try:
     from pandas import DataFrame
@@ -220,13 +221,17 @@ class Frame:
 
         # TODO shortcut computated ig agg_ast is empty
 
+        env = {
+            "self": self,
+            "floor": floor,
+        }
         non_agg = {}
         for alias, expr in columns.items():
             if alias in agg_ast:
                 continue
             ast = other_ast.get(alias)
             if ast:
-                arr = ast.eval(env=self)
+                arr = ast.eval(env=env)
             else:
                 arr = self.columns[expr]
             non_agg[alias] = arr
@@ -240,12 +245,13 @@ class Frame:
             res[alias] = keys
 
         # Compute aggregates
-        env = dict(self)
         env.update({"_keys": keys, "_bins": bins})
         for alias, expr in agg_ast.items():
             arr = expr.eval(env)
             res[alias] = arr
-        return Frame(self.schema, res)
+
+        schema = Schema.from_frame(res, idx_columns=list(non_agg))
+        return Frame(schema, res)
 
     def __getitem__(self, by):
         # By slice -> return a frame
