@@ -186,7 +186,12 @@ def truncate(args):
 
 def delete(args):
     reg = get_repo(args)
-    reg.delete(args.label)
+    if "/" in args.label:
+        collection, series = args.label.split("/", 1)
+        clct = reg / collection
+        clct.delete(series)
+    else:
+        reg.delete(args.label)
 
 
 def gc(args):
@@ -201,8 +206,8 @@ def print_help(parser, args):
 
 def run():
 
-    # Take default repo from env variable, fallback to current dir
-    default_repo = os.environ.get("LAKOTA_REPO", "file://.")
+    # Take default repo from env variable, fallback to .lakota in current dir
+    default_repo = os.environ.get("LAKOTA_REPO", "file://.lakota")
 
     # top-level parser
     parser = argparse.ArgumentParser(
@@ -296,7 +301,7 @@ def run():
 
     # Add delete command
     parser_delete = subparsers.add_parser("delete")
-    parser_delete.add_argument("label")
+    parser_delete.add_argument("label", help="collection or series to delete")
     parser_delete.set_defaults(func=delete)
 
     # Add truncate command
