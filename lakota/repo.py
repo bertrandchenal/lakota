@@ -8,7 +8,6 @@ from .series import KVSeries, Series
 from .utils import Pool, hashed_path, hexdigest, logger
 
 LABEL_RE = re.compile("^[a-zA-Z0-9-_\.]+$")
-ARCHIVE_LABEL_RE = re.compile("^[a-zA-Z0-9-_\.]+:archive$")
 
 
 class Collection:
@@ -155,9 +154,16 @@ class Repo:
     def __truediv__(self, name):
         return self.collection(name)
 
-    def collection(self, label, from_frm=None):
+    def collection(self, label, from_frm=None, mode=None):
+        if mode is None:
+            series = self.collection_series
+        elif mode == "archive":
+            series = self.registry.series("archive")
+        else:
+            raise ValueError(f'Unexpected mode: "{mode}"')
+
         if not from_frm:
-            from_frm = self.collection_series.frame()
+            from_frm = series.frame()
         frm = from_frm.index_slice([label], [label], closed="both")
 
         if frm.empty:
@@ -171,22 +177,24 @@ class Repo:
         ), "The schema parameter must be an instance of lakota.Schema"
         meta = []
         schema_dump = schema.dump()
-        regexp = LABEL_RE
-        if mode is not None:
-            if mode == "archive":
-                regexp = ARCHIVE_LABEL_RE
-            else:
-                raise ValueError(f'Unexpected mode "{mode}"')
+
+        if mode is None:
+            series = self.collection_series
+        elif mode == "archive":
+            series = self.registry.series("archive")
+        else:
+            raise ValueError(f'Unexpected mode "{mode}"')
 
         for label in labels:
-            if not regexp.match(label):
+            if not LABEL_RE.match(label):
                 raise ValueError(f'Invalid label "{label}"')
             key = label.encode()
-            digest = hexdigest(key)
+            # Use digest to create collection folder (based on mode and label)
+            digest = hexdigest(mode.encode() if mode else b"", key)
             folder, filename = hashed_path(digest)
             meta.append({"path": str(folder / filename), "schema": schema_dump})
 
-        self.collection_series.write({"label": labels, "meta": meta})
+        series.write({"label": labels, "meta": meta})
         res = [self.reify(l, m) for l, m in zip(labels, meta)]
         if len(labels) == 1:
             return res[0]
@@ -197,8 +205,8 @@ class Repo:
         return Collection(name, schema, meta["path"], self)
 
     def archive(self, collection):
-        label = collection.label + ":archive"
-        archive = self.collection(label)
+        label = collection.label
+        archive = self.collection(label, mode="archive")
         if archive:
             return archive
         return self.create_collection(collection.schema, label, mode="archive")

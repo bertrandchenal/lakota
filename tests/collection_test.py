@@ -81,6 +81,9 @@ def test_squash(archive):
     # Squash collection
     temperature.squash(archive=archive)
     assert len(list(temperature.changelog)) == 1
+    if archive:
+        archive_temperature = repo.collection("temperature", mode="archive")
+        assert len(list(archive_temperature.changelog)) > 1
 
     # Read data back
     assert list(temperature) == ["Brussels", "Paris"]

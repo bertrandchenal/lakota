@@ -173,10 +173,14 @@ def pull(args):
 
 def pack(args):
     repo = get_repo(args)
-    collection = repo / args.label
-    if not collection:
-        exit(f'Collection "{args.label}" not found')
-    collection.changelog.pack()
+    labels = args.labels
+    if not labels:
+        labels = list(repo)
+    for label in labels:
+        collection = repo / label
+        if not collection:
+            exit(f'Collection "{args.label}" not found')
+        collection.changelog.pack()
 
 
 def truncate(args):
@@ -285,7 +289,7 @@ def run():
 
     # Add pack command
     parser_pack = subparsers.add_parser("pack")
-    parser_pack.add_argument("label")
+    parser_pack.add_argument("labels", nargs="*")
     parser_pack.set_defaults(func=pack)
 
     # Add create command

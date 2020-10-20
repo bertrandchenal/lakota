@@ -19,7 +19,7 @@ class Changelog:
     Build a tree over a pod to provide concurrent commits
     """
 
-    schema = Schema(["revision O* |msgpack2|zstd"])
+    schema = Schema(["revision O*"])  # |msgpack2|zstd
 
     def __init__(self, pod):
         self.pod = pod
