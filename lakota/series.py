@@ -143,7 +143,9 @@ class Series:
         sort_mask = frame.lexsort()
         assert (sort_mask == arange(len(sort_mask))).all(), "Dataframe is not sorted!"
 
-        # Save segments (TODO chunk large frames)
+        # Save segments
+        # TODO chunk large frames)
+        # TODO combine small frame with previous one if they overlap
         all_dig = []
         with Pool() as pool:
             for name in self.schema:

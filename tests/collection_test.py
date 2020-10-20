@@ -25,6 +25,7 @@ def test_create():
     # Test double creation
     repo.create_collection(schema, "temperature")
     assert sorted(repo.ls()) == ["temperature"]
+    assert len(list(repo.collection_series.changelog)) == 1
     repo.create_collection(schema, "temperature", "wind")
     assert sorted(repo.ls()) == ["temperature", "wind"]
 

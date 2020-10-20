@@ -5,14 +5,14 @@ from collections import deque
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
 from dataclasses import dataclass
-from datetime import date, datetime
+from datetime import datetime
 from hashlib import sha1
 from itertools import islice
 from pathlib import PosixPath
 from time import perf_counter, time
 
-from numpy import asarray
 from dateutil.relativedelta import relativedelta
+from numpy import asarray
 
 default_hash = sha1
 head = lambda it, n=1: list(islice(it, 0, n))
@@ -66,26 +66,9 @@ def encoder(*items):
 
 
 def strpt(time_str):
-    if time_str is None:
+    if not time_str:
         return None
-    if isinstance(time_str, datetime):
-        return time_str
-    elif isinstance(time_str, date):
-        return datetime(time_str.year, time_str.month, time_str.day)
-
-    candidates = [
-        "%Y-%m-%d",
-        "%Y-%m-%dT%H:%M",
-        "%Y-%m-%dT%H:%M:%S",
-        "%Y-%m-%d %H:%M",
-        "%Y-%m-%d %H:%M:%S",
-    ]
-    for fmt in candidates:
-        try:
-            return datetime.strptime(time_str, fmt)
-        except ValueError:
-            pass
-    raise ValueError('Unable to parse "%s" as datetime' % time_str)
+    return datetime.fromisoformat(time_str)
 
 
 def drange(start, end, right_closed=False, **delta_args):
@@ -96,7 +79,7 @@ def drange(start, end, right_closed=False, **delta_args):
     while start <= end if right_closed else start < end:
         res.append(start)
         start += delta
-    return asarray(res, dtype='M8[s]')
+    return asarray(res, dtype="M8[s]")
 
 
 def hashed_path(digest, depth=2):
@@ -175,16 +158,17 @@ class Pool:
 
 
 def profile_object(*roots):
-    '''
+    """
     Usage:
 
     profiler = profile_object(SomeClass_or_some_object)
     ... run code
     profiler.print_stats()
 
-    '''
+    """
     # Monkey patch functions in module to add profiling decorator
     from inspect import isfunction
+
     import line_profiler
 
     profiler = line_profiler.LineProfiler()
@@ -197,9 +181,9 @@ def profile_object(*roots):
 
 
 def floor(arr, unit):
-    '''
+    """
     Floor the datetime array to the selected unit.
     unit can be 'Y', 'M', 'D', 'h', 'm' or 's'.
-    '''
+    """
     assert unit in "YMDhms"
     return arr.astype(f"M8[{unit}]")

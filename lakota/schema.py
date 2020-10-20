@@ -47,7 +47,7 @@ class ColumnDefinition:
             # Adapt dtypes and codecs
             default_codecs = ["blosc"]
             if dt == dtype("<U"):
-                default_codecs = ["vlen-utf8", "gzip"]
+                default_codecs = ["vlen-utf8", "zstd"]
             elif dt == dtype("O"):
                 default_codecs = ["msgpack2", "zstd"]
             self.codecs = default_codecs

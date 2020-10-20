@@ -95,7 +95,7 @@ def revisions(args):
 
     rows = []
     for r in what.revisions():
-        r["epoch"] = datetime.fromtimestamp(r["epoch"])
+        r["epoch"] = datetime.fromtimestamp(r["epoch"]).isoformat()
         rows.append(tuple(r[c] for c in cols))
 
     if args.pretty:
@@ -128,7 +128,7 @@ def ls(args):
 
 def create(args):
     repo = get_repo(args)
-    collection, series = args.label.split("/", 1)
+    collection = args.label
 
     schema = Schema(args.columns)
     repo.create_collection(schema, collection)

@@ -133,7 +133,7 @@ def test_series_push(squash):
 
     months = list(range(1, 12))
     for start, stop in zip(months[:-1], months[1:]):
-        ts = drange(f"2020-{start}-01", f"2020-{stop}-01", days=1)
+        ts = drange(f"2020-{start:02}-01", f"2020-{stop:02}-01", days=1)
         values = [start] * len(ts)
         series.write({"timestamp": ts, "value": values})
 
