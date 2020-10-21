@@ -190,7 +190,9 @@ class Repo:
                 raise ValueError(f'Invalid label "{label}"')
             key = label.encode()
             # Use digest to create collection folder (based on mode and label)
-            digest = hexdigest(mode.encode() if mode else b"", key)
+            digest = hexdigest(key)
+            if mode:
+                digest = hexdigest(digest.encode(), mode.encode())
             folder, filename = hashed_path(digest)
             meta.append({"path": str(folder / filename), "schema": schema_dump})
 
