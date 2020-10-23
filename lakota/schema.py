@@ -108,11 +108,11 @@ class ColumnDefinition:
 
 
 class Schema:
-    def __init__(self, from_ui=None, from_columns=None, kind="Series"):
+    def __init__(self, from_ui=None, from_columns=None, kind=None):
         assert (
             from_ui or from_columns
         ), "At least one of from_ui or from_columns is needed"
-        assert kind in ("Series", "KVSeries")
+        assert kind in (None, "kv")
         self.kind = kind
 
         if from_columns:

@@ -24,10 +24,11 @@ class Series:
     concurrent management of series.
     """
 
-    def __init__(self, label, schema, pod, changelog):
-        self.schema = schema
-        self.pod = pod
-        self.changelog = changelog
+    def __init__(self, label, collection):
+        self.collection = collection
+        self.schema = collection.schema
+        self.pod = collection.pod
+        self.changelog = collection.changelog
         self.label = label
 
     def pull(self, remote):
@@ -144,8 +145,6 @@ class Series:
         assert (sort_mask == arange(len(sort_mask))).all(), "Dataframe is not sorted!"
 
         # Save segments
-        # TODO chunk large frames)
-        # TODO combine small frame with previous one if they overlap
         all_dig = []
         with Pool() as pool:
             for name in self.schema:

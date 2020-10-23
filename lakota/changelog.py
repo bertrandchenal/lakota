@@ -94,6 +94,8 @@ class Changelog:
             # Append children
             queue.extend(reversed(commits[item.child]))
 
+        # TODO detect dangling roots
+
     def walk(self, fltr=None):
         """
         Iterator on the list of commits
@@ -144,10 +146,6 @@ class Changelog:
         so remove the others).
         """
 
-        # TODO: allow to only pack commit that are old enough (so not
-        # the most recent ones) to not disturb concurrent writes. Also
-        # prevent dangling commits (when the parent has already been
-        # packed)
         revs = list(self.walk(fltr=fltr))
         if not revs:
             return
@@ -160,8 +158,9 @@ class Changelog:
                 return
 
         commit = self.commit([r.payload for r in revs], force_parent=phi, pack=True)
-        # Clean old revisions
-        self.refresh()
+        # Clean other commits
+        self.pod.clear(commit.path)
+
         return commit
 
 

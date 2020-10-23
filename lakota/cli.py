@@ -189,18 +189,18 @@ def truncate(args):
 
 
 def delete(args):
-    reg = get_repo(args)
+    repo = get_repo(args)
     if "/" in args.label:
         collection, series = args.label.split("/", 1)
-        clct = reg / collection
+        clct = repo / collection
         clct.delete(series)
     else:
-        reg.delete(args.label)
+        repo.delete(args.label)
 
 
 def gc(args):
-    reg = get_repo(args)
-    cnt = reg.gc()
+    repo = get_repo(args)
+    cnt = repo.gc()
     print(f"{cnt} segments deleted")
 
 

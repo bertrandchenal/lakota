@@ -1,4 +1,4 @@
-import re
+from contextlib import contextmanager
 from itertools import chain
 
 from .changelog import Changelog, phi
@@ -6,8 +6,6 @@ from .pod import POD
 from .schema import Schema
 from .series import KVSeries, Series
 from .utils import Pool, hashed_path, hexdigest, logger
-
-LABEL_RE = re.compile("^[a-zA-Z0-9-_\.]+$")
 
 
 class Collection:
@@ -19,10 +17,11 @@ class Collection:
         self.changelog = Changelog(self.pod / path)
 
     def series(self, label):
-        if not LABEL_RE.match(label):
-            raise ValueError(f'Invalid label "{label}"')
-        cls = KVSeries if self.schema.kind == "KVSeries" else Series
-        return cls(label, self.schema, self.pod, self.changelog)
+        label = label.strip()
+        if len(label) == 0:
+            raise ValueError(f"Invalid label")
+        cls = KVSeries if self.schema.kind == "kv" else Series
+        return cls(label, self)
 
     def __truediv__(self, name):
         return self.series(name)
@@ -45,54 +44,6 @@ class Collection:
 
     def refresh(self):
         self.changelog.refresh()
-
-    def squash(self, archive=True):
-        """
-        Remove all past revisions, collapse history into one or few large
-        frames.
-        """
-
-        # Accumulate commit info in a list
-        step = 500_000
-        all_labels = self.ls()
-        batch = []
-        for series in (self.series(l) for l in all_labels):
-            # Re-write each series
-            for frm in series.paginate(step):
-                res = series.write(frm, batch=True)
-                # res is either None, either a tuple formed by a dict
-                # containing commit payload and a key
-                if res is None:
-                    import pdb
-
-                    pdb.set_trace()
-                    continue
-                batch.append(res)
-        if len(batch) == 0:
-            return
-
-        # Build key
-        all_revs, keys = list(zip(*batch))
-        if len(keys) == 1:
-            (key,) = keys
-        else:
-            key = hexdigest(*(k.encode() for k in keys))
-        # Create combined commit
-        commit = self.changelog.commit(all_revs, key=key, force_parent=phi)
-
-        if archive:
-            # TODO make sure similar commit does not already exists
-            # (when squash is called several time without intermediate
-            # changes)
-            archive_pod = self.repo.archive(self).changelog.pod
-            for path in self.changelog:
-                if path == commit.path:
-                    continue
-                data = self.changelog.pod.read(path)
-                archive_pod.write(path, data)
-
-        self.changelog.pod.clear(commit.path)
-        return commit
 
     def push(self, remote, *labels):
         return remote.pull(self, *labels)
@@ -120,9 +71,80 @@ class Collection:
     def revisions(self):
         return self.changelog.walk()
 
+    def squash(self, archive=True):
+        """
+        Remove all past revisions, collapse history into one or few large
+        frames.
+        """
+        # TODO should be able to be run on a bunch of commit (all
+        # commits before or after a given point in time) and leave
+        # others untouched
+
+        # Accumulate commit info in a list
+        step = 500_000
+        all_labels = self.ls()
+        batch = []
+        with self.batch(phi) as batch:
+            for label in all_labels:
+                # Re-write each series
+                series = self / label
+                for frm in series.paginate(step):
+                    batch.write(label, frm)
+
+        if not batch.commit:
+            return
+
+        if archive:
+            archive_pod = self.repo.archive(self).changelog.pod
+            # TODO use pack instead (and give archive pod as arg)
+            for path in self.changelog:
+                if path == batch.commit.path:
+                    continue
+                data = self.changelog.pod.read(path)
+                archive_pod.write(path, data)
+
+        self.changelog.pod.clear(batch.commit.path)
+        return batch.commit
+
+    @contextmanager
+    def batch(self, force_parent=None):
+        b = Batch(self, force_parent)
+        yield b
+        b.flush()
+
+
+class Batch:
+    def __init__(self, collection, force_parent=None):
+        self.collection = collection
+        self._commits = []
+        self.commit = None
+        self.force_parent = force_parent
+
+    def write(self, series_name, frame):
+        series = self.collection / series_name
+        res = series.write(frame, batch=True)
+        # res is either None, either a tuple `(commit_payload, key)`
+        if res is not None:
+            self._commits.append(res)
+
+    def flush(self):
+        if len(self._commits) == 0:
+            return
+        # Build key
+        all_revs, keys = list(zip(*self._commits))
+        if len(keys) == 1:
+            (key,) = keys
+        else:
+            key = hexdigest(*(k.encode() for k in keys))
+        # Create combined commit
+        changelog = self.collection.changelog
+        self.commit = changelog.commit(
+            all_revs, key=key, force_parent=self.force_parent
+        )
+
 
 class Repo:
-    schema = Schema(["label str*", "meta O"], kind="KVSeries")
+    schema = Schema(["label str*", "meta O"], kind="kv")
 
     def __init__(self, uri=None, pod=None):
         pod = pod or POD.from_uri(uri)
@@ -186,8 +208,10 @@ class Repo:
             raise ValueError(f'Unexpected mode "{mode}"')
 
         for label in labels:
-            if not LABEL_RE.match(label):
-                raise ValueError(f'Invalid label "{label}"')
+            label = label.strip()
+            if len(label) == 0:
+                raise ValueError(f"Invalid label")
+
             key = label.encode()
             # Use digest to create collection folder (based on mode and label)
             digest = hexdigest(key)
@@ -214,7 +238,13 @@ class Repo:
         return self.create_collection(collection.schema, label, mode="archive")
 
     def delete(self, *labels):
+        to_remove = [self.collection(l).changelog.pod for l in labels]
         self.collection_series.delete(*labels)
+        for pod in to_remove:
+            try:
+                pod.rm(".", recursive=True)
+            except FileNotFoundError:
+                continue
 
     def refresh(self):
         self.collection_series.refresh()

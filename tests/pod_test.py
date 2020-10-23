@@ -1,6 +1,7 @@
 import pytest
 
 from lakota import POD
+from lakota.pod import FilePOD, MemPOD
 
 
 def test_cd(pod):
@@ -8,7 +9,7 @@ def test_cd(pod):
     assert pod2.path.name == "ham"
 
 
-def test_empty_ls(pod):
+def test_empty_ls():
     pod = POD.from_uri("file://i-do-not-exists")
     with pytest.raises(FileNotFoundError):
         pod.ls()
@@ -39,6 +40,23 @@ def test_write_delete(pod):
 
     pod.write("key", data)
     pod.rm("key")
+    assert pod.ls() == []
+
+
+def test_write_delete_recursive(pod):
+    data = bytes.fromhex("DEADBEEF")
+    top_pod = pod.cd("top_dir")
+
+    top_pod.write("sub_dir/key", data)
+    if isinstance(pod, MemPOD):
+        with pytest.raises(FileNotFoundError):
+            top_pod.rm(".")
+    elif isinstance(pod, FilePOD):
+        with pytest.raises(OSError):
+            top_pod.rm(".")
+    # not test for S3, it seems that recurssion is implied
+
+    top_pod.rm(".", recursive=True)
     assert pod.ls() == []
 
 

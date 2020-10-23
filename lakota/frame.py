@@ -127,8 +127,13 @@ class Frame:
 
     def rowdict(self, *idx):
         pos = self.index(*self.schema.deserialize(idx))
-        values = self.schema.row(pos, full=True)
+        values = self.schema.row(pos)
         return dict(zip(self.schema.columns, values))
+
+    def rows(self):
+        for pos in range(len(self)):
+            values = self.schema.row(pos)
+            yield dict(zip(self.schema.columns, values))
 
     def index_slice(self, start=None, stop=None, closed="left"):
         """

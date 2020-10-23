@@ -2,7 +2,7 @@ import pytest
 from numpy import array
 from pandas import DataFrame
 
-from lakota import POD, Changelog, Frame, Schema, Series
+from lakota import POD, Changelog, Frame, Repo, Schema, Series
 from lakota.schema import DTYPES
 from lakota.utils import tail
 
@@ -16,10 +16,16 @@ orig_frm = {
 @pytest.fixture(
     scope="function",
 )
-def series(request):
-    pod = POD.from_uri("memory://")
-    chlg = Changelog(pod / "chlg")
-    series = Series("_", schema, pod, chlg)
+def repo():
+    return Repo("memory://")
+
+
+@pytest.fixture(
+    scope="function",
+)
+def series(request, repo):
+    clct = repo.create_collection(schema, "-")
+    series = clct / "_"
     series.write(orig_frm)
     return series
 
@@ -146,17 +152,16 @@ def test_adjacent_write(series, how):
         assert all(frm_copy["value"] == [5.5, 6.6])
 
 
-def test_column_types():
+def test_column_types(repo):
     names = [dt.name for dt in DTYPES]
     cols = [f"{n} {n}" for n in names]
     df = {n: array([0], dtype=n) for n in names}
 
     for idx_len in range(1, len(cols)):
-        pod = POD.from_uri("memory://")
         stars = ["*"] * idx_len + [""] * (len(cols) - idx_len)
         schema = Schema([c + star for c, star in zip(cols, stars)])
-        chlg = Changelog(pod / "chlg")
-        series = Series("_", schema, pod, chlg)
+        clct = repo.create_collection(schema, "-")
+        series = clct / "_"
         series.write(df)
         frm = series.frame()
 

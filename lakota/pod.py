@@ -142,8 +142,9 @@ class MemPOD(POD):
 
     protocol = "memory"
 
-    def __init__(self, path):
+    def __init__(self, path, parent=None):
         self.path = PurePosixPath(path)
+        self.parent = parent
         # store keys are path, values are either bytes (aka a file)
         # either another dict (aka a directory)
         self.store = {}
@@ -174,7 +175,7 @@ class MemPOD(POD):
                 pod = pod.store[frag]
             elif auto_mkdir:
                 parent = pod
-                pod = MemPOD(path)
+                pod = MemPOD(path, parent=parent)
                 parent.store[frag] = pod
             else:
                 return None
@@ -240,7 +241,14 @@ class MemPOD(POD):
 
     def rm(self, relpath, recursive=False):
         logger.debug("REMOVE memory://%s %s", self.path, relpath)
-        pod, leaf = self.find_parent_pod(relpath)
+        if relpath == ".":
+            if not self.parent:
+                raise FileNotFoundError('Not parent for "."')
+            pod = self.parent
+            leaf = self.split(self.path)[-1]
+        else:
+            pod, leaf = self.find_parent_pod(relpath)
+
         if not pod:
             raise FileNotFoundError(f"{relpath} not found")
         if recursive:

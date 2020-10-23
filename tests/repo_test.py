@@ -92,19 +92,39 @@ def test_delete(pod, squash):
     assert list(repo) == expected
 
 
+@pytest.mark.parametrize("squash", [True, False])
+def test_delete_and_recreate(pod, squash):
+    repo = Repo(pod=pod)
+    clct = repo.create_collection(schema, "test_coll")
+    series = clct / "test_series"
+    series.write(
+        {
+            "timestamp": [1, 2, 3],
+            "value": [1, 2, 3],
+        }
+    )
+
+    # Delete & re-create
+    repo.delete("test_coll")
+    if squash:
+        repo.squash()
+    clct = repo.create_collection(schema, "test_coll")
+    assert list(clct) == []
+
+
 def test_label_regexp():
     repo = Repo()
-    ok = ["abc", "abc-abc-123", "abc_abc-123.45"]
+    ok = ["abc", "abc-abc-123", "abc_abc-123.45", "abc+abc", "$", "é"]
     for label in ok:
         repo.create_collection(schema, label)
         repo.create_collection(schema, label.upper())
 
-    not_ok = ["", "abc+abc", "$", "é"]
+    not_ok = ["", "\t", "\n"]
     for label in not_ok:
         with pytest.raises(ValueError):
             repo.create_collection(schema, label)
         with pytest.raises(ValueError):
-            repo.create_collection(schema, label.upper())
+            repo.create_collection(schema, label + " ")
 
 
 def test_gc():
