@@ -301,15 +301,15 @@ class KVSeries(Series):
             self.schema, segments
         )  # Maybe paginate on large results
 
+        if db_frm.empty:
+            return super().write(frame, batch=batch)
+
+        # Concat both frame and reduce it
         new_frm = Frame.concat(frame, db_frm)
-        idx_cols = [new_frm[c] for c in new_frm.schema.idx]
-        # In case of duplicate rows (wtr to index), keep the new one
-        # Unique return the index of the first occurrence of each "row"
-        _, keep = unique(idx_cols, return_index=True, axis=1)
-        new_frm = new_frm.mask(keep)
-        # if db_frm == new_frm:
-        #     import pdb;pdb.set_trace()
-        #     return
+        reduce_kw = {c: c for c in self.schema.idx}
+        non_idx = [c for c in self.schema if c not in self.schema.idx]
+        reduce_kw.update({c: f"(first self.{c})" for c in non_idx})
+        new_frm = new_frm.reduce(**reduce_kw)
         return super().write(new_frm, batch=batch)
 
     def delete(self, *labels):

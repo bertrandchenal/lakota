@@ -169,6 +169,27 @@ def test_column_types(repo):
             assert all(frm[name] == df[name])
 
 
+def test_kv_series(repo):
+    schema = Schema(["timestamp timestamp*", "category str*", "value int"], kind="kv")
+    clct = repo.create_collection(schema, "-")
+    series = clct / "_"
+
+    frm = {
+        "timestamp": ["2020-01-01", "2020-02-01", "2020-03-01"],
+        "category": ["a", "c", "d"],
+        "value": [1, 2, 3],
+    }
+    series.write(frm)
+    frm = {
+        "timestamp": ["2020-01-01", "2020-02-02", "2020-02-03"],
+        "category": ["a", "b", "c"],
+        "value": [4, 5, 6],
+    }
+    series.write(frm)
+    res = series.frame()["value"]
+    assert all(res == [4, 2, 5, 6, 3])
+
+
 def test_rev_filter(series):
     # Read those back
     second_frm = {

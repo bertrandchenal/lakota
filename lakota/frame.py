@@ -3,7 +3,7 @@ from collections import defaultdict
 from functools import lru_cache
 
 import numexpr
-from numpy import array_equal, concatenate, lexsort, ndarray, unique
+from numpy import array_equal, concatenate, lexsort, ndarray, rec, unique
 
 from .schema import Schema
 from .sexpr import AST
@@ -242,12 +242,12 @@ class Frame:
             non_agg[alias] = arr
 
         # Compute binning
-        bin_arrays = list(non_agg.values())
-        keys, bins = unique(bin_arrays, return_inverse=True)
+        records = rec.fromarrays(non_agg.values(), names=list(non_agg))
+        keys, bins = unique(records, return_inverse=True)
 
         res = {}
-        for alias, arr in zip(non_agg, keys):
-            res[alias] = keys
+        for alias in non_agg:
+            res[alias] = keys[alias]
 
         # Compute aggregates
         env.update({"_keys": keys, "_bins": bins})

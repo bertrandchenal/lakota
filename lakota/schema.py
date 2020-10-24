@@ -2,7 +2,7 @@ import shlex
 from dataclasses import dataclass
 
 from numcodecs import registry
-from numpy import asarray, dtype, frombuffer, issubdtype
+from numpy import asarray, ascontiguousarray, dtype, frombuffer, issubdtype
 
 DTYPES = [dtype(s) for s in ("M8[s]", "int64", "float64", "U", "O")]
 ALIASES = {
@@ -11,15 +11,9 @@ ALIASES = {
     "int": "i8",
     "str": "U",
 }
-
-# TODO AGGREGATES: define column aggregate (avg, weighted avg, sum,
-# count, min, max, first; last).  We can have simple rule to infer types of those (sum ->
-# keep initial type, avg -> float, count -> int)
-
 # TODO PRE-COMPUTED AGG: for each column in the index, compute
 # aggregated values with that column removed
 
-# XXX use argparse for col def ? like: "meteor_id int -a count -e blosc"
 
 # TODO INDEXING pre-compute population per column (initialy per
 # secondary index column, the ones that comes after the timestamp),
@@ -57,6 +51,8 @@ class ColumnDefinition:
     def encode(self, arr):
         if len(arr) == 0:
             return b""
+        # encoding may require contiguous memory
+        arr = ascontiguousarray(arr)
         for codec_name in self.codecs:
             codec = registry.codec_registry[codec_name]
             arr = codec().encode(arr)

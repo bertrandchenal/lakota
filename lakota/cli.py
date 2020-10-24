@@ -175,7 +175,7 @@ def pack(args):
     repo = get_repo(args)
     labels = args.labels
     if not labels:
-        labels = list(repo)
+        repo.pack()
     for label in labels:
         collection = repo / label
         if not collection:
