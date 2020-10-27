@@ -1,6 +1,6 @@
 from time import time
 
-from numpy import arange, unique
+from numpy import arange
 
 from .changelog import phi
 from .frame import Frame
@@ -149,7 +149,6 @@ class Series:
         with Pool() as pool:
             for name in self.schema:
                 arr = self.schema[name].cast(frame[name])
-                # digest = hexdigest(arr.tobytes())
                 data = self.schema[name].encode(arr)
                 digest = hexdigest(data)
                 all_dig.append(digest)

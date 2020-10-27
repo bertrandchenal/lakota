@@ -2,6 +2,7 @@ from numpy import asarray
 from pandas import DataFrame
 
 from lakota import Schema
+from lakota.utils import strpt
 
 
 def test_vlen_codecs():
@@ -32,3 +33,20 @@ def test_schema_from_frame():
         assert schema["timestamp"].dt == "M8[s]"
         assert schema["int"].dt == "int"
         assert schema["float"].dt == "float"
+
+
+def test_serialize():
+    schema = Schema(
+        """
+    timestamp timestamp*
+    float f8
+    int i8
+    str str
+    """
+    )
+
+    ts = strpt("2020-01-01")
+    values = (ts, 1.1, 1, "one")
+    expected = ("2020-01-01 00:00:00", "1.1", "1", "one")
+    assert schema.serialize(values) == expected
+    assert schema.deserialize(expected) == values
