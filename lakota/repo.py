@@ -151,6 +151,7 @@ class Repo:
         folder, filename = hashed_path(phi)
         self.pod = pod
         path = folder / filename
+        # TODO harmonize code between 'normal' collection and archive ones
         self.registry = Collection("registry", self.schema, path, self)
         self.collection_series = self.registry.series("collection")
 
@@ -163,12 +164,17 @@ class Repo:
     def push(self, remote, *labels):
         return remote.pull(self, *labels)
 
-    def search(self, label=None):
+    def search(self, label=None, mode=None):
         if label:
             start = stop = (label,)
         else:
             start = stop = None
-        qr = self.collection_series[start:stop] @ {"closed": "both"}
+        if mode == 'archive':
+            series = self.registry.series('archive')
+        else:
+            series = self.collection_series
+        qr = series[start:stop] @ {"closed": "both"}
+
         frm = qr.frame()  # TODO re-use cache
         for l in frm["label"]:
             yield self.collection(l, frm)
@@ -282,13 +288,16 @@ class Repo:
         """
         collections = self.search()
 
-        # TODO remove old revisions (anything before a pack commit)
+        # XXX remove old revisions (anything before a pack commit)
 
-        active_digests = set(self.collection_series.digests())
-        for clct in collections:
-            all_series = [clct.series(s) for s in clct]
-            per_series = (s.digests() for s in all_series)
-            active_digests.update(chain.from_iterable(per_series))
+        active_digests = set()
+        for mode in (None, 'archive'):
+            coll_series = self.collection_series if mode is None else self.registry.series(mode)
+            active_digests.update(coll_series.digests())
+            for clct in self.search(mode=mode):
+                all_series = [clct.series(s) for s in clct]
+                per_series = (s.digests() for s in all_series)
+                active_digests.update(chain.from_iterable(per_series))
 
         count = 0
         for filename in self.pod.walk(max_depth=3):

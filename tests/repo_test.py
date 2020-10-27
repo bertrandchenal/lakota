@@ -127,7 +127,8 @@ def test_label_regexp():
             repo.create_collection(schema, label + " ")
 
 
-def test_gc():
+@pytest.mark.parametrize("archive", [True, False])
+def test_gc(archive):
     repo = Repo()
     coll = repo.create_collection(schema, "a_collection")
     for offset, label in enumerate(("label_a", "label_b")):
@@ -142,16 +143,19 @@ def test_gc():
 
     # Squash label_a
     coll = repo / "a_collection"
-    coll.squash(archive=False)
+    coll.squash(archive=archive)
 
     # Launch garbage collection
     count = repo.gc()
-
-    # Count must be 2 because the two series are identical except for
-    # two data frames (the last write is offseted and contains two
-    # columns)
-    assert count > 0
+    if archive:
+        assert count == 0
+    else:
+        assert count > 0
 
     # Read back data
     coll = repo / "a_collection"
     assert list(coll.ls()) == ["label_a", "label_b"]
+
+    if archive:
+        arch_coll = repo.collection("a_collection", mode='archive')
+        assert list(arch_coll.ls()) == ["label_a", "label_b"]
