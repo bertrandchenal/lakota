@@ -189,6 +189,10 @@ def test_kv_series(repo):
     res = series.frame()["value"]
     assert all(res == [4, 2, 5, 6, 3])
 
+    # Double-write should be a noop
+    commit = series.write(frm)
+    assert commit is None
+
 
 def test_rev_filter(series):
     # Read those back

@@ -303,6 +303,10 @@ class KVSeries(Series):
         if db_frm.empty:
             return super().write(frame, batch=batch)
 
+        if db_frm == frame:
+            # Nothing to do
+            return
+
         # Concat both frame and reduce it
         new_frm = Frame.concat(frame, db_frm)
         reduce_kw = {c: c for c in self.schema.idx}
