@@ -161,7 +161,6 @@ def test_df_conversion():
         "category": NAMES,
         "value": VALUES,
     })
-    import pdb;pdb.set_trace()
     # Convert to lakota frame and back to df
     frm = Frame(base_schema, df)
     for col in frm:
