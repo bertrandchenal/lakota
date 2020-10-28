@@ -1,10 +1,12 @@
 import pytest
 from numpy import array
+from pandas import DataFrame
 
 from lakota import Frame, Repo, Schema
 
 NAMES = list("abcde")
 VALUES = [1.1, 2.2, 3.3, 4.4, 5.5]
+base_schema = Schema(["category str*", "value float"])
 
 
 @pytest.fixture
@@ -17,9 +19,7 @@ def frame_values():
 
 @pytest.fixture
 def frm(frame_values):
-    schema = Schema(["category str*", "value float"])
-
-    frm = Frame(schema, frame_values)
+    frm = Frame(base_schema, frame_values)
     return frm
 
 
@@ -154,3 +154,15 @@ def test_concat(frm):
 
 def test_eq(frm):
     assert (frm == frm) is True
+
+
+def test_df_conversion():
+    df = DataFrame({
+        "category": NAMES,
+        "value": VALUES,
+    })
+    import pdb;pdb.set_trace()
+    # Convert to lakota frame and back to df
+    frm = Frame(base_schema, df)
+    for col in frm:
+        assert all(frm.df()[col] == df[col])
