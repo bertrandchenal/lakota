@@ -170,30 +170,6 @@ def scan(tokens, end_tk=")"):
     return res
 
 
-# def scan(tokens, end_tk=')'):
-#     res = []
-#     for tk in tokens:
-#         if tk.value == end_tk:
-#             return res
-#         elif tk.value == '(':
-#             res.append(scan(tokens))
-#         elif res and tk.value in ('+', '-'):
-#             # unary op -> merge tokens
-#             new_tk = next(tokens)
-#             new_tk.value = tk.value + new_tk.value
-#             res.append(new_tk)
-#         # elif tk.value == '[':
-#         #     res.append(scan(tokens, end_tk=']'))
-#         # elif tk.value == '{':
-#         #     res.append(scan(tokens, end_tk='}'))
-#         else:
-#             res.append(tk)
-#     tail = next(tokens, None)
-#     if tail:
-#         raise ValueError('Unexpected token: {tail}')
-#     return res
-
-
 class AST:
     builtins = {
         "true": True,
@@ -202,6 +178,7 @@ class AST:
         "-": lambda *x: reduce(operator.sub, x),
         "*": lambda *x: reduce(operator.mul, x),
         "/": lambda *x: reduce(operator.truediv, x),
+        "%": lambda *x: reduce(operator.mod, x),
         "and": lambda *x: reduce(operator.and_, x),
         "or": lambda *x: reduce(operator.or_, x),
         "<": lambda *x: reduce(operator.lt, x),

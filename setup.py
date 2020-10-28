@@ -35,7 +35,6 @@ setup(
         "numpy",
         "numcodecs",
         "s3fs<0.5",
-        "numexpr",
         "tabulate",
         "msgpack",
     ],

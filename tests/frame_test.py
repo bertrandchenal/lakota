@@ -70,7 +70,7 @@ def test_mask():
     assert all(frm2["x"] == [1, 3, 5, 5])
 
     # with an expression
-    frm2 = frm.mask("x % 2 == 0")
+    frm2 = frm.mask("(= (% self.x 2) 0")
     assert all(frm2["x"] == [2, 4, 6])
 
 

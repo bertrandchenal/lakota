@@ -2,7 +2,6 @@ from bisect import bisect_left, bisect_right
 from collections import defaultdict
 from functools import lru_cache
 
-import numexpr
 from numpy import array_equal, concatenate, lexsort, ndarray, rec, unique
 
 from .schema import Schema
@@ -118,8 +117,16 @@ class Frame:
 
     def eval(self, expr):
         # See also https://github.com/mapbox/snuggs
-        res = numexpr.evaluate(expr, local_dict=self)
+        ast = AST.parse(expr)
+        env = self.eval_env()
+        res = ast.eval(env)
         return res
+
+    def eval_env(self):
+        return {
+            "self": self,
+            "floor": floor,
+        }
 
     @property
     def empty(self):
@@ -226,10 +233,7 @@ class Frame:
 
         # TODO shortcut computated ig agg_ast is empty
 
-        env = {
-            "self": self,
-            "floor": floor,
-        }
+        env = self.eval_env()
         non_agg = {}
         for alias, expr in columns.items():
             if alias in agg_ast:
