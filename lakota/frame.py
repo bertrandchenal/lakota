@@ -231,8 +231,7 @@ class Frame:
             else:
                 other_ast[alias] = ast
 
-        # TODO shortcut computated ig agg_ast is empty
-
+        # Eval non-aggregated columns
         env = self.eval_env()
         non_agg = {}
         for alias, expr in columns.items():
@@ -245,10 +244,16 @@ class Frame:
                 arr = self.columns[expr]
             non_agg[alias] = arr
 
+        # Early exit if we don't need to compute aggregates
+        if not agg_ast:
+            schema = Schema.from_frame(non_agg, idx_columns=list(non_agg))
+            return Frame(schema, non_agg)
+
         # Compute binning
         records = rec.fromarrays(non_agg.values(), names=list(non_agg))
         keys, bins = unique(records, return_inverse=True)
 
+        # Build resulting columns
         res = {}
         for alias in non_agg:
             res[alias] = keys[alias]
