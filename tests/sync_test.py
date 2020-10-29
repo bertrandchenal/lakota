@@ -61,7 +61,7 @@ def test_pull(threaded):
         },
     )
     lseries.write(frm)
-    local_coll.pull(remote_coll, s_label)
+    local_coll.pull(remote_coll)
     assert lseries.frame() == frm
 
     # Test with existing series with other schema
@@ -137,4 +137,5 @@ def test_series_push(squash):
         values = [start] * len(ts)
         series.write({"timestamp": ts, "value": values})
 
-    local_coll.push(remote_coll, label)
+    local_coll.push(remote_coll)
+    # XXX assert something ?

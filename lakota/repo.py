@@ -48,25 +48,27 @@ class Collection:
     def push(self, remote, *labels):
         return remote.pull(self, *labels)
 
-    def pull(self, remote, *labels):
+    def pull(self, remote):
+        """
+        Pull remote series into self
+        """
         assert isinstance(remote, Collection), "A Collection instance is required"
-
-        # Extract labels
-        # local_cache = {l: self.series(l) for l in self}
-        remote_cache = {l: remote.series(l) for l in remote}
-
-        if not labels:
-            labels = remote_cache.keys()
-
+        local_digs = set()
+        for revision in self.revisions():
+            local_digs.update(revision["digests"])
+        self.changelog.pull(remote.changelog)
+        # XXX optionaly isolate local path not detected in the loop
+        # here-under (and return them at the end to let Repo.pull do
+        # the deletions) (but what about local history?)
+        sync = lambda path: self.pod.write(path, remote.pod.read(path))
         with Pool() as pool:
-            for label in labels:
-                logger.info("Sync series: %s", label)
-                rseries = remote_cache[label]
-                lseries = self / label
-                if lseries.schema != rseries.schema:
-                    msg = f'Unable to pull label "{label}", incompatible meta-info.'
-                    raise ValueError(msg)
-                pool.submit(lseries.pull, rseries)
+            for revision in self.revisions():
+                for dig in revision["digests"]:
+                    if dig in local_digs:
+                        continue
+                    folder, filename = hashed_path(dig)
+                    path = folder / filename
+                    pool.submit(sync, path)
 
     def revisions(self):
         return self.changelog.walk()
@@ -95,6 +97,7 @@ class Collection:
             return
 
         if archive:
+            # TODO prefix/suffix schema with an _wtime column (and _label ?) to keep trace of revisions (to be able to write larger segments and squash changelog)
             archive_pod = self.repo.archive(self).changelog.pod
             # TODO use pack instead (and give archive pod as arg)
             for path in self.changelog:
@@ -169,8 +172,8 @@ class Repo:
             start = stop = (label,)
         else:
             start = stop = None
-        if mode == 'archive':
-            series = self.registry.series('archive')
+        if mode == "archive":
+            series = self.registry.series("archive")
         else:
             series = self.collection_series
         qr = series[start:stop] @ {"closed": "both"}
@@ -205,6 +208,8 @@ class Repo:
         ), "The schema parameter must be an instance of lakota.Schema"
         meta = []
         schema_dump = schema.dump()
+
+        # TODO validate columns(can not start with a _)
 
         if mode is None:
             series = self.collection_series
@@ -258,21 +263,25 @@ class Repo:
     def revisions(self):
         return self.collection_series.revisions()
 
-    def pull(self, remote, *labels):
+    def pull(self, remote):
         assert isinstance(remote, Repo), "A Repo instance is required"
-        # Pull schema
-        self.collection_series.pull(remote.collection_series)
+        # Pull registry
+        self.registry.pull(remote.registry)
         # Extract frames
         local_cache = {l.label: l for l in self.search()}
         remote_cache = {r.label: r for r in remote.search()}
-        if not labels:
-            labels = remote_cache.keys()
+        labels = remote_cache.keys()
 
         with Pool() as pool:
             for label in labels:
                 logger.info("Sync collection: %s", label)
                 r_clct = remote_cache[label]
                 l_clct = local_cache[label]
+                if l_clct.schema != r_clct.schema:
+                    msg = (
+                        f'Unable to sync collection "{label}", incompatible meta-info.'
+                    )
+                    raise ValueError(msg)
                 pool.submit(l_clct.pull, r_clct)
 
     def squash(self):
@@ -286,13 +295,13 @@ class Repo:
         Loop on all series, collect all used digests, and delete obsolete
         ones.
         """
-        collections = self.search()
-
         # XXX remove old revisions (anything before a pack commit)
 
         active_digests = set()
-        for mode in (None, 'archive'):
-            coll_series = self.collection_series if mode is None else self.registry.series(mode)
+        for mode in (None, "archive"):
+            coll_series = (
+                self.collection_series if mode is None else self.registry.series(mode)
+            )
             active_digests.update(coll_series.digests())
             for clct in self.search(mode=mode):
                 all_series = [clct.series(s) for s in clct]

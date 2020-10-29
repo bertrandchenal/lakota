@@ -31,20 +31,6 @@ class Series:
         self.changelog = collection.changelog
         self.label = label
 
-    def pull(self, remote):
-        """
-        Pull remote series into self
-        """
-        self.changelog.pull(remote.changelog)
-        for revision in self.revisions():
-            for dig in revision["digests"]:
-                folder, filename = hashed_path(dig)
-                path = folder / filename
-                if self.pod.isfile(path):
-                    continue
-                payload = remote.pod.read(path)
-                self.pod.write(path, payload)
-
     def revisions(self):
         fltr = lambda rev: rev["label"] == self.label
         return self.changelog.walk(fltr)
