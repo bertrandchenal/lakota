@@ -32,7 +32,14 @@ def get_series(args):
 
 def read(args):
     series = get_series(args)
-    columns = args.columns or list(series.schema.columns)
+    reduce = False
+    if not args.columns:
+        columns = list(series.schema.columns)
+    elif any('(' in c for c in args.columns):
+        columns = list(series.schema.columns)
+        reduce = True
+    else:
+        columns = args.columns
     after = strpt(args.after)
     before = strpt(args.before)
     after = after and after.timestamp()
@@ -44,11 +51,15 @@ def read(args):
         "after": after,
         "before": before,
     }
-
     if args.paginate:
         frames = query.paginate(args.paginate)
     else:
         frames = [query.frame()]
+
+    if reduce:
+        kw = {c: c for c in args.columns}
+        columns = args.columns
+        frames = (f.reduce(**kw) for f in frames)
 
     if args.pretty:
         for frm in frames:

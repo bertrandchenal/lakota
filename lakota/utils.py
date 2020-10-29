@@ -32,7 +32,7 @@ class Settings:
     threaded: bool
 
 
-settings = Settings(threaded=False)
+settings = Settings(threaded=True)
 
 
 def chunky(collection, size=100):

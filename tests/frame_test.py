@@ -88,7 +88,7 @@ def test_double_slice(frame_values, frm):
     assert all(frm["value"] == VALUES[1:][:2])
 
 
-def test_reduce_sexpr():
+def test_reduce_agg():
     schema = Schema(
         f"""
         timestamp timestamp*
@@ -138,6 +138,32 @@ def test_reduce_sexpr():
             assert list(new_frm["value"]) == [4]
         else:
             raise
+
+def test_reduce_without_agg():
+    schema = Schema(
+        f"""
+        timestamp timestamp*
+        category str*
+        value int
+        """
+    )
+    values = {
+        "timestamp": [1589455901, 1589455901, 1589455902, 1589455902],
+        "category": list("abab"),
+        "value": [1, 2, 3, 4],
+    }
+
+    frm = Frame(schema, values)
+    # No changes to column
+    assert frm == frm.reduce(timestamp='timestamp', category='category', value='value')
+    # Mapping on one column
+    res = frm.reduce(value='(% self.value 2)')['value']
+    assert list(res) == [1, 0, 1, 0]
+
+    # Mapping over two columns
+    expected = frm['timestamp'] + frm['value']
+    new_frm = frm.reduce(new_col='(+ self.value self.timestamp)')
+    assert all(new_frm['new_col'] == expected)
 
 
 def test_concat(frm):
