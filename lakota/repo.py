@@ -53,10 +53,13 @@ class Collection:
         Pull remote series into self
         """
         assert isinstance(remote, Collection), "A Collection instance is required"
+
+        # TODO use local storage as cache for remote (when reading revisions)
         local_digs = set()
         for revision in self.revisions():
             local_digs.update(revision["digests"])
         self.changelog.pull(remote.changelog)
+        self.refresh()
         # XXX optionaly isolate local path not detected in the loop
         # here-under (and return them at the end to let Repo.pull do
         # the deletions) (but what about local history?)
@@ -263,25 +266,28 @@ class Repo:
     def revisions(self):
         return self.collection_series.revisions()
 
-    def pull(self, remote):
+    def pull(self, remote, *labels):
         assert isinstance(remote, Repo), "A Repo instance is required"
         # Pull registry
         self.registry.pull(remote.registry)
         # Extract frames
         local_cache = {l.label: l for l in self.search()}
         remote_cache = {r.label: r for r in remote.search()}
-        labels = remote_cache.keys()
+        if not labels:
+            labels = remote_cache.keys()
 
         with Pool() as pool:
             for label in labels:
                 logger.info("Sync collection: %s", label)
                 r_clct = remote_cache[label]
-                l_clct = local_cache[label]
-                if l_clct.schema != r_clct.schema:
-                    msg = (
-                        f'Unable to sync collection "{label}", incompatible meta-info.'
-                    )
-                    raise ValueError(msg)
+                if not label in local_cache:
+                    l_clct = self.create_collection(r_clct.schema, label)
+                else:
+                    l_clct = local_cache[label]
+                    if l_clct.schema != r_clct.schema:
+                        msg = (f'Unable to sync collection "{label}",'
+                               'incompatible meta-info.')
+                        raise ValueError(msg)
                 pool.submit(l_clct.pull, r_clct)
 
     def squash(self):

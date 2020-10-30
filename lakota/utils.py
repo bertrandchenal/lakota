@@ -143,7 +143,7 @@ class Pool:
 
     def __enter__(self):
         if settings.threaded:
-            self.pool = ThreadPoolExecutor(4)
+            self.pool = ThreadPoolExecutor(2)
         return self
 
     def submit(self, fn, *a, **kw):
