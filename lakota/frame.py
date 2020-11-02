@@ -69,6 +69,7 @@ class Frame:
         return DataFrame({c: self[c] for c in self.schema.columns})
 
     def lexsort(self):
+        # TODO use argsort on reacarray
         idx_cols = reversed(list(self.schema.idx))
         return lexsort([self[n] for n in idx_cols])
 

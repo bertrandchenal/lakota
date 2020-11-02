@@ -1,7 +1,7 @@
 from concurrent.futures import ThreadPoolExecutor
 
 from lakota import Changelog
-from lakota.changelog import phi
+from lakota.changelog import Commit, phi
 from lakota.utils import hexdigest
 
 
@@ -81,3 +81,10 @@ def test_pack(pod):
     revs = list(changelog.walk())
     for rev, expected in zip(revs, datum):
         assert rev.payload.startswith(hexdigest(expected))
+
+def test_commit_object():
+    parent = 'a-A'
+    child = 'b-B'
+    for ci in (Commit(parent, child), Commit.from_path('a-A.b-B')):
+        assert ci.digests == ('A', 'B')
+        assert ci.path == 'a-A.b-B'

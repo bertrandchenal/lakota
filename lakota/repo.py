@@ -1,7 +1,7 @@
 from contextlib import contextmanager
 from itertools import chain
 
-from .changelog import Changelog, phi
+from .changelog import Changelog, phi, zero_hash
 from .pod import POD
 from .schema import Schema
 from .series import KVSeries, Series
@@ -144,6 +144,9 @@ class Batch:
             key = hexdigest(*(k.encode() for k in keys))
         # Create combined commit
         changelog = self.collection.changelog
+
+        # TODO pass epoch of first/last squashed commit (to force hextime in filename)
+        # OR adapt push/pull to isolate the digest part of the commit (and ignore hextime) -> more general solution!
         self.commit = changelog.commit(
             all_revs, key=key, force_parent=self.force_parent
         )
@@ -154,7 +157,7 @@ class Repo:
 
     def __init__(self, uri=None, pod=None):
         pod = pod or POD.from_uri(uri)
-        folder, filename = hashed_path(phi)
+        folder, filename = hashed_path(zero_hash)
         self.pod = pod
         path = folder / filename
         # TODO harmonize code between 'normal' collection and archive ones
@@ -252,7 +255,12 @@ class Repo:
         return self.create_collection(collection.schema, label, mode="archive")
 
     def delete(self, *labels):
-        to_remove = [self.collection(l).changelog.pod for l in labels]
+        to_remove = []
+        for l in labels:
+            clct = self.collection(l)
+            if not clct:
+                continue
+            to_remove.append(clct.changelog.pod)
         self.collection_series.delete(*labels)
         for pod in to_remove:
             try:
@@ -314,14 +322,18 @@ class Repo:
                 per_series = (s.digests() for s in all_series)
                 active_digests.update(chain.from_iterable(per_series))
 
+        base_folders = self.pod.ls()
+        with Pool(8) as pool:
+            for folder in base_folders:
+                pool.submit(self.gc_folder, folder, active_digests)
+        count = sum(pool.results)
+        return count
+
+    def gc_folder(self, folder, active_digests):
         count = 0
-        for filename in self.pod.walk(max_depth=3):
-            if self.pod.isdir(filename):
-                # A directory contains a changelog
-                continue
-            digest = filename.replace("/", "")
+        for filename in self.pod.cd(folder).walk(max_depth=2):
+            digest = folder + filename.replace("/", "")
             if digest not in active_digests:
                 count += 1
                 self.pod.rm(filename)
-
         return count

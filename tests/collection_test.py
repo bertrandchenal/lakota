@@ -69,8 +69,8 @@ def test_squash(archive):
     # Squash
     new_commit = temperature.squash(archive=archive)
     # New commit should have the same key (timestamp may change)
-    old_key = prev_commits[0].rsplit("-", 1)[1]
-    new_key = new_commit.child.rsplit("-", 1)[1]
+    old_key = prev_commits[0].split('.')[1]
+    new_key = new_commit.child
     assert old_key == new_key
     assert len(list(temperature.changelog)) == 1
 

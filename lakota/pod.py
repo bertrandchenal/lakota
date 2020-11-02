@@ -112,7 +112,7 @@ class FilePOD(POD):
 
     def write(self, relpath, data, mode="wb"):
         if self.isfile(relpath):
-            logger.debug("SKIP WRITE %s %s", self.path, relpath)
+            logger.debug("SKIP-WRITE %s %s", self.path, relpath)
             return
         logger.debug("WRITE %s %s", self.path, relpath)
         path = self.path / relpath
@@ -223,7 +223,7 @@ class MemPOD(POD):
         if not pod:
             raise FileNotFoundError(f"{relpath} not found")
         if leaf in pod.store:
-            logger.debug("SKIP WRITE memory://%s %s", self.path, relpath)
+            logger.debug("SKIP-WRITE memory://%s %s", self.path, relpath)
             return
         logger.debug("WRITE memory://%s %s", self.path, relpath)
         pod.store[leaf] = data
@@ -252,7 +252,12 @@ class MemPOD(POD):
             pod, leaf = self.find_parent_pod(relpath)
 
         if not pod:
+            return #FIXME should ba parameterizable
             raise FileNotFoundError(f"{relpath} not found")
+        if leaf not in pod.store:
+            # same
+            return
+
         if recursive:
             del pod.store[leaf]
         elif pod.isdir(leaf):
@@ -297,7 +302,7 @@ class S3POD(POD):
 
     def write(self, relpath, data, mode="wb"):
         if self.isfile(relpath):
-            logger.debug("SKIP WRITE s3://%s %s", self.path, relpath)
+            logger.debug("SKIP-WRITE s3://%s %s", self.path, relpath)
             return
         logger.debug("WRITE s3://%s %s", self.path, relpath)
         path = str(self.path / relpath)

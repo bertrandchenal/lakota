@@ -3,6 +3,7 @@ from time import sleep
 import pytest
 
 from lakota import Frame, Repo, Schema
+from lakota.changelog import Commit
 from lakota.utils import drange
 
 schema = Schema(
@@ -20,12 +21,10 @@ def test_pull(threaded):
     remote_coll = remote_repo.create_collection(schema, c_label)
     rseries = remote_coll / s_label
     for i in range(10):
-        rseries.write(
-            {
-                "timestamp": range(i, i + 10),
-                "value": range(i + 100, i + 110),
-            }
-        )
+        rseries.write({
+            "timestamp": range(i, i + 10),
+            "value": range(i + 100, i + 110),
+        })
     expected = rseries.frame()
 
     # Test pull
@@ -57,7 +56,7 @@ def test_pull(threaded):
         schema,
         {
             "timestamp": range(0, 20),
-            "value": range(10, 20),
+            "value": range(0, 20),
         },
     )
     lseries.write(frm)
@@ -122,8 +121,7 @@ def test_label_delete_push(squash):
     assert list(local_clct) == list("ab")
 
 
-@pytest.mark.parametrize("squash", [True, False])
-def test_series_push(squash):
+def test_series_squash_stability():
     label = "LABEL"
     local_repo = Repo()
     local_coll = local_repo.create_collection(schema, "a_collection")
@@ -138,4 +136,12 @@ def test_series_push(squash):
         series.write({"timestamp": ts, "value": values})
 
     local_coll.push(remote_coll)
-    # XXX assert something ?
+    local_coll.squash()
+    remote_coll.squash()
+
+    local_files = local_coll.pod.walk()
+    remote_files = remote_coll.pod.walk()
+
+    local_digests = set(Commit.from_path(f).digests for f in local_files if '.' in f)
+    remote_digests = set(Commit.from_path(f).digests for f in remote_files if '.' in f)
+    assert local_digests == remote_digests

@@ -1,3 +1,4 @@
+from itertools import chain
 from collections import defaultdict
 from random import random
 from time import sleep
@@ -25,7 +26,7 @@ class Changelog:
         self.pod = pod
         self._walk_cache = None
 
-    def commit(self, payload, key=None, force_parent=None, pack=False, _jitter=False):
+    def commit(self, payload, key=None, force_parent=None, _jitter=False):
         # Find parent & write revisions
         if force_parent:
             parent = force_parent
@@ -55,7 +56,7 @@ class Changelog:
 
         # Construct new filename and save content
         child = hextime() + "-" + key
-        commit = Commit(parent, child, pack=pack)
+        commit = Commit(parent, child)
         self.pod.write(commit.path, data)
         self.refresh()
         return commit
@@ -79,11 +80,10 @@ class Changelog:
         # Extract parent->children relations
         commits = defaultdict(list)
         for name in sorted(self):
-            parent, child, *ext = name.split(".")
+            parent, child = name.split(".")
             if parent == child:
                 continue
-            pack = "pack" in ext
-            commits[parent].append(Commit(parent, child, pack=pack))
+            commits[parent].append(Commit(parent, child))
 
         # Depth first traversal of the tree(see
         # https://stackoverflow.com/a/5278667)
@@ -102,15 +102,9 @@ class Changelog:
         """
         if not self._walk_cache:
             revs = []
-            # TODO build a frame of revision instead of a list of objects
+            # TODO build a frame (index ?) instead of a list of objects
             for commit in self.log():
-                if commit.pack:
-                    # A packing commit "hides" previous revisions
-                    revs = []
-                rev_arr = self.extract(commit.path)
-                revs.extend(
-                    Revision(commit=commit, payload=payload) for payload in rev_arr
-                )
+                revs.extend(self.extract(commit))
             self._walk_cache = revs
 
         if not fltr:
@@ -120,18 +114,20 @@ class Changelog:
         for rev in filter(fltr, self._walk_cache):
             yield rev
 
-    def extract(self, path):
+    def extract(self, commit):
         try:
-            data = self.pod.read(path)
+            data = self.pod.read(commit.path)
         except FileNotFoundError:
             return
-        return self.schema["revision"].decode(data)
+        for payload in self.schema["revision"].decode(data):
+            yield Revision(commit=commit, payload=payload)
 
     def pull(self, remote):
         new_paths = []
-        local_paths = set(self)
+        local_digests = set(Commit.from_path(p).digests for p in self)
         for remote_path in remote:
-            if remote_path in local_paths:
+            remote_ci = Commit.from_path(remote_path)
+            if remote_ci.digests in local_digests:
                 continue
             new_paths.append(remote_path)
             payload = remote.pod.read(remote_path)
@@ -154,13 +150,10 @@ class Changelog:
             # or if previous commit is alreay a packing one
             if len(set(r.path for r in revs)) == 1:
                 return
-            elif revs[-1].commit.pack:
-                return
 
-        commit = self.commit([r.payload for r in revs], force_parent=phi, pack=True)
+        commit = self.commit([r.payload for r in revs], force_parent=phi)
         # Clean other commits
         self.pod.clear(commit.path)
-
         return commit
 
 
@@ -194,18 +187,23 @@ class Revision:
 
 
 class Commit:
-    def __init__(self, parent, child, pack=False):
-        assert pack in (True, False)
+    def __init__(self, parent, child):
         self.parent = parent
         self.child = child
-        self.pack = pack
+
+    @classmethod
+    def from_path(cls, path):
+        parent, child = path.split('.')
+        return Commit(parent, child)
+
+    @property
+    def digests(self):
+        items = (self.parent, self.child)
+        return tuple(i.split('-')[1] for i in items)
 
     @property
     def path(self):
-        p = self.parent + "." + self.child
-        if self.pack:
-            return p + ".pack"
-        return p
+        return f'{self.parent}.{self.child}'
 
     def __repr__(self):
         return f"<Commit {self.path}>"
