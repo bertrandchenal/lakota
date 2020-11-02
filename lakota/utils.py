@@ -188,3 +188,19 @@ def floor(arr, unit):
     """
     assert unit in "YMDhms"
     return arr.astype(f"M8[{unit}]")
+
+
+def yaml_load(stream):
+    import yaml
+
+    class OrderedLoader(yaml.SafeLoader):
+        pass
+
+    def construct_mapping(loader, node):
+        loader.flatten_mapping(node)
+        return dict(loader.construct_pairs(node))
+
+    OrderedLoader.add_constructor(
+        yaml.resolver.BaseResolver.DEFAULT_MAPPING_TAG, construct_mapping
+    )
+    return yaml.load(stream, OrderedLoader)
