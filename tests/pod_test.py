@@ -14,7 +14,7 @@ def test_empty_ls():
     with pytest.raises(FileNotFoundError):
         pod.ls()
 
-    assert pod.ls(raise_on_missing=False) == []
+    assert pod.ls(missing_ok=True) == []
 
 
 def test_read_write(pod):

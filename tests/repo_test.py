@@ -128,8 +128,8 @@ def test_label_regexp():
 
 
 @pytest.mark.parametrize("archive", [True, False])
-def test_gc(archive):
-    repo = Repo()
+def test_gc(archive, pod):
+    repo = Repo(pod=pod)
     coll = repo.create_collection(schema, "a_collection")
     for offset, label in enumerate(("label_a", "label_b")):
         series = coll / label
