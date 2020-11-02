@@ -31,7 +31,14 @@ class Collection:
 
     def ls(self):
         revs = self.changelog.walk()
-        return sorted(set(r["label"] for r in revs))
+        labels = set()
+        for r in revs:
+            label = r["label"]
+            if r.get("tombstone"):
+                labels.discard(label)
+            else:
+                labels.add(label)
+        return sorted(labels)
 
     def pack(self):
         return self.changelog.pack()
@@ -39,8 +46,9 @@ class Collection:
     def delete(self, *labels):
         if not labels:
             return
-        keep = lambda rev: rev["label"] not in labels
-        self.changelog.pack(keep)
+        with self.batch(phi) as batch:
+            for label in labels:
+                self.series(label).delete(batch=batch)
 
     def refresh(self):
         self.changelog.refresh()
@@ -57,7 +65,7 @@ class Collection:
         # TODO use local storage as cache for remote (when reading revisions)
         local_digs = set()
         for revision in self.revisions():
-            local_digs.update(revision["digests"])
+            local_digs.update(revision.get("digests", []))
         self.changelog.pull(remote.changelog)
         self.refresh()
         # XXX optionaly isolate local path not detected in the loop
@@ -66,7 +74,7 @@ class Collection:
         sync = lambda path: self.pod.write(path, remote.pod.read(path))
         with Pool() as pool:
             for revision in self.revisions():
-                for dig in revision["digests"]:
+                for dig in revision.get("digests", []):
                     if dig in local_digs:
                         continue
                     folder, filename = hashed_path(dig)
@@ -94,13 +102,15 @@ class Collection:
                 # Re-write each series
                 series = self / label
                 for frm in series.paginate(step):
-                    batch.write(label, frm)
+                    series.write(frm, batch=batch)
 
         if not batch.commit:
             return
 
         if archive:
-            # TODO prefix/suffix schema with an _wtime column (and _label ?) to keep trace of revisions (to be able to write larger segments and squash changelog)
+            # TODO prefix/suffix schema with an _wtime column to keep
+            # trace of revisions (to be able to write larger segments
+            # and squash changelog)
             archive_pod = self.repo.archive(self).changelog.pod
             # TODO use pack instead (and give archive pod as arg)
             for path in self.changelog:
@@ -126,12 +136,8 @@ class Batch:
         self.commit = None
         self.force_parent = force_parent
 
-    def write(self, series_name, frame):
-        series = self.collection / series_name
-        res = series.write(frame, batch=True)
-        # res is either None, either a tuple `(commit_payload, key)`
-        if res is not None:
-            self._commits.append(res)
+    def append(self, rev_info, key):
+        self._commits.append((rev_info, key))
 
     def flush(self):
         if len(self._commits) == 0:
@@ -145,8 +151,6 @@ class Batch:
         # Create combined commit
         changelog = self.collection.changelog
 
-        # TODO pass epoch of first/last squashed commit (to force hextime in filename)
-        # OR adapt push/pull to isolate the digest part of the commit (and ignore hextime) -> more general solution!
         self.commit = changelog.commit(
             all_revs, key=key, force_parent=self.force_parent
         )
@@ -293,8 +297,10 @@ class Repo:
                 else:
                     l_clct = local_cache[label]
                     if l_clct.schema != r_clct.schema:
-                        msg = (f'Unable to sync collection "{label}",'
-                               'incompatible meta-info.')
+                        msg = (
+                            f'Unable to sync collection "{label}",'
+                            "incompatible meta-info."
+                        )
                         raise ValueError(msg)
                 pool.submit(l_clct.pull, r_clct)
 

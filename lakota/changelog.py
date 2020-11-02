@@ -1,4 +1,3 @@
-from itertools import chain
 from collections import defaultdict
 from random import random
 from time import sleep
@@ -171,6 +170,9 @@ class Revision:
     def __repr__(self):
         return f"<revision {self.payload}>"
 
+    def get(self, name, default=None):
+        return self.payload.get(name, default)
+
     @property
     def path(self):
         return self.commit.path
@@ -193,17 +195,17 @@ class Commit:
 
     @classmethod
     def from_path(cls, path):
-        parent, child = path.split('.')
+        parent, child = path.split(".")
         return Commit(parent, child)
 
     @property
     def digests(self):
         items = (self.parent, self.child)
-        return tuple(i.split('-')[1] for i in items)
+        return tuple(i.split("-")[1] for i in items)
 
     @property
     def path(self):
-        return f'{self.parent}.{self.child}'
+        return f"{self.parent}.{self.child}"
 
     def __repr__(self):
         return f"<Commit {self.path}>"

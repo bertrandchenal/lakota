@@ -1,5 +1,6 @@
 import pytest
 
+from lakota.changelog import Commit
 from lakota.repo import Repo, Schema
 
 schema = Schema(["timestamp timestamp*", "value float"])
@@ -68,10 +69,9 @@ def test_squash(archive):
 
     # Squash
     new_commit = temperature.squash(archive=archive)
-    # New commit should have the same key (timestamp may change)
-    old_key = prev_commits[0].split('.')[1]
-    new_key = new_commit.child
-    assert old_key == new_key
+    # New commit should have the same digests
+    old_ci = Commit.from_path(prev_commits[0])
+    assert old_ci.digests == new_commit.digests
     assert len(list(temperature.changelog)) == 1
 
     temp_bru.write(frame)

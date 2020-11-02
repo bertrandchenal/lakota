@@ -21,10 +21,12 @@ def test_pull(threaded):
     remote_coll = remote_repo.create_collection(schema, c_label)
     rseries = remote_coll / s_label
     for i in range(10):
-        rseries.write({
-            "timestamp": range(i, i + 10),
-            "value": range(i + 100, i + 110),
-        })
+        rseries.write(
+            {
+                "timestamp": range(i, i + 10),
+                "value": range(i + 100, i + 110),
+            }
+        )
     expected = rseries.frame()
 
     # Test pull
@@ -97,8 +99,6 @@ def test_label_delete_push(squash):
     assert list(local_clct) == labels
     assert list(remote_clct) == labels
 
-    # FIXME !
-
     # Delete one local label and push again
     local_clct.delete("c")
     local_clct.push(remote_clct)
@@ -142,6 +142,6 @@ def test_series_squash_stability():
     local_files = local_coll.pod.walk()
     remote_files = remote_coll.pod.walk()
 
-    local_digests = set(Commit.from_path(f).digests for f in local_files if '.' in f)
-    remote_digests = set(Commit.from_path(f).digests for f in remote_files if '.' in f)
+    local_digests = set(Commit.from_path(f).digests for f in local_files if "." in f)
+    remote_digests = set(Commit.from_path(f).digests for f in remote_files if "." in f)
     assert local_digests == remote_digests

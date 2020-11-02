@@ -56,6 +56,10 @@ class Series:
         # Collect all revisions
         all_revision = []
         for rev in self.revisions():
+            if rev.get("tombstone"):
+                # A tombstone hide all previous revisions
+                all_revision = []
+                continue
             if after is not None and rev["epoch"] < after:  # closed on left
                 continue
             elif before is not None and rev["epoch"] >= before:  # right-opened
@@ -68,6 +72,7 @@ class Series:
 
         # Order revision backward
         all_revision = list(reversed(all_revision))
+
         # Recursive discovery of matching frames
         segments = list(self._read(all_revision, start, stop, closed=closed))
 
@@ -122,6 +127,20 @@ class Series:
                 yield from right_frm
             break
 
+    def delete(self, root=False, batch=False):
+        rev_info = {
+            "tombstone": True,
+            "epoch": time(),
+            "label": self.label,
+        }
+        key = hexdigest(*encoder(self.label, "tombstone"))
+        if batch:
+            batch.append(rev_info, key)
+
+        force_parent = phi if root else None
+        commit = self.changelog.commit(rev_info, key=key, force_parent=force_parent)
+        return commit
+
     def write(self, frame, start=None, stop=None, root=False, batch=False):
         if not isinstance(frame, Frame):
             frame = Frame(self.schema, frame)
@@ -158,10 +177,11 @@ class Series:
         key = hexdigest(
             *encoder(self.label, str(len(frame)), *all_dig, *sstart, *sstop)
         )
-        force_parent = phi if root else None
-
         if batch:
-            return rev_info, key
+            batch.append(rev_info, key)
+            return
+
+        force_parent = phi if root else None
         commit = self.changelog.commit(rev_info, key=key, force_parent=force_parent)
         return commit
 
@@ -301,23 +321,27 @@ class KVSeries(Series):
         new_frm = new_frm.reduce(**reduce_kw)
         return super().write(new_frm, batch=batch)
 
-    def delete(self, *labels):
-        # Create a frame with all the existing labels contained
-        # between max and min of labels
-        if not labels:
+    def delete(self, *keys):
+        # XXX we have 4 delete method (on series, kvseries, collection
+        # and repo), we should get rid of some
+
+        # Create a frame with all the existing keys contained
+        # between max and min of keys
+        if not keys:
             return
 
         # XXX use changelog pack ?
-        start, stop = min(labels), max(labels)
+        start, stop = min(keys), max(keys)
         frm = self[start:stop].frame(closed="both")
-        # Keep only labels not given as argument
-        items = [(l, s) for l, s in zip(frm["label"], frm["meta"]) if l not in labels]
+        # Keep only keys not given as argument
+        # FIXME use frame.mask to filter it
+        items = [(k, s) for k, s in zip(frm["label"], frm["meta"]) if k not in keys]
         if len(items) == 0:
             new_frm = self.schema.cast()
         else:
-            keep_labels, keep_meta = zip(*items)
+            keep_keys, keep_meta = zip(*items)
             new_frm = {
-                "label": keep_labels,
+                "label": keep_keys,
                 "meta": keep_meta,
             }
         # Write result to db
