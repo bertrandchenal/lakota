@@ -64,7 +64,7 @@ class Changelog:
         self._walk_cache = None
 
     def __iter__(self):
-        yield from self.pod.ls(raise_on_missing=False)
+        yield from self.pod.ls(missing_ok=True)
 
     def leaf(self):
         commits = tail(self.log(), 1)

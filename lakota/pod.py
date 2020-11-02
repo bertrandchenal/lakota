@@ -95,15 +95,15 @@ class FilePOD(POD):
         path = self.path.joinpath(*others)
         return FilePOD(path)
 
-    def ls(self, relpath=".", raise_on_missing=True):
+    def ls(self, relpath=".", missing_ok=False):
         logger.debug("LIST %s %s", self.path, relpath)
         path = self.path / relpath
         try:
             return list(p.name for p in path.iterdir())
         except FileNotFoundError:
-            if raise_on_missing:
-                raise
-            return []
+            if missing_ok:
+                return []
+            raise
 
     def read(self, relpath, mode="rb"):
         logger.debug("READ %s %s", self.path, relpath)
@@ -125,7 +125,7 @@ class FilePOD(POD):
     def isfile(self, relpath):
         return self.path.joinpath(relpath).is_file()
 
-    def rm(self, relpath=".", recursive=False):
+    def rm(self, relpath=".", recursive=False, missing_ok=False):
         logger.debug("REMOVE %s %s", self.path, relpath)
         path = self.path / relpath
         if recursive:
@@ -136,7 +136,12 @@ class FilePOD(POD):
         elif path.is_dir():
             path.rmdir()
         else:
-            path.unlink()
+            try:
+                path.unlink()
+            except FileNotFoundError:
+                if missing_ok:
+                    return
+                raise
 
 
 class MemPOD(POD):
@@ -187,20 +192,20 @@ class MemPOD(POD):
         pod = self._find_pod(fragments[:-1], auto_mkdir)
         return pod, fragments[-1]
 
-    def ls(self, relpath=".", raise_on_missing=True):
+    def ls(self, relpath=".", missing_ok=False):
         logger.debug("LIST memory://%s %s", self.path, relpath)
         pod, leaf = self.find_parent_pod(relpath)
         # Handle pathological cases
         if not pod:
-            if raise_on_missing:
-                raise FileNotFoundError(f"{relpath} not found")
-            return []
+            if missing_ok:
+                return []
+            raise FileNotFoundError(f"{relpath} not found")
         elif leaf not in pod.store:
             if leaf == ".":
                 return list(self.store.keys())
-            elif raise_on_missing:
-                raise FileNotFoundError(f"{relpath} not found")
-            return [leaf]
+            elif missing_ok:
+                return [leaf]
+            raise FileNotFoundError(f"{relpath} not found")
         # "happy" scenario
         if pod.isdir(leaf):
             return list(pod.store[leaf].store.keys())
@@ -241,7 +246,7 @@ class MemPOD(POD):
             return False
         return leaf in pod.store and not isinstance(pod.store[leaf], POD)
 
-    def rm(self, relpath, recursive=False):
+    def rm(self, relpath, recursive=False, missing_ok=False):
         logger.debug("REMOVE memory://%s %s", self.path, relpath)
         if relpath == ".":
             if not self.parent:
@@ -252,11 +257,15 @@ class MemPOD(POD):
             pod, leaf = self.find_parent_pod(relpath)
 
         if not pod:
-            return #FIXME should ba parameterizable
+            if missing_ok:
+                return
             raise FileNotFoundError(f"{relpath} not found")
         if leaf not in pod.store:
-            # same
-            return
+            if missing_ok:
+                return
+            else:
+                msg = f'File "{leaf}" not found in "{pod.path}"'
+                raise FileNotFoundError(msg)
 
         if recursive:
             del pod.store[leaf]
@@ -285,15 +294,15 @@ class S3POD(POD):
         path = self.path.joinpath(*others)
         return S3POD(path, fs=self.fs)
 
-    def ls(self, relpath=".", raise_on_missing=True):
+    def ls(self, relpath=".", missing_ok=False):
         logger.debug("LIST s3://%s %s", self.path, relpath)
         path = self.path / relpath
         try:
             return [Path(p).name for p in self.fs.ls(path)]
         except FileNotFoundError:
-            if raise_on_missing:
-                raise
-            return []
+            if missing_ok:
+                return []
+            raise
 
     def read(self, relpath, mode="rb"):
         logger.debug("READ s3://%s %s", self.path, relpath)
@@ -314,10 +323,15 @@ class S3POD(POD):
     def isfile(self, relpath):
         return self.fs.isfile(self.path / relpath)
 
-    def rm(self, relpath=".", recursive=False):
+    def rm(self, relpath=".", recursive=False, missing_ok=False):
         logger.debug("REMOVE s3://%s %s", self.path, relpath)
         path = str(self.path / relpath)
-        return self.fs.rm(path, recursive=recursive)
+        try:
+            return self.fs.rm(path, recursive=recursive)
+        except FileNotFoundError:
+            if missing_ok:
+                return
+            raise
 
 
 class CachePOD(POD):
@@ -336,8 +350,8 @@ class CachePOD(POD):
         remote = self.remote.cd(*others)
         return CachePOD(local, remote)
 
-    def ls(self, relpath=".", raise_on_missing=True):
-        return self.remote.ls(relpath, raise_on_missing=raise_on_missing)
+    def ls(self, relpath=".", missing_ok=False):
+        return self.remote.ls(relpath, missing_ok=missing_ok)
 
     def read(self, relpath, mode="rb"):
         try:
@@ -359,9 +373,9 @@ class CachePOD(POD):
     def isfile(self, relpath):
         return self.remote.isfile(relpath)
 
-    def rm(self, relpath, recursive=False):
-        self.remote.rm(relpath, recursive=recursive)
+    def rm(self, relpath, recursive=False, missing_ok=False):
+        self.remote.rm(relpath, recursive=recursive, missing_ok=missing_ok)
         try:
-            self.local.rm(relpath, recursive=recursive)
+            self.local.rm(relpath, recursive=recursive, missing_ok=missing_ok)
         except FileNotFoundError:
             pass

@@ -341,5 +341,5 @@ class Repo:
             digest = folder + filename.replace("/", "")
             if digest not in active_digests:
                 count += 1
-                self.pod.rm(filename)
+                self.pod.rm(filename, missing_ok=True)
         return count
