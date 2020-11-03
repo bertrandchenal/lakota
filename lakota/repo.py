@@ -84,7 +84,7 @@ class Collection:
     def revisions(self):
         return self.changelog.walk()
 
-    def squash(self, archive=True):
+    def squash(self, archive=False):
         """
         Remove all past revisions, collapse history into one or few large
         frames.
@@ -99,6 +99,7 @@ class Collection:
         batch = []
         with self.batch(phi) as batch:
             for label in all_labels:
+                logger.info('SQUASH label "%s"', label)
                 # Re-write each series
                 series = self / label
                 for frm in series.paginate(step):
@@ -338,9 +339,10 @@ class Repo:
 
     def gc_folder(self, folder, active_digests):
         count = 0
-        for filename in self.pod.cd(folder).walk(max_depth=2):
+        pod = self.pod.cd(folder)
+        for filename in pod.walk(max_depth=2):
             digest = folder + filename.replace("/", "")
             if digest not in active_digests:
                 count += 1
-                self.pod.rm(filename, missing_ok=True)
+                pod.rm(filename, missing_ok=True)
         return count
