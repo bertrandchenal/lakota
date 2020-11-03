@@ -66,6 +66,8 @@ def encoder(*items):
 
 
 def strpt(time_str):
+    if isinstance(time_str, datetime):
+        return time_str
     if not time_str:
         return None
     return datetime.fromisoformat(time_str)
