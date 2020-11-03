@@ -38,7 +38,7 @@ class Series:
     def refresh(self):
         self.changelog.refresh()
 
-    def read(
+    def segments(
         self,
         start=None,
         stop=None,
@@ -74,13 +74,13 @@ class Series:
         all_revision = list(reversed(all_revision))
 
         # Recursive discovery of matching frames
-        segments = list(self._read(all_revision, start, stop, closed=closed))
+        segments = list(self._read_segments(all_revision, start, stop, closed=closed))
 
         # Sort (non-overlaping frames)
         segments.sort(key=lambda s: s.start)
         return segments
 
-    def _read(self, revisions, start, stop, closed="left"):
+    def _read_segments(self, revisions, start, stop, closed="left"):
         for pos, revision in enumerate(revisions):
             match = intersect(revision, start, stop)
             if not match:
@@ -113,7 +113,9 @@ class Series:
                     clsd = None
                 else:
                     clsd = closed
-                left_frm = self._read(revisions[pos + 1 :], start, mstart, closed=clsd)
+                left_frm = self._read_segments(
+                    revisions[pos + 1 :], start, mstart, closed=clsd
+                )
                 yield from left_frm
             # recurse right
             if not stop or mstop < stop:
@@ -123,7 +125,9 @@ class Series:
                     clsd = None
                 else:
                     clsd = closed
-                right_frm = self._read(revisions[pos + 1 :], mstop, stop, closed=clsd)
+                right_frm = self._read_segments(
+                    revisions[pos + 1 :], mstop, stop, closed=clsd
+                )
                 yield from right_frm
             break
 
@@ -146,6 +150,7 @@ class Series:
             frame = Frame(self.schema, frame)
         # Make sure frame is sorted, lexsort gives more weight to the
         # left-most array
+        # TODO use argsort on reacarray with kind=mergesort (faster on ordered or nearly ordered arrays)
         sort_mask = frame.lexsort()
         assert (sort_mask == arange(len(sort_mask))).all(), "Dataframe is not sorted!"
 
@@ -161,7 +166,7 @@ class Series:
                 pool.submit(self.pod.cd(folder).write, filename, data)
 
         # Build commit info
-        start = start or frame.start()
+        start = start or frame.start()  # XXX Use numpy.quantile ?
         stop = stop or frame.stop()
         sstart = self.schema.serialize(start)
         sstop = self.schema.serialize(stop)
@@ -205,6 +210,9 @@ class Series:
     def frame(self, **kw):
         return Query(self, **kw).frame()
 
+    def read(self, **kw):
+        return Query(self, **kw).frame()
+
     def df(self, **kw):
         return Query(self, **kw).df()
 
@@ -212,7 +220,6 @@ class Series:
 class Query:
     def __init__(self, series, **kw):
         self.series = series
-        self.segments = None
         self.params = {
             "closed": "left",
         }
@@ -246,18 +253,18 @@ class Query:
         params.update(kw)
         return Query(self.series, **params)
 
-    def read(self):
+    def segments(self):
         keys = ("start", "stop", "before", "after", "closed")
         kw = {k: self.params.get(k) for k in keys}
-        segments = self.series.read(**kw)
+        segments = self.series.segments(**kw)
         return segments
 
     def __len__(self):
-        return sum(len(s) for s in self.read())
+        return sum(len(s) for s in self.segments())
 
     def frame(self, **kw):
         qr = self @ kw
-        segments = qr.read()
+        segments = qr.segments()
         limit = qr.params.get("limit")
         offset = qr.params.get("offset")
         select = qr.params.get("select")
@@ -273,7 +280,7 @@ class Query:
         if step <= 0:
             raise ValueError("step argument must be > 0")
         qr = self @ kw
-        segments = qr.read()
+        segments = qr.segments()
         select = qr.params.get("select")
         limit = qr.params.get("limit")
         pos = qr.params.get("offset") or 0
@@ -301,7 +308,7 @@ class KVSeries(Series):
 
         start = self.schema.row(frame, pos=0, full=False)
         stop = self.schema.row(frame, pos=-1, full=False)
-        segments = self.read(start, stop, closed="both")
+        segments = self.segments(start, stop, closed="both")
         db_frm = Frame.from_segments(
             self.schema, segments
         )  # Maybe paginate on large results
