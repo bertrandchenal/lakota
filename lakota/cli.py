@@ -85,8 +85,15 @@ def read(args):
 
 
 def length(args):
-    series = get_series(args)
-    print(len(series))
+    if "/" in args.label:
+        series = [get_series(args)]
+    else:
+        repo = get_repo(args)
+        clc = repo / args.label
+        if clc is None:
+            exit(f'Collection "{args.label}" not found')
+        series = [clc/name for name in clc]
+    print(sum(len(s) for s in series))
 
 
 def revisions(args):
