@@ -2,7 +2,7 @@ from bisect import bisect_left, bisect_right
 from collections import defaultdict
 from functools import lru_cache
 
-from numpy import array_equal, concatenate, lexsort, ndarray, rec, unique
+from numpy import argsort, array_equal, concatenate, ndarray, rec, unique
 
 from .schema import Schema
 from .sexpr import AST
@@ -68,10 +68,11 @@ class Frame:
             raise ModuleNotFoundError("No module named 'pandas'")
         return DataFrame({c: self[c] for c in self.schema.columns})
 
-    def lexsort(self):
-        # TODO use argsort on reacarray
-        idx_cols = reversed(list(self.schema.idx))
-        return lexsort([self[n] for n in idx_cols])
+    def argsort(self):
+        idx_cols = list(self.schema.idx)
+        arr = rec.fromarrays([self[n] for n in idx_cols], names=idx_cols)
+        # Mergesort is faster on pre-sorted arrays
+        return argsort(arr, kind="mergesort")
 
     @classmethod
     def concat(cls, *frames):
@@ -100,7 +101,7 @@ class Frame:
         return Frame(schema, cols).sorted()
 
     def sorted(self):
-        return self.mask(self.lexsort())
+        return self.mask(self.argsort())
 
     def mask(self, mask):
         # if mask is a string, eval it first

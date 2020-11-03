@@ -148,10 +148,8 @@ class Series:
     def write(self, frame, start=None, stop=None, root=False, batch=False):
         if not isinstance(frame, Frame):
             frame = Frame(self.schema, frame)
-        # Make sure frame is sorted, lexsort gives more weight to the
-        # left-most array
-        # TODO use argsort on reacarray with kind=mergesort (faster on ordered or nearly ordered arrays)
-        sort_mask = frame.lexsort()
+        # Make sure frame is sorted
+        sort_mask = frame.argsort()
         assert (sort_mask == arange(len(sort_mask))).all(), "Dataframe is not sorted!"
 
         # Save segments
