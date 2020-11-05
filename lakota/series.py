@@ -33,7 +33,7 @@ class Series:
 
     def revisions(self):
         fltr = lambda rev: rev["label"] == self.label
-        return self.changelog.walk(fltr)
+        return list(self.changelog.walk(fltr))
 
     def refresh(self):
         self.changelog.refresh()
@@ -100,6 +100,8 @@ class Series:
         assert issubdtype(schema[head_col].dt,  'datetime64')
 
         revisions = self.revisions()
+        if not revisions:
+            return None
         min_period = min(self.period(rev) for rev in self.revisions())
         target = min_period * size
         return Interval.bisect(target)

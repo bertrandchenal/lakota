@@ -89,14 +89,8 @@ class Collection:
         Remove all past revisions, collapse history into one or few large
         frames.
         """
-        # TODO should be able to be run on a bunch of commit (all
-        # commits before or after a given point in time) and leave
-        # others untouched
-
-        # Accumulate commit info in a list
         step = 500_000
         all_labels = self.ls()
-        batch = []
         with self.batch(phi) as batch:
             for label in all_labels:
                 logger.info('SQUASH label "%s"', label)

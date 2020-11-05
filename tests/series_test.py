@@ -1,7 +1,7 @@
 from datetime import timedelta
 
 import pytest
-from numpy import array
+from numpy import array, arange
 from pandas import DataFrame
 
 from lakota import POD, Changelog, Frame, Repo, Schema, Series
@@ -304,7 +304,7 @@ def test_partition(repo):
         ts = drange('2020-01-01', '2020-01-10', delta)
         frm = {
             "timestamp": ts,
-            "value": range(len(ts)),
+            "value": arange(len(ts)),
         }
         series.write(frm)
         itv = series.interval()
