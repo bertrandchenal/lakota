@@ -82,7 +82,7 @@ class Collection:
                     pool.submit(sync, path)
 
     def revisions(self):
-        return self.changelog.walk()
+        return list(self.changelog.walk())
 
     def squash(self, archive=False):
         """

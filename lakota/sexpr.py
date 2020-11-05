@@ -85,7 +85,7 @@ class Token:
         res = self.as_string()
         if res is not None:
             return res
-        # Eval end
+        # Eval env
         try:
             return env.get(self.value)
         except KeyError:
@@ -103,7 +103,7 @@ class Agg:
         self.op = op
         self.env = env
 
-    def __call__(self, arr):
+    def __call__(self, arr=None): # XXX Use *arr and do re-reduce ?
         bins = self.env.get("_bins", None)
         keys = self.env.get("_keys", None)
         if bins is not None:
@@ -143,6 +143,8 @@ class Agg:
             # Repeated (revsersed) index gives first value
             res[bins[::-1]] = arr[::-1]
             return res
+        elif self.op in ("count", "len"):
+            return bincount(bins)
 
         raise ValueError(f'Aggregation "{self.op}" is not supported')
 
@@ -194,7 +196,8 @@ class AST:
         "kw": KWargs,
     }
 
-    aggregates = {"min", "max", "sum", "first", "last", "mean", "average"}
+    aggregates = {"min", "max", "sum", "first", "last", "mean", "average",
+                  "count", "len"}
 
     def __init__(self, tokens):
         self.tokens = tokens
@@ -212,7 +215,7 @@ class AST:
         head, tail = self.tokens[0], self.tokens[1:]
         args = [AST(tk).eval(env) for tk in tail]
 
-        # Split normal and kw arhs
+        # Split normal and kw args
         simple_args = []
         kw_args = {}
         for a in args:

@@ -1,10 +1,12 @@
+from datetime import timedelta
+
 import pytest
 from numpy import array
 from pandas import DataFrame
 
 from lakota import POD, Changelog, Frame, Repo, Schema, Series
 from lakota.schema import DTYPES
-from lakota.utils import tail
+from lakota.utils import tail, drange
 
 schema = Schema(["timestamp int *", "value float"])
 orig_frm = {
@@ -282,3 +284,28 @@ def test_paginate(series, extra_commit):
     for frm in frames:
         res.extend(frm["timestamp"])
     assert res == []
+
+
+def test_partition(repo):
+    schema = Schema(["timestamp timestamp*", "value float"])
+    clct = repo.create_collection(schema, "timeseries")
+    series = clct / "_"
+
+    # Start with a low-density frame and add higher density frames
+    deltas = [
+        timedelta(days=1),
+        timedelta(hours=1),
+        timedelta(minutes=1),
+        timedelta(seconds=1),
+        timedelta(milliseconds=100),
+    ]
+    partitions = [None, None, 'Y', 'W', 'D']
+    for delta, partition in zip(deltas, partitions):
+        ts = drange('2020-01-01', '2020-01-10', delta)
+        frm = {
+            "timestamp": ts,
+            "value": range(len(ts)),
+        }
+        series.write(frm)
+        itv = series.interval()
+        assert itv == partition

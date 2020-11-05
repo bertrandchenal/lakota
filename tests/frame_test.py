@@ -3,6 +3,7 @@ from numpy import array
 from pandas import DataFrame
 
 from lakota import Frame, Repo, Schema
+from lakota.sexpr import AST
 
 NAMES = list("abcde")
 VALUES = [1.1, 2.2, 3.3, 4.4, 5.5]
@@ -103,7 +104,7 @@ def test_reduce_agg():
     }
 
     frm = Frame(schema, values)
-    for op in ("sum", "min", "max", "first", "last", "mean"):
+    for op in AST.aggregates:
         new_frm = frm.reduce(category="category", value=f"({op} self.value)")
         if op == "min":
             assert list(new_frm["value"]) == [1, 2]
@@ -111,16 +112,18 @@ def test_reduce_agg():
             assert list(new_frm["value"]) == [3, 4]
         elif op == "sum":
             assert list(new_frm["value"]) == [4, 6]
-        elif op == "mean":
+        elif op in ("mean", "average"):
             assert list(new_frm["value"]) == [2, 3]
         elif op == "first":
             assert list(new_frm["value"]) == [1, 2]
         elif op == "last":
             assert list(new_frm["value"]) == [3, 4]
+        elif op in ("count", "len"):
+            assert list(new_frm["value"]) == [2, 2]
         else:
-            raise
+            raise ValueError(f'op "{op}" not tested')
 
-    for op in ("sum", "min", "max", "first", "last", "mean"):
+    for op in AST.aggregates:
         new_frm = frm.reduce(
             timestamp='(floor self.timestamp "D")', value=f"({op} self.value)"
         )
@@ -130,14 +133,17 @@ def test_reduce_agg():
             assert list(new_frm["value"]) == [4]
         elif op == "sum":
             assert list(new_frm["value"]) == [10]
-        elif op == "mean":
+        elif op in ("mean", "average"):
             assert list(new_frm["value"]) == [2.5]
         elif op == "first":
             assert list(new_frm["value"]) == [1]
         elif op == "last":
             assert list(new_frm["value"]) == [4]
+        elif op in ("count", "len"):
+            assert list(new_frm["value"]) == [4]
         else:
-            raise
+            raise ValueError(f'op "{op}" not tested')
+
 
 def test_reduce_without_agg():
     schema = Schema(

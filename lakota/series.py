@@ -1,10 +1,10 @@
 from time import time
 
-from numpy import arange
+from numpy import arange, issubdtype
 
 from .changelog import phi
 from .frame import Frame
-from .utils import Pool, encoder, hashed_path, hexdigest
+from .utils import Pool, encoder, hashed_path, hexdigest, Interval
 
 
 def intersect(revision, start, stop):
@@ -79,6 +79,30 @@ class Series:
         # Sort (non-overlaping frames)
         segments.sort(key=lambda s: s.start)
         return segments
+
+    def period(self, rev):
+        '''
+        Return average period (time delta between two tic) of a given revision
+        '''
+        start = self.schema.deserialize(rev["start"])[0]
+        stop = self.schema.deserialize(rev["stop"])[0]
+        span = stop - start
+        # span is a timedelta64
+        span = span.item().total_seconds()
+        return span / rev["len"]
+
+    def interval(self, size=500_000):
+        '''
+        Find smallest natural partition that will fit `size` items
+        '''
+        schema = self.schema
+        head_col = next(iter(schema.idx))
+        assert issubdtype(schema[head_col].dt,  'datetime64')
+
+        revisions = self.revisions()
+        min_period = min(self.period(rev) for rev in self.revisions())
+        target = min_period * size
+        return Interval.bisect(target)
 
     def _read_segments(self, revisions, start, stop, closed="left"):
         for pos, revision in enumerate(revisions):

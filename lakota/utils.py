@@ -12,7 +12,7 @@ from pathlib import PosixPath
 from time import perf_counter, time
 
 from dateutil.relativedelta import relativedelta
-from numpy import asarray
+from numpy import asarray, arange
 
 default_hash = sha1
 head = lambda it, n=1: list(islice(it, 0, n))
@@ -73,15 +73,10 @@ def strpt(time_str):
     return datetime.fromisoformat(time_str)
 
 
-def drange(start, end, right_closed=False, **delta_args):
+def drange(start, end, delta, right_closed=False):
     start = strpt(start)
     end = strpt(end)
-    res = []
-    delta = relativedelta(**delta_args)
-    while start <= end if right_closed else start < end:
-        res.append(start)
-        start += delta
-    return asarray(res, dtype="M8[s]")
+    return arange(start, end, delta).astype('M8[s]')
 
 
 def hashed_path(digest, depth=2):
@@ -188,8 +183,16 @@ def floor(arr, unit):
     Floor the datetime array to the selected unit.
     unit can be 'Y', 'M', 'D', 'h', 'm' or 's'.
     """
+    if unit == 'W':
+        ... #TODO
     assert unit in "YMDhms"
     return arr.astype(f"M8[{unit}]")
+
+def day_of_week_num(arr):
+    # see https://stackoverflow.com/a/54264187: "takes advantage of
+    # the fact that numpy.datetime64s are relative to the unix epoch,
+    # which was a Thursday."
+    return (arr.astype('M8[D]').view('int64') - 4) % 7
 
 
 def yaml_load(stream):
@@ -206,3 +209,21 @@ def yaml_load(stream):
         yaml.resolver.BaseResolver.DEFAULT_MAPPING_TAG, construct_mapping
     )
     return yaml.load(stream, OrderedLoader)
+
+
+class Interval:
+    labels = ['m', 'h', 'D', 'W', 'M', 'Y', None]
+    durations = [
+        60, # a minute
+        3600, # h: 60*60
+        86_400, # D: 3600 * 24
+        604_800, # W: 604800 * 7
+        2_592_000, # M: 604800 * 30
+        31_536_000, # Y: 604800 * 365
+    ]
+
+    @classmethod
+    def bisect(cls, nb_seconds):
+        idx = bisect.bisect_right(cls.durations, nb_seconds)
+        label = cls.labels[idx]
+        return label
