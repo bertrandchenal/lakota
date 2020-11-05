@@ -12,7 +12,7 @@ from pathlib import PosixPath
 from time import perf_counter, time
 
 from dateutil.relativedelta import relativedelta
-from numpy import asarray, arange
+from numpy import arange, asarray
 
 default_hash = sha1
 head = lambda it, n=1: list(islice(it, 0, n))
@@ -76,7 +76,7 @@ def strpt(time_str):
 def drange(start, end, delta, right_closed=False):
     start = strpt(start)
     end = strpt(end)
-    return arange(start, end, delta).astype('M8[s]')
+    return arange(start, end, delta).astype("M8[s]")
 
 
 def hashed_path(digest, depth=2):
@@ -183,16 +183,17 @@ def floor(arr, unit):
     Floor the datetime array to the selected unit.
     unit can be 'Y', 'M', 'D', 'h', 'm' or 's'.
     """
-    if unit == 'W':
-        ... #TODO
+    if unit == "W":
+        ...  # TODO
     assert unit in "YMDhms"
     return arr.astype(f"M8[{unit}]")
+
 
 def day_of_week_num(arr):
     # see https://stackoverflow.com/a/54264187: "takes advantage of
     # the fact that numpy.datetime64s are relative to the unix epoch,
     # which was a Thursday."
-    return (arr.astype('M8[D]').view('int64') - 4) % 7
+    return (arr.astype("M8[D]").view("int64") - 4) % 7
 
 
 def yaml_load(stream):
@@ -212,14 +213,14 @@ def yaml_load(stream):
 
 
 class Interval:
-    labels = ['m', 'h', 'D', 'W', 'M', 'Y', None]
+    labels = ["m", "h", "D", "W", "M", "Y", None]
     durations = [
-        60, # a minute
-        3600, # h: 60*60
-        86_400, # D: 3600 * 24
-        604_800, # W: 604800 * 7
-        2_592_000, # M: 604800 * 30
-        31_536_000, # Y: 604800 * 365
+        60,  # a minute
+        3600,  # h: 60*60
+        86_400,  # D: 3600 * 24
+        604_800,  # W: 604800 * 7
+        2_592_000,  # M: 604800 * 30
+        31_536_000,  # Y: 604800 * 365
     ]
 
     @classmethod
