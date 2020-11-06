@@ -103,7 +103,7 @@ class Agg:
         self.op = op
         self.env = env
 
-    def __call__(self, arr=None): # XXX Use *arr and do re-reduce ?
+    def __call__(self, arr=None):  # XXX Use *arr and do re-reduce ?
         bins = self.env.get("_bins", None)
         keys = self.env.get("_keys", None)
         if bins is not None:
@@ -196,8 +196,17 @@ class AST:
         "kw": KWargs,
     }
 
-    aggregates = {"min", "max", "sum", "first", "last", "mean", "average",
-                  "count", "len"}
+    aggregates = {
+        "min",
+        "max",
+        "sum",
+        "first",
+        "last",
+        "mean",
+        "average",
+        "count",
+        "len",
+    }
 
     def __init__(self, tokens):
         self.tokens = tokens
@@ -232,6 +241,9 @@ class AST:
             if isinstance(tk, Token):
                 if tk.value in self.aggregates:
                     return True
-            if tk.is_aggregate():
+            elif isinstance(tk, list):
+                if any(t.is_aggregate() for t in tk):
+                    return True
+            elif tk.is_aggregate():
                 return True
         return False

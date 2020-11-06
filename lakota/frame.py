@@ -2,11 +2,11 @@ from bisect import bisect_left, bisect_right
 from collections import defaultdict
 from functools import lru_cache
 
-from numpy import argsort, array_equal, concatenate, ndarray, rec, unique
+from numpy import argsort, array_equal, asarray, concatenate, ndarray, rec, unique
 
 from .schema import Schema
 from .sexpr import AST
-from .utils import Pool, floor, hashed_path
+from .utils import Pool, floor, hashed_path, pretty_nb
 
 try:
     from pandas import DataFrame
@@ -128,6 +128,7 @@ class Frame:
         return {
             "self": self,
             "floor": floor,
+            "pretty_nb": lambda xs: asarray(list(map(pretty_nb, xs))),
         }
 
     @property
@@ -265,7 +266,6 @@ class Frame:
         for alias, expr in agg_ast.items():
             arr = expr.eval(env)
             res[alias] = arr
-
         schema = Schema.from_frame(res, idx_columns=list(non_agg))
         return Frame(schema, res)
 
