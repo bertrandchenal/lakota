@@ -1,10 +1,11 @@
+from bisect import bisect_left, bisect_right
 from datetime import timedelta
 
 import pytest
-from numpy import array, arange
+from numpy import asarray, arange
 from pandas import DataFrame
 
-from lakota import POD, Changelog, Frame, Repo, Schema, Series
+from lakota import Frame, Repo, Schema
 from lakota.schema import DTYPES
 from lakota.utils import tail, drange
 
@@ -157,7 +158,7 @@ def test_adjacent_write(series, how):
 def test_column_types(repo):
     names = [dt.name for dt in DTYPES]
     cols = [f"{n} {n}" for n in names]
-    df = {n: array([0], dtype=n) for n in names}
+    df = {n: asarray([0], dtype=n) for n in names}
 
     for idx_len in range(1, len(cols)):
         stars = ["*"] * idx_len + [""] * (len(cols) - idx_len)
@@ -309,3 +310,26 @@ def test_partition(repo):
         series.write(frm)
         itv = series.interval()
         assert itv == partition
+
+def test_bisect_range():
+    schema = Schema(['start timestamp*', 'stop timestamp'])
+    frm = Frame(schema, {
+        'start': asarray(['2020-01-01', '2020-01-02', '2020-01-03', '2020-01-04']),
+        'stop': asarray(['2020-01-02', '2020-01-03', '2020-01-04', '2020-01-05']),
+    })
+    new_start, new_stop = asarray(['2020-01-02', '2020-01-04'], 'M8')
+
+    idx_start = bisect_right(frm['stop'], new_start)
+    idx_stop = bisect_left(frm['start'], new_stop)
+
+    head = frm.slice(None, idx_start)
+    tail = frm.slice(idx_stop, None)
+
+    new_frm = Frame(schema,{
+        'start': [new_start],
+        'stop': [new_stop],
+    })
+
+
+    res = Frame.concat(head, new_frm, tail)
+    print(res)
