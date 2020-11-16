@@ -1,10 +1,12 @@
 from time import time
 
+from numcodecs import registry
 from numpy import arange, issubdtype
 
 from .changelog import phi
 from .frame import Frame
-from .utils import Pool, encoder, hashed_path, hexdigest, Interval
+from .utils import (Interval, Pool, default_hash, encoder, hashed_path,
+                    hexdigest)
 
 
 def intersect(revision, start, stop):
@@ -27,6 +29,7 @@ class Series:
     def __init__(self, label, collection):
         self.collection = collection
         self.schema = collection.schema
+        self.commit_schema = collection.commit_schema
         self.pod = collection.pod
         self.changelog = collection.changelog
         self.label = label
@@ -172,6 +175,13 @@ class Series:
         return commit
 
     def write(self, frame, start=None, stop=None, root=False, batch=False):
+        # Each commit is a frame. A row in this frame represent a
+        # write (aka a segment) and contains one digest per series
+        # column + 2*N extra columns that encode start-stop values (N
+        # being the number of index columns of the series) + a column
+        # containing the series name (like that we can write all the
+        # series in one commit)
+
         if not isinstance(frame, Frame):
             frame = Frame(self.schema, frame)
         # Make sure frame is sorted
@@ -184,9 +194,9 @@ class Series:
             for name in self.schema:
                 arr = self.schema[name].cast(frame[name])
                 data = self.schema[name].encode(arr)
-                digest = hexdigest(data)
+                digest = default_hash(data).digest()
                 all_dig.append(digest)
-                folder, filename = hashed_path(digest)
+                folder, filename = hashed_path(digest.hex())
                 pool.submit(self.pod.cd(folder).write, filename, data)
 
         # Build commit info
@@ -194,25 +204,44 @@ class Series:
         stop = stop or frame.stop()
         sstart = self.schema.serialize(start)
         sstop = self.schema.serialize(stop)
-        # XXX rev_info = {self.label: {}} (to be able to write on several labels)
-        rev_info = {
-            "start": sstart,
-            "stop": sstop,
-            "len": len(frame),
-            "digests": all_dig,
-            "epoch": time(),
-            "label": self.label,
-        }
+        write_info = sstart + sstop + all_dig
+
+        # Combine with last commit
+        leaf = self.changelog.leaf()
+        last_frm = self.decode_commit(leaf)
+        new_frm = self.combine(last_frm, write_info)
         key = hexdigest(
-            *encoder(self.label, str(len(frame)), *all_dig, *sstart, *sstop)
+            *encoder(self.label, *all_dig, *sstart, *sstop)
         )
         if batch:
-            batch.append(rev_info, key)
+            ... #TODO
             return
 
-        force_parent = phi if root else None
-        commit = self.changelog.commit(rev_info, key=key, force_parent=force_parent)
+        payload = self.encode_commit(new_frm)
+        commit = self.changelog.commit(payload, key=key, parent=leaf.path)
         return commit
+
+    def decode_commit(self, commit):
+        msgpck = registry.codec_registry['msgpack2']()
+        payload = self.pod.read(commit.path)
+        data = msgpck.decode(payload)
+        frm = {}
+        for name, arr in data.items():
+            frm[name] = self.commit_schema[name].decode(arr)
+        return frm
+
+    def encode_commit(self, frm):
+        msgpck = registry.codec_registry['msgpack2']()
+        data = {}
+        for name in frm:
+            data[name] = self.commit_schema[name].encode(frm[name])
+        return msgpck.encode(data)
+
+    def combine_commit(self, frm, row):
+        prefix = [self.label] + row[:len(self.schema.idx)]
+        TODO isolate start and stop cols to apply bisect left and right
+        pos = frm.index(row)
+
 
     def digests(self):
         for revision in self.revisions():

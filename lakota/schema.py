@@ -4,6 +4,8 @@ from dataclasses import dataclass
 from numcodecs import registry
 from numpy import asarray, ascontiguousarray, dtype, frombuffer, issubdtype
 
+from .utils import binhash_len
+
 DTYPES = [dtype(s) for s in ("M8[s]", "int64", "float64", "U", "O")]
 ALIASES = {
     "timestamp": "M8[s]",
@@ -41,7 +43,7 @@ class ColumnDefinition:
             # Adapt dtypes and codecs
             default_codecs = ["blosc"]
             if dt == dtype("<U"):
-                default_codecs = ["vlen-utf8", "zstd"]
+                default_codecs = ["vlen-utf8", "zstd"]  # TODO use msgpck too
             elif dt == dtype("O"):
                 default_codecs = ["msgpack2", "zstd"]
             self.codecs = default_codecs
@@ -209,6 +211,26 @@ class Schema:
         if not isinstance(labels, (list, tuple)):
             labels = [labels]
         return SeriesDefinition(self, labels)
+
+    def commit_schema(self):
+        """
+        Return another schema that can be used to commit series based on self
+        """
+        columns = [ColumnDefinition("_label", "str", None, True)]
+        # Add index start/stop columns
+        for name in self.idx:
+            columns.extend(
+                (
+                    ColumnDefinition(f"_idx_start_{name}", "str", None, True),
+                    ColumnDefinition(f"_idx_stop_{name}", "str", None, False),
+                )
+            )
+        # Add digest columns
+        dt = f"S{binhash_len}"
+        for name in self:
+            columns.append(ColumnDefinition(name, dt, ["zstd"], False))
+
+        return Schema(from_columns=columns)
 
 
 @dataclass

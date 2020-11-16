@@ -2,15 +2,12 @@ from collections import defaultdict
 from random import random
 from time import sleep
 
-import numpy
-
 from .frame import ShallowSegment
-from .schema import Schema
-from .utils import hexdigest, hextime, tail
+from .utils import hexdigest, hexhash_len, hextime, tail
 
-zero_hex = "0" * 11
-zero_hash = "0" * 40
-phi = f"{zero_hex}-{zero_hash}"
+zero_hextime = "0" * 11
+zero_hash = "0" * hexhash_len
+phi = f"{zero_hextime}-{zero_hash}"
 
 
 class Changelog:
@@ -19,17 +16,15 @@ class Changelog:
     Build a tree over a pod to provide concurrent commits
     """
 
-    schema = Schema(["revision O*"])  # |msgpack2|zstd
-
     def __init__(self, pod):
         self.pod = pod
         self._walk_cache = None
 
-    def commit(self, payload, key=None, force_parent=None, _jitter=False):
+    def commit(self, payload, key=None, parent=None, _jitter=False):
+        assert isinstance(payload, bytes)
+
         # Find parent & write revisions
-        if force_parent:
-            parent = force_parent
-        else:
+        if parent is None:
             last_commit = self.leaf()
             if last_commit is None:
                 parent = phi
@@ -41,12 +36,8 @@ class Changelog:
             sleep(random())
 
         # Create array and encode it
-        if not isinstance(payload, (list, tuple)):
-            payload = [payload]
-        arr = numpy.array(payload)
-        data = self.schema["revision"].encode(arr)
         if key is None:
-            key = hexdigest(data)
+            key = hexdigest(payload)
         if parent is not phi:
             parent_key = parent.split("-", 1)[1]
             if parent_key == key:
@@ -56,7 +47,7 @@ class Changelog:
         # Construct new filename and save content
         child = hextime() + "-" + key
         commit = Commit(parent, child)
-        self.pod.write(commit.path, data)
+        self.pod.write(commit.path, payload)
         self.refresh()
         return commit
 
@@ -95,31 +86,31 @@ class Changelog:
 
         # TODO detect dangling roots
 
-    def walk(self, fltr=None):
-        """
-        Iterator on the list of commits
-        """
-        if not self._walk_cache:
-            revs = []
-            # TODO build a frame (index ?) instead of a list of objects
-            for commit in self.log():
-                revs.extend(self.extract(commit))
-            self._walk_cache = revs
+    # def walk(self, fltr=None):
+    #     """
+    #     Iterator on the list of commits
+    #     """
+    #     if not self._walk_cache:
+    #         revs = []
+    #         # TODO build a frame (index ?) instead of a list of objects
+    #         for commit in self.log():
+    #             revs.extend(self.extract(commit))
+    #         self._walk_cache = revs
 
-        if not fltr:
-            yield from self._walk_cache
-            return
+    #     if not fltr:
+    #         yield from self._walk_cache
+    #         return
 
-        for rev in filter(fltr, self._walk_cache):
-            yield rev
+    #     for rev in filter(fltr, self._walk_cache):
+    #         yield rev
 
-    def extract(self, commit):
-        try:
-            data = self.pod.read(commit.path)
-        except FileNotFoundError:
-            return
-        for payload in self.schema["revision"].decode(data):
-            yield Revision(commit=commit, payload=payload)
+    # def extract(self, commit):
+    #     try:
+    #         data = self.pod.read(commit.path)
+    #     except FileNotFoundError:
+    #         return
+    #     for payload in self.schema["revision"].decode(data):
+    #         yield Revision(commit=commit, payload=payload)
 
     def pull(self, remote):
         new_paths = []
@@ -156,36 +147,36 @@ class Changelog:
         return commit
 
 
-class Revision:
-    def __init__(self, commit, payload=None):
-        self.payload = payload or {}
-        self.commit = commit
+# class Revision:
+#     def __init__(self, commit, payload=None):
+#         self.payload = payload or {}
+#         self.commit = commit
 
-    def __getitem__(self, name):
-        return self.payload[name]
+#     def __getitem__(self, name):
+#         return self.payload[name]
 
-    def __setitem__(self, name, value):
-        self.payload[name] = value
+#     def __setitem__(self, name, value):
+#         self.payload[name] = value
 
-    def __repr__(self):
-        return f"<revision {self.payload}>"
+#     def __repr__(self):
+#         return f"<revision {self.payload}>"
 
-    def get(self, name, default=None):
-        return self.payload.get(name, default)
+#     def get(self, name, default=None):
+#         return self.payload.get(name, default)
 
-    @property
-    def path(self):
-        return self.commit.path
+#     @property
+#     def path(self):
+#         return self.commit.path
 
-    def segment(self, series):
-        return ShallowSegment(
-            series.schema,
-            series.pod,
-            self["digests"],
-            start=self["start"],
-            stop=self["stop"],
-            length=self["len"],
-        )
+#     def segment(self, series):
+#         return ShallowSegment(
+#             series.schema,
+#             series.pod,
+#             self["digests"],
+#             start=self["start"],
+#             stop=self["stop"],
+#             length=self["len"],
+#         )
 
 
 class Commit:

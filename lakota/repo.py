@@ -13,6 +13,7 @@ class Collection:
         self.repo = repo
         self.pod = repo.pod
         self.schema = schema
+        self.schema = schema.commit_schema()
         self.label = label
         self.changelog = Changelog(self.pod / path)
 
