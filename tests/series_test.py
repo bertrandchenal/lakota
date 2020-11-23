@@ -2,12 +2,12 @@ from bisect import bisect_left, bisect_right
 from datetime import timedelta
 
 import pytest
-from numpy import asarray, arange
+from numpy import arange, asarray
 from pandas import DataFrame
 
 from lakota import Frame, Repo, Schema
 from lakota.schema import DTYPES
-from lakota.utils import tail, drange
+from lakota.utils import drange, tail
 
 schema = Schema(["timestamp int *", "value float"])
 orig_frm = {
@@ -50,7 +50,7 @@ def test_write_df(series):
 def test_double_write(series):
     # Write some values
     commit = series.write(orig_frm)
-    revs = list(series.revisions())
+    revs = list(series.changelog.log())
     assert commit is None
     assert series.frame() == orig_frm
     assert len(revs) == 1
@@ -300,9 +300,9 @@ def test_partition(repo):
         timedelta(seconds=1),
         timedelta(milliseconds=100),
     ]
-    partitions = [None, None, 'Y', 'W', 'D']
+    partitions = [None, None, "Y", "W", "D"]
     for delta, partition in zip(deltas, partitions):
-        ts = drange('2020-01-01', '2020-01-10', delta)
+        ts = drange("2020-01-01", "2020-01-10", delta)
         frm = {
             "timestamp": ts,
             "value": arange(len(ts)),
@@ -311,25 +311,31 @@ def test_partition(repo):
         itv = series.interval()
         assert itv == partition
 
-def test_bisect_range():
-    schema = Schema(['start timestamp*', 'stop timestamp'])
-    frm = Frame(schema, {
-        'start': asarray(['2020-01-01', '2020-01-02', '2020-01-03', '2020-01-04']),
-        'stop': asarray(['2020-01-02', '2020-01-03', '2020-01-04', '2020-01-05']),
-    })
-    new_start, new_stop = asarray(['2020-01-02', '2020-01-04'], 'M8')
 
-    idx_start = bisect_right(frm['stop'], new_start)
-    idx_stop = bisect_left(frm['start'], new_stop)
+def test_bisect_range():
+    schema = Schema(["start timestamp*", "stop timestamp"])
+    frm = Frame(
+        schema,
+        {
+            "start": asarray(["2020-01-01", "2020-01-02", "2020-01-03", "2020-01-04"]),
+            "stop": asarray(["2020-01-02", "2020-01-03", "2020-01-04", "2020-01-05"]),
+        },
+    )
+    new_start, new_stop = asarray(["2020-01-02", "2020-01-04"], "M8")
+
+    idx_start = bisect_right(frm["stop"], new_start)
+    idx_stop = bisect_left(frm["start"], new_stop)
 
     head = frm.slice(None, idx_start)
     tail = frm.slice(idx_stop, None)
 
-    new_frm = Frame(schema,{
-        'start': [new_start],
-        'stop': [new_stop],
-    })
-
+    new_frm = Frame(
+        schema,
+        {
+            "start": [new_start],
+            "stop": [new_stop],
+        },
+    )
 
     res = Frame.concat(head, new_frm, tail)
     print(res)

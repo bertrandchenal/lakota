@@ -50,6 +50,7 @@ class Frame:
         arrays = []
         start = offset or 0
         stop = total_len + 1 if limit is None else start + limit
+
         for sgm in segments:
             if stop == 0:
                 break
@@ -278,6 +279,11 @@ class Frame:
         # By mask -> return a frame
         if isinstance(by, ndarray):
             return self.mask(by)
+        # By list -> return a frame with the corresponding columns
+        if isinstance(by, list):
+            cols = [self[c] for c in by]
+            sch = Schema.from_frame(cols)
+            return Frame(sch, cols)
         # By column name -> return an array
         if by in self.columns:
             return self.columns[by]
@@ -355,7 +361,7 @@ class ShallowSegment:
 
     def read(self, name, start=None, stop=None):
         data = self._read(name)
-        arr = self.schema[name].decode(data)
+        arr = self.schema[name].codec.decode(data)
         if start is stop is None:
             return arr
         return arr[start:stop]

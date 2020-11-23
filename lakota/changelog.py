@@ -13,7 +13,7 @@ phi = f"{zero_hextime}-{zero_hash}"
 class Changelog:
 
     """
-    Build a tree over a pod to provide concurrent commits
+    Build a tree over a pod to provide concurrent revisions
     """
 
     def __init__(self, pod):
@@ -25,11 +25,11 @@ class Changelog:
 
         # Find parent & write revisions
         if parent is None:
-            last_commit = self.leaf()
-            if last_commit is None:
+            last_revision = self.leaf()
+            if last_revision is None:
                 parent = phi
             else:
-                parent = last_commit.child
+                parent = last_revision.child
 
         # Debug helper
         if _jitter:
@@ -46,10 +46,10 @@ class Changelog:
 
         # Construct new filename and save content
         child = hextime() + "-" + key
-        commit = Commit(parent, child)
-        self.pod.write(commit.path, payload)
+        revision = Revision(self, parent, child)
+        self.pod.write(revision.path, payload)
         self.refresh()
-        return commit
+        return revision
 
     def refresh(self):
         self._walk_cache = None
@@ -58,31 +58,31 @@ class Changelog:
         yield from self.pod.ls(missing_ok=True)
 
     def leaf(self):
-        commits = tail(self.log(), 1)
-        if not commits:
+        revisions = tail(self.log(), 1)
+        if not revisions:
             return None
-        return commits[0]
+        return revisions[0]
 
     def log(self, from_parent=phi):
         """
-        Re-Create a list of all the active commits
+        Re-Create a list of all the active revisions
         """
         # Extract parent->children relations
-        commits = defaultdict(list)
+        revisions = defaultdict(list)
         for name in sorted(self):
             parent, child = name.split(".")
             if parent == child:
                 continue
-            commits[parent].append(Commit(parent, child))
+            revisions[parent].append(Revision(self, parent, child))
 
         # Depth first traversal of the tree(see
         # https://stackoverflow.com/a/5278667)
-        queue = list(reversed(commits[from_parent]))
+        queue = list(reversed(revisions[from_parent]))
         while queue:
             item = queue.pop()
             yield item
             # Append children
-            queue.extend(reversed(commits[item.child]))
+            queue.extend(reversed(revisions[item.child]))
 
         # TODO detect dangling roots
 
@@ -114,9 +114,9 @@ class Changelog:
 
     def pull(self, remote):
         new_paths = []
-        local_digests = set(Commit.from_path(p).digests for p in self)
+        local_digests = set(Revision.from_path(self, p).digests for p in self)
         for remote_path in remote:
-            remote_ci = Commit.from_path(remote_path)
+            remote_ci = Revision.from_path(remote, remote_path)
             if remote_ci.digests in local_digests:
                 continue
             new_paths.append(remote_path)
@@ -136,15 +136,15 @@ class Changelog:
         if not revs:
             return
         if not fltr:
-            # we can skip packing if there is only one previous commit
-            # or if previous commit is alreay a packing one
+            # we can skip packing if there is only one previous revision
+            # or if previous revision is alreay a packing one
             if len(set(r.path for r in revs)) == 1:
                 return
 
-        commit = self.commit([r.payload for r in revs], force_parent=phi)
-        # Clean other commits
-        self.pod.clear(commit.path)
-        return commit
+        revision = self.revision([r.payload for r in revs], force_parent=phi)
+        # Clean other revisions
+        self.pod.clear(revision.path)
+        return revision
 
 
 # class Revision:
@@ -179,15 +179,16 @@ class Changelog:
 #         )
 
 
-class Commit:
-    def __init__(self, parent, child):
+class Revision:
+    def __init__(self, changelog, parent, child):
+        self.changelog = changelog
         self.parent = parent
         self.child = child
 
     @classmethod
-    def from_path(cls, path):
+    def from_path(cls, changelog, path):
         parent, child = path.split(".")
-        return Commit(parent, child)
+        return Revision(changelog, parent, child)
 
     @property
     def digests(self):
@@ -199,4 +200,7 @@ class Commit:
         return f"{self.parent}.{self.child}"
 
     def __repr__(self):
-        return f"<Commit {self.path}>"
+        return f"<Revision {self.path}>"
+
+    def read(self):
+        return self.changelog.pod.read(self.path)
