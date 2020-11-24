@@ -162,7 +162,9 @@ class Schema:
             return tuple()
         if not isinstance(values, (list, tuple)):
             values = (values,)
-        res = tuple(col.dt.type(val) for col, val in zip(self.columns.values(), values))
+        res = tuple(
+            col.codec.dt.type(val) for col, val in zip(self.columns.values(), values)
+        )
         return res
 
     @classmethod

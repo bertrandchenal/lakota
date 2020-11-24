@@ -323,11 +323,11 @@ def test_bisect_range():
     )
     new_start, new_stop = asarray(["2020-01-02", "2020-01-04"], "M8")
 
-    idx_start = bisect_right(frm["stop"], new_start)
-    idx_stop = bisect_left(frm["start"], new_stop)
+    idx_start = bisect_left(frm["stop"], new_start)
+    idx_stop = bisect_right(frm["start"], new_stop)
 
-    head = frm.slice(None, idx_start)
-    tail = frm.slice(idx_stop, None)
+    head = frm.slice(None, idx_start + 1)
+    tail = frm.slice(idx_stop - 1, None)
 
     new_frm = Frame(
         schema,
@@ -337,5 +337,10 @@ def test_bisect_range():
         },
     )
 
-    res = Frame.concat(head, new_frm, tail)
-    print(res)
+    # res = Frame.concat(head, new_frm, tail)
+    print("HEAD")
+    print(head)
+    print("INNER")
+    print(new_frm)
+    print("TAIL")
+    print(tail)

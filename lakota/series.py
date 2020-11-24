@@ -1,7 +1,7 @@
 from time import time
 
 from numcodecs import registry
-from numpy import arange, concatenate, issubdtype, where
+from numpy import arange, asarray, concatenate, issubdtype, where
 
 from .changelog import phi
 from .frame import Frame, ShallowSegment
@@ -242,65 +242,73 @@ class Series:
 
 class Commit:
 
-    digest_codec = Codec(f"S{binhash_len}", "zstd")
+    digest_codec = Codec(f"|S{binhash_len}", "zstd")
     len_codec = Codec("int")
     label_codec = Codec("str")
+    closed_codec = Codec("str")  # Could be i1
 
-    def __init__(self, schema, label, start, stop, digest, length):
+    def __init__(self, schema, label, start, stop, digest, length, closed):
+        assert list(digest) == list(schema)
         self.schema = schema
         self.label = label  # Array of str
         self.start = start  # Dict of Arrays
         self.stop = stop  # Dict of arrays
         self.digest = digest  # Dict of arrays
         self.length = length  # Array of int
+        self.closed = closed  # Array of ("l", "r", "b", None)
 
     @classmethod
-    def one(cls, schema, label, start, stop, digest, length):
+    def one(cls, schema, label, start, stop, digest, length, closed="b"):
         label = [label]
         start = dict(zip(schema.idx, ([s] for s in start)))
         stop = dict(zip(schema.idx, ([s] for s in stop)))
-        digest = dict(zip(schema, ([d] for d in digest)))
+        digest = dict(zip(schema, (asarray([d], dtype="S20") for d in digest)))
         length = [length]
-        return Commit(schema, label, start, stop, digest, length)
+        closed = [closed]
+        return Commit(schema, label, start, stop, digest, length, closed)
 
     @classmethod
     def decode(cls, schema, payload):
         msgpck = registry.codec_registry["msgpack2"]()
         data = msgpck.decode(payload)[0]
-        values = {"digest": {}}
-        # Decode starts and stops
-        for attr in ("start", "stop"):
-            attr_vals = {}
-            for name in schema.idx:
-                attr_vals[name] = schema[name].codec.decode(data[attr][name])
-            values[attr] = attr_vals
-
-        # Decode digests
-        for name in schema:
-            values["digest"][name] = cls.digest_codec.decode(data["digest"][name])
+        values = {}
+        # Decode starts, stops and digests
+        for key in ("start", "stop", "digest"):
+            key_vals = {}
+            columns = schema if key == "digest" else schema.idx
+            for name in columns:
+                codec = cls.digest_codec if key == "digest" else schema[name].codec
+                key_vals[name] = codec.decode(data[key][name])
+            values[key] = key_vals
 
         # Decode len and labels
         values["length"] = cls.len_codec.decode(data["length"])
         values["label"] = cls.label_codec.decode(data["label"])
+        values["closed"] = cls.closed_codec.decode(data["closed"])
         return Commit(schema, **values)
 
     def encode(self):
         msgpck = registry.codec_registry["msgpack2"]()
         data = {"digest": {}}
-        # Encode starts and stops
-        for attr in ("start", "stop"):
-            attr_vals = {}
-            for pos, name in enumerate(self.schema.idx):
-                arr = getattr(self, attr)[name]
-                attr_vals[name] = self.schema[name].codec.encode(arr)
-            data[attr] = attr_vals
+        # Encode starts, stops and digests
+        for key in ("start", "stop", "digest"):
+            columns = self.schema if key == "digest" else self.schema.idx
+            key_vals = {}
+            for pos, name in enumerate(columns):
+                codec = (
+                    self.digest_codec if key == "digest" else self.schema[name].codec
+                )
+                arr = getattr(self, key)[name]
+                key_vals[name] = codec.encode(arr)
+            data[key] = key_vals
 
         # Encode digests
         for name in self.schema:
             data["digest"][name] = self.digest_codec.encode(self.digest[name])
 
-        # Encode len and labels
+        # Encode length, closed and labels
         data["length"] = self.len_codec.encode(self.length)
+        data["closed"] = self.closed_codec.encode(self.closed)
         data["label"] = self.label_codec.encode(self.label)
         return msgpck.encode([data])
 
@@ -309,12 +317,65 @@ class Commit:
         start_values.update(self.start)
         stop_values = {"label": self.label}
         stop_values.update(self.stop)
-
         frm_start = Frame(Schema.from_frame(start_values), start_values)
         frm_stop = Frame(Schema.from_frame(stop_values), stop_values)
-        start_pos = frm_stop.index((label,) + start, right=True)
-        stop_pos = frm_start.index((label,) + stop, right=False)
+        start_pos = frm_stop.index((label,) + start, right=False)
+        stop_pos = frm_start.index((label,) + stop, right=True)
         return start_pos, stop_pos
+
+    def __len__(self):
+        return len(self.label)
+
+    def at(self, pos):
+        res = {}
+        for key in ("start", "stop", "digest"):
+            columns = self.schema if key == "digest" else self.schema.idx
+            values = getattr(self, key)
+            res[key] = tuple(values[n][pos] for n in columns)
+
+        for key in ("label", "length", "closed"):
+            res[key] = getattr(self, key)[pos]
+        return res
+
+    def update(self, label, start, stop, digest, length, closed="b"):
+        inner = Commit.one(self.schema, label, start, stop, digest, length, closed)
+        if len(self) == 0:
+            return inner
+
+        start_pos, stop_pos = self.split(label, start, stop)
+        # TODO rewrite stop of last row of head and start of first row of tail
+
+        # Truncate start_pos row
+        start_row = self.at(start_pos)
+        if start <= start_row["stop"]:
+            start_row["stop"] = start
+            start_row["closed"] = "b" if start_row["closed"] in ("l", "b") else "r"
+            head = Commit.concat(
+                self.head(start_pos), Commit.one(schema=self.schema, **start_row)
+            )
+        else:
+            head = self.head(start_pos + 1)
+
+        # [TODO] Truncate stop_pos row !
+        tail = self.tail(stop_pos)
+        return Commit.concat(head, inner, tail)
+
+    def slice(self, *pos):
+        slc = slice(*pos)
+        schema = self.schema
+        start = {name: self.start[name][slc] for name in schema.idx}
+        stop = {name: self.stop[name][slc] for name in schema.idx}
+        digest = {name: self.digest[name][slc] for name in schema}
+        label = self.label[slc]
+        length = self.length[slc]
+        closed = self.closed[slc]
+        return Commit(schema, label, start, stop, digest, length, closed)
+
+    def head(self, pos):
+        return self.slice(None, pos)
+
+    def tail(self, pos):
+        return self.slice(pos, None)
 
     @classmethod
     def concat(cls, commit, *other_commits):
@@ -331,43 +392,27 @@ class Commit:
         }
         label = concatenate([ci.label for ci in all_ci])
         length = concatenate([ci.length for ci in all_ci])
+        closed = concatenate([ci.closed for ci in all_ci])
 
-        return Commit(schema, label, start, stop, digest, length)
+        return Commit(schema, label, start, stop, digest, length, closed)
 
-    def slice(self, *pos):
-        slc = slice(*pos)
-        schema = self.schema
-        start = {name: self.start[name][slc] for name in schema.idx}
-        stop = {name: self.stop[name][slc] for name in schema.idx}
-        digest = {name: self.digest[name][slc] for name in schema}
-        label = self.label[slc]
-        length = self.length[slc]
-        return Commit(schema, label, start, stop, digest, length)
-
-    def head(self, pos):
-        return self.slice(None, pos)
-
-    def tail(self, pos):
-        return self.slice(pos, None)
-
-    def update(self, label, start, stop, digest, length):
-        start_pos, stop_pos = self.split(label, start, stop)
-        head = self.head(start_pos)
-        tail = self.tail(stop_pos)
-        # TODO rewrite stop of last row of head and start of first row of tail
-
-        new_ci = Commit.one(self.schema, label, start, stop, digest, length)
-        return Commit.concat(head, new_ci, tail)
+    def __repr__(self):
+        start = ",".join(map(str, self.start.values()))
+        stop = ",".join(map(str, self.stop.values()))
+        return f"<Commit ({start}) -> {stop})>"
 
     def segments(self, label, pod):
         res = []
-        for (pos,) in where(self.label == label):
+        (matches,) = where(self.label == label)
+        for pos in matches:
             start = [arr[pos] for arr in self.start.values()]
             stop = [arr[pos] for arr in self.stop.values()]
             digest = [arr[pos] for arr in self.digest.values()]
             length = self.length[pos]
+            closed = self.closed[pos]
             # convert digests to hex
             digest = [d.hex() for d in digest]
+            # TODO get rid of ShallowSegment.slice
             sgm = ShallowSegment(
                 self.schema,
                 pod,
@@ -375,7 +420,10 @@ class Commit:
                 start=start,
                 stop=stop,
                 length=length,
-            )
+            ).slice(start, stop, closed)
+            import pdb
+
+            pdb.set_trace()
             res.append(sgm)
         return res
 

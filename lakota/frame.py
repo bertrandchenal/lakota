@@ -137,8 +137,8 @@ class Frame:
         return len(self) == 0
 
     def rowdict(self, *idx):
-        pos = self.index(*self.schema.deserialize(idx))
-        values = self.schema.row(pos)
+        pos = self.index(self.schema.deserialize(idx), right=False)
+        values = self.schema.row(self, pos)
         return dict(zip(self.schema.columns, values))
 
     def rows(self):
