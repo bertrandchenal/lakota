@@ -287,29 +287,29 @@ def test_paginate(series, extra_commit):
     assert res == []
 
 
-def test_partition(repo):
-    schema = Schema(["timestamp timestamp*", "value float"])
-    clct = repo.create_collection(schema, "timeseries")
-    series = clct / "_"
+# def test_partition(repo):
+#     schema = Schema(["timestamp timestamp*", "value float"])
+#     clct = repo.create_collection(schema, "timeseries")
+#     series = clct / "_"
 
-    # Start with a low-density frame and add higher density frames
-    deltas = [
-        timedelta(days=1),
-        timedelta(hours=1),
-        timedelta(minutes=1),
-        timedelta(seconds=1),
-        timedelta(milliseconds=100),
-    ]
-    partitions = [None, None, "Y", "W", "D"]
-    for delta, partition in zip(deltas, partitions):
-        ts = drange("2020-01-01", "2020-01-10", delta)
-        frm = {
-            "timestamp": ts,
-            "value": arange(len(ts)),
-        }
-        series.write(frm)
-        itv = series.interval()
-        assert itv == partition
+#     # Start with a low-density frame and add higher density frames
+#     deltas = [
+#         timedelta(days=1),
+#         timedelta(hours=1),
+#         timedelta(minutes=1),
+#         timedelta(seconds=1),
+#         timedelta(milliseconds=100),
+#     ]
+#     partitions = [None, None, "Y", "W", "D"]
+#     for delta, partition in zip(deltas, partitions):
+#         ts = drange("2020-01-01", "2020-01-10", delta)
+#         frm = {
+#             "timestamp": ts,
+#             "value": arange(len(ts)),
+#         }
+#         series.write(frm)
+#         itv = series.interval()
+#         assert itv == partition
 
 
 def test_bisect_range():

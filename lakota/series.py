@@ -67,7 +67,7 @@ class Series:
         payload = leaf_rev.read()
         leaf_ci = Commit.decode(self.schema, payload)
         # TODO filter on start and stop
-        return leaf_ci.segments(self.label, self.pod)
+        return leaf_ci.segments(self.label, self.pod, start, stop)
 
     def period(self, rev):
         """
@@ -86,65 +86,14 @@ class Series:
         """
         schema = self.schema
         head_col = next(iter(schema.idx))
-        assert issubdtype(schema[head_col].dt, "datetime64")
+        assert issubdtype(schema[head_col].codec.dt, "datetime64")
 
-        revisions = self.revisions()
+        revisions = self.changelog.log()
         if not revisions:
             return None
-        min_period = min(self.period(rev) for rev in self.revisions())
+        min_period = min(self.period(rev) for rev in revisions)
         target = min_period * size
         return Interval.bisect(target)
-
-    # def _read_segments(self, revisions, start, stop, closed="left"):
-    #     for pos, revision in enumerate(revisions):
-    #         match = intersect(revision, start, stop)
-    #         if not match:
-    #             continue
-    #         mstart, mstop = match
-    #         clsd = closed
-    #         if closed == "right" and mstart > start:
-    #             clsd = "both"
-    #         elif closed == None and mstart > start:
-    #             clsd = "left"
-    #         if clsd == "left" and (mstop < stop or not stop):
-    #             clsd = "both"
-    #         elif clsd == None and (mstop < stop or not stop):
-    #             clsd = "right"
-
-    #         # instanciate frame
-    #         sgm = revision.segment(self).slice(mstart, mstop, clsd)
-    #         yield sgm
-
-    #         # We have found one result and the search range is
-    #         # collapsed, stop recursion:
-    #         if len(start) and start == stop:
-    #             return
-
-    #         # recurse left
-    #         if mstart > start:
-    #             if closed == "both":
-    #                 clsd = "left"
-    #             elif closed == "right":
-    #                 clsd = None
-    #             else:
-    #                 clsd = closed
-    #             left_frm = self._read_segments(
-    #                 revisions[pos + 1 :], start, mstart, closed=clsd
-    #             )
-    #             yield from left_frm
-    #         # recurse right
-    #         if not stop or mstop < stop:
-    #             if closed == "both":
-    #                 clsd = "right"
-    #             elif closed == "left":
-    #                 clsd = None
-    #             else:
-    #                 clsd = closed
-    #             right_frm = self._read_segments(
-    #                 revisions[pos + 1 :], mstop, stop, closed=clsd
-    #             )
-    #             yield from right_frm
-    #         break
 
     def delete(self, root=False, batch=False):
         rev_info = {
@@ -258,7 +207,7 @@ class Commit:
         self.closed = closed  # Array of ("l", "r", "b", None)
 
     @classmethod
-    def one(cls, schema, label, start, stop, digest, length, closed="b"):
+    def one(cls, schema, label, start, stop, digest, length, closed="both"):
         label = [label]
         start = dict(zip(schema.idx, ([s] for s in start)))
         stop = dict(zip(schema.idx, ([s] for s in stop)))
@@ -327,6 +276,8 @@ class Commit:
         return len(self.label)
 
     def at(self, pos):
+        if pos < 0:
+            pos = len(self) + pos
         res = {}
         for key in ("start", "stop", "digest"):
             columns = self.schema if key == "digest" else self.schema.idx
@@ -337,27 +288,55 @@ class Commit:
             res[key] = getattr(self, key)[pos]
         return res
 
-    def update(self, label, start, stop, digest, length, closed="b"):
+    def update(self, label, start, stop, digest, length, closed="both"):
+        if not start <= stop:
+            raise ValueError(f"Invalid range {start} -> {stop}")
         inner = Commit.one(self.schema, label, start, stop, digest, length, closed)
         if len(self) == 0:
             return inner
+        if start <= self.at(0)["start"] and stop >= self.at(-1)["stop"]:
+            return inner
 
         start_pos, stop_pos = self.split(label, start, stop)
-        # TODO rewrite stop of last row of head and start of first row of tail
 
         # Truncate start_pos row
-        start_row = self.at(start_pos)
-        if start <= start_row["stop"]:
-            start_row["stop"] = start
-            start_row["closed"] = "b" if start_row["closed"] in ("l", "b") else "r"
-            head = Commit.concat(
-                self.head(start_pos), Commit.one(schema=self.schema, **start_row)
-            )
-        else:
-            head = self.head(start_pos + 1)
+        head = None
+        if start_pos < len(self):
+            start_row = self.at(start_pos)
+            if start <= start_row["stop"] <= stop:
+                import pdb
 
-        # [TODO] Truncate stop_pos row !
-        tail = self.tail(stop_pos)
+                pdb.set_trace()
+                start_row["stop"] = start
+                # TODO adapt behavoour if current update is not closed==both
+                start_row["closed"] = (
+                    "left" if start_row["closed"] in ("left", "both") else None
+                )
+                print("START_ROWS", start_row)
+                head = Commit.concat(
+                    self.head(start_pos), Commit.one(schema=self.schema, **start_row)
+                )
+        if head is None:
+            head = self.head(start_pos)
+
+        # Truncate stop_pos row
+        stop_pos = stop_pos - 1  # -1 because we did a bisect right in split
+        tail = None
+        if stop_pos < len(self):
+            stop_row = self.at(stop_pos)
+            if start <= stop_row["start"] <= stop:
+                stop_row["start"] = stop
+                # TODO adapt behavoour if current update is not closed==both
+                stop_row["closed"] = (
+                    "right" if stop_row["closed"] in ("right", "both") else None
+                )
+                print("STOP_ROWS", stop_row)
+                tail = Commit.concat(
+                    self.tail(stop_pos + 1), Commit.one(schema=self.schema, **stop_row)
+                )
+        if tail is None:
+            tail = self.tail(stop_pos + 1)
+
         return Commit.concat(head, inner, tail)
 
     def slice(self, *pos):
@@ -401,12 +380,12 @@ class Commit:
         stop = ",".join(map(str, self.stop.values()))
         return f"<Commit ({start}) -> {stop})>"
 
-    def segments(self, label, pod):
+    def segments(self, label, pod, start, stop):
         res = []
         (matches,) = where(self.label == label)
         for pos in matches:
-            start = [arr[pos] for arr in self.start.values()]
-            stop = [arr[pos] for arr in self.stop.values()]
+            arr_start = tuple(arr[pos] for arr in self.start.values())
+            arr_stop = tuple(arr[pos] for arr in self.stop.values())
             digest = [arr[pos] for arr in self.digest.values()]
             length = self.length[pos]
             closed = self.closed[pos]
@@ -417,13 +396,11 @@ class Commit:
                 self.schema,
                 pod,
                 digest,
-                start=start,
-                stop=stop,
+                start=arr_start,
+                stop=arr_stop,
                 length=length,
-            ).slice(start, stop, closed)
-            import pdb
-
-            pdb.set_trace()
+            ).slice(start or arr_start, stop or arr_stop, closed)
+            print("SGM", start, stop, closed)
             res.append(sgm)
         return res
 
