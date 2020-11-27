@@ -4,7 +4,7 @@ from time import sleep
 import pytest
 
 from lakota import Frame, Repo, Schema
-from lakota.changelog import Commit
+from lakota.changelog import Revision
 from lakota.utils import drange
 
 schema = Schema(
@@ -144,6 +144,8 @@ def test_series_squash_stability():
     local_files = local_coll.pod.walk()
     remote_files = remote_coll.pod.walk()
 
-    local_digests = set(Commit.from_path(f).digests for f in local_files if "." in f)
-    remote_digests = set(Commit.from_path(f).digests for f in remote_files if "." in f)
+    local_digests = set(Revision.from_path(f).digests for f in local_files if "." in f)
+    remote_digests = set(
+        Revision.from_path(f).digests for f in remote_files if "." in f
+    )
     assert local_digests == remote_digests

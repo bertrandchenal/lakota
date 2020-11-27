@@ -52,15 +52,13 @@ class Series:
         self,
         start=None,
         stop=None,
-        after=None,
         before=None,
         closed="left",
     ):
         """
         Find matching segments
         """
-        # TODO filter on before/after
-        leaf_rev = self.changelog.leaf()
+        leaf_rev = self.changelog.leaf(before=before)
         if not leaf_rev:
             return
 
@@ -110,7 +108,7 @@ class Series:
         return commit
 
     def write(self, frame, start=None, stop=None, root=False, batch=False):
-        # Each commit is a frame. A row in this frame represent a
+        # Each commit is like a frame. A row in this frame represent a
         # write (aka a segment) and contains one digest per series
         # column + 2*N extra columns that encode start-stop values (N
         # being the number of index columns of the series) + a column
@@ -156,10 +154,8 @@ class Series:
             return
 
         payload = new_ci.encode()
-        key = hexdigest(payload)
-        rev = self.changelog.commit(
-            payload, key=key, parent=leaf_rev and leaf_rev.child
-        )
+        rev = self.changelog.commit(payload, parent=leaf_rev and leaf_rev.child)
+
         return rev
 
     def digests(self):
@@ -191,7 +187,9 @@ class Series:
 
 class Commit:
 
-    digest_codec = Codec(f"|S{binhash_len}", "zstd")
+    digest_codec = Codec(
+        f"|S{binhash_len}", "zstd"
+    )  # FIXME fail when hash endswith '00'
     len_codec = Codec("int")
     label_codec = Codec("str")
     closed_codec = Codec("str")  # Could be i1
@@ -238,7 +236,7 @@ class Commit:
 
     def encode(self):
         msgpck = registry.codec_registry["msgpack2"]()
-        data = {"digest": {}}
+        data = {}
         # Encode starts, stops and digests
         for key in ("start", "stop", "digest"):
             columns = self.schema if key == "digest" else self.schema.idx
@@ -304,18 +302,21 @@ class Commit:
         if start_pos < len(self):
             start_row = self.at(start_pos)
             if start <= start_row["stop"] <= stop:
-                import pdb
-
-                pdb.set_trace()
                 start_row["stop"] = start
                 # TODO adapt behavoour if current update is not closed==both
                 start_row["closed"] = (
                     "left" if start_row["closed"] in ("left", "both") else None
                 )
-                print("START_ROWS", start_row)
-                head = Commit.concat(
-                    self.head(start_pos), Commit.one(schema=self.schema, **start_row)
-                )
+                # print("START_ROWS", start_row)
+                if start_row["start"] < start_row["stop"]:
+                    head = Commit.concat(
+                        self.head(start_pos),
+                        Commit.one(schema=self.schema, **start_row),
+                    )
+                # when start_row["start"] == start_row["stop"],
+                # start_row stop and start are both "overshadowed" by
+                # new commit
+
         if head is None:
             head = self.head(start_pos)
 
@@ -330,10 +331,15 @@ class Commit:
                 stop_row["closed"] = (
                     "right" if stop_row["closed"] in ("right", "both") else None
                 )
-                print("STOP_ROWS", stop_row)
-                tail = Commit.concat(
-                    self.tail(stop_pos + 1), Commit.one(schema=self.schema, **stop_row)
-                )
+                # print("STOP_ROWS", stop_row)
+                if stop_row["start"] < stop_row["stop"]:
+                    tail = Commit.concat(
+                        self.tail(stop_pos + 1),
+                        Commit.one(schema=self.schema, **stop_row),
+                    )
+                # when stop_row["start"] == stop_row["stop"],
+                # stop_row stop and start are both "overshadowed" by
+                # new commit
         if tail is None:
             tail = self.tail(stop_pos + 1)
 
@@ -376,8 +382,8 @@ class Commit:
         return Commit(schema, label, start, stop, digest, length, closed)
 
     def __repr__(self):
-        start = ",".join(map(str, self.start.values()))
-        stop = ",".join(map(str, self.stop.values()))
+        start = ", ".join(map(str, self.start.values()))
+        stop = ", ".join(map(str, self.stop.values()))
         return f"<Commit ({start}) -> {stop})>"
 
     def segments(self, label, pod, start, stop):
@@ -400,7 +406,7 @@ class Commit:
                 stop=arr_stop,
                 length=length,
             ).slice(start or arr_start, stop or arr_stop, closed)
-            print("SGM", start, stop, closed)
+            # print("SGM", start, stop, closed)
             res.append(sgm)
         return res
 
@@ -422,7 +428,7 @@ class Query:
         elif key in ("start", "stop"):
             self.params[key] = self.series.schema.deserialize(value)
         else:
-            if not key in ("limit", "offset", "before", "after", "select"):
+            if not key in ("limit", "offset", "before", "select"):
                 raise ValueError(f"Unsupported parameter: {key}")
             self.params[key] = value
 
@@ -442,7 +448,7 @@ class Query:
         return Query(self.series, **params)
 
     def segments(self):
-        keys = ("start", "stop", "before", "after", "closed")
+        keys = ("start", "stop", "before", "closed")
         kw = {k: self.params.get(k) for k in keys}
         segments = self.series.segments(**kw)
         return segments
@@ -503,6 +509,9 @@ class KVSeries(Series):
 
         if db_frm.empty:
             return super().write(frame, batch=batch)
+        print()
+        print(db_frm)
+        print(frame)
 
         if db_frm == frame:
             # Nothing to do

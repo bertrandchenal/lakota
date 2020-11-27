@@ -4,7 +4,14 @@ from dataclasses import dataclass
 from numcodecs import registry
 from numpy import asarray, ascontiguousarray, dtype, frombuffer, issubdtype
 
-DTYPES = [dtype(s) for s in ("M8[s]", "int64", "float64", "U", "O", "S20")]
+DTYPES = [
+    "M8[s]",
+    "i8",
+    "f8",
+    "U",
+    "O",
+    "S20",
+]  # dtype(s) for s in ("M8[s]", "int64", "float64", "U", "O", "S20")
 ALIASES = {
     "timestamp": "M8[s]",
     "float": "f8",
@@ -61,7 +68,7 @@ class Codec:
         for name in reversed(self.codec_names):
             codec = registry.codec_registry[name]
             arr = codec().decode(arr)
-        if self.dt in ("<U", "O", "S"):
+        if self.dt in ("U", "O"):
             return arr.astype(self.dt)
         return frombuffer(arr, dtype=self.dt)
 
@@ -100,6 +107,9 @@ class SchemaColumn:
 
     def cast(self, arr):
         return asarray(arr, dtype=self.codec.dt)
+
+    def cast_scalar(self, value):
+        return dtype(self.codec.dt).type(value)
 
     def dump(self):
         return {
@@ -163,7 +173,7 @@ class Schema:
         if not isinstance(values, (list, tuple)):
             values = (values,)
         res = tuple(
-            col.codec.dt.type(val) for col, val in zip(self.columns.values(), values)
+            col.cast_scalar(val) for col, val in zip(self.columns.values(), values)
         )
         return res
 

@@ -2,7 +2,6 @@ from collections import defaultdict
 from random import random
 from time import sleep
 
-from .frame import ShallowSegment
 from .utils import hexdigest, hexhash_len, hextime, tail
 
 zero_hextime = "0" * 11
@@ -20,7 +19,7 @@ class Changelog:
         self.pod = pod
         self._walk_cache = None
 
-    def commit(self, payload, key=None, parent=None, _jitter=False):
+    def commit(self, payload, parent=None, _jitter=False):
         assert isinstance(payload, bytes)
 
         # Find parent & write revisions
@@ -36,8 +35,7 @@ class Changelog:
             sleep(random())
 
         # Create array and encode it
-        if key is None:
-            key = hexdigest(payload)
+        key = hexdigest(payload)
         if parent is not phi:
             parent_key = parent.split("-", 1)[1]
             if parent_key == key:
@@ -57,13 +55,13 @@ class Changelog:
     def __iter__(self):
         yield from self.pod.ls(missing_ok=True)
 
-    def leaf(self):
-        revisions = tail(self.log(), 1)
+    def leaf(self, before=None):
+        revisions = tail(self.log(before=before), 1)
         if not revisions:
             return None
         return revisions[0]
 
-    def log(self, from_parent=phi):
+    def log(self, before=None, from_parent=phi):
         """
         Re-Create a list of all the active revisions
         """
@@ -80,9 +78,13 @@ class Changelog:
         queue = list(reversed(revisions[from_parent]))
         while queue:
             item = queue.pop()
-            yield item
             # Append children
             queue.extend(reversed(revisions[item.child]))
+
+            # Yield
+            if before is not None and item.epoch >= before:
+                continue
+            yield item
 
         # TODO detect dangling roots
 
@@ -147,38 +149,6 @@ class Changelog:
         return revision
 
 
-# class Revision:
-#     def __init__(self, commit, payload=None):
-#         self.payload = payload or {}
-#         self.commit = commit
-
-#     def __getitem__(self, name):
-#         return self.payload[name]
-
-#     def __setitem__(self, name, value):
-#         self.payload[name] = value
-
-#     def __repr__(self):
-#         return f"<revision {self.payload}>"
-
-#     def get(self, name, default=None):
-#         return self.payload.get(name, default)
-
-#     @property
-#     def path(self):
-#         return self.commit.path
-
-#     def segment(self, series):
-#         return ShallowSegment(
-#             series.schema,
-#             series.pod,
-#             self["digests"],
-#             start=self["start"],
-#             stop=self["stop"],
-#             length=self["len"],
-#         )
-
-
 class Revision:
     def __init__(self, changelog, parent, child):
         self.changelog = changelog
@@ -199,8 +169,16 @@ class Revision:
     def path(self):
         return f"{self.parent}.{self.child}"
 
+    @property
+    def epoch(self):
+        return self.child.split("-", 1)[0]
+
     def __repr__(self):
         return f"<Revision {self.path}>"
 
     def read(self):
-        return self.changelog.pod.read(self.path)
+        payload = self.changelog.pod.read(self.path)
+        key = hexdigest(payload)
+        _, child_digest = self.digests
+        assert key == child_digest, "Corrupted file!"
+        return payload

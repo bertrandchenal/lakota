@@ -4,7 +4,7 @@ from itertools import chain
 from .changelog import Changelog, phi, zero_hash
 from .pod import POD
 from .schema import Schema
-from .series import KVSeries, Series
+from .series import Commit, KVSeries, Series
 from .utils import Pool, hashed_path, hexdigest, logger
 
 
@@ -30,15 +30,10 @@ class Collection:
         return iter(self.ls())
 
     def ls(self):
-        revs = self.changelog.walk()
-        labels = set()
-        for r in revs:
-            label = r["label"]
-            if r.get("tombstone"):
-                labels.discard(label)
-            else:
-                labels.add(label)
-        return sorted(labels)
+        rev = self.changelog.leaf()
+        payload = rev.read()
+        ci = Commit.decode(self.schema, payload)
+        return sorted(set(ci.label))
 
     def pack(self):
         return self.changelog.pack()
@@ -215,7 +210,7 @@ class Repo:
         meta = []
         schema_dump = schema.dump()
 
-        # TODO validate columns(can not start with a _)
+        # TODO assert collection does not already exists!
 
         if mode is None:
             series = self.collection_series

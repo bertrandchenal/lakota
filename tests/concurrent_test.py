@@ -47,6 +47,7 @@ def test_insert(pod):
     # Read it back
     with timeit(f"\nREAD ({pod.protocol})"):
         series = collection / label
+        series.df()
         df = series["2015-01-01":"2015-01-02"].df()
         assert len(df) == 1440
         df = series["2015-12-31":"2016-01-02"].df()
