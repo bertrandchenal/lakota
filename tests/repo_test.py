@@ -65,7 +65,7 @@ def test_create_labels_chunks(pod, squash):
         assert coll.label == label
 
 
-@pytest.mark.parametrize("squash", [True, False])
+@pytest.mark.parametrize("squash", [False, True])
 def test_delete(pod, squash):
     repo = Repo(pod=pod)
     repo.create_collection(schema, *labels)
@@ -157,5 +157,5 @@ def test_gc(archive, pod):
     assert list(coll.ls()) == ["label_a", "label_b"]
 
     if archive:
-        arch_coll = repo.collection("a_collection", mode='archive')
+        arch_coll = repo.collection("a_collection", mode="archive")
         assert list(arch_coll.ls()) == ["label_a", "label_b"]

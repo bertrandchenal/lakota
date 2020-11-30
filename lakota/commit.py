@@ -79,9 +79,9 @@ class Commit:
         return msgpck.encode([data])
 
     def split(self, label, start, stop):
-        start_values = {"label": self.label}
+        start_values = {"_label": self.label}
         start_values.update(self.start)
-        stop_values = {"label": self.label}
+        stop_values = {"_label": self.label}
         stop_values.update(self.stop)
         frm_start = Frame(Schema.from_frame(start_values), start_values)
         frm_stop = Frame(Schema.from_frame(stop_values), stop_values)
@@ -118,6 +118,29 @@ class Commit:
             return inner
 
         start_pos, stop_pos = self.split(label, start, stop)
+        if start_pos + 1 == stop_pos:
+            row = self.at(start_pos)
+            if row["start"] < start <= stop < row["stop"]:
+                # Corner case: we hit right in the middle of an existing row
+                start_row = row
+                start_row["stop"] = start
+                start_row["closed"] = (
+                    "left" if start_row["closed"] in ("left", "both") else None
+                )
+                stop_row = self.at(start_pos)
+                stop_row["start"] = stop
+                stop_row["closed"] = (
+                    "right" if stop_row["closed"] in ("right", "both") else None
+                )
+                ci = Commit.concat(
+                    self.head(start_pos),
+                    Commit.one(schema=self.schema, **start_row),
+                    inner,
+                    Commit.one(schema=self.schema, **stop_row),
+                    self.tail(stop_pos),
+                )
+                return ci
+
         # Truncate start_pos row
         head = None
         if start_pos < len(self):
@@ -162,7 +185,6 @@ class Commit:
                 # new commit
         if tail is None:
             tail = self.tail(stop_pos + 1)
-
         return Commit.concat(head, inner, tail)
 
     def slice(self, *pos):
@@ -229,11 +251,10 @@ class Commit:
                 self.schema,
                 pod,
                 digest,
-                start=arr_start if start is None else max(arr_start, start),
-                stop=arr_stop if stop is None else min(arr_stop, stop),
+                start=max(arr_start, start) if start else arr_start,
+                stop=min(arr_stop, stop) if stop else arr_stop,
                 closed=closed,
             )
-
             res.append(sgm)
         return res
 

@@ -31,6 +31,8 @@ class Collection:
 
     def ls(self):
         rev = self.changelog.leaf()
+        if rev is None:
+            return []
         payload = rev.read()
         ci = Commit.decode(self.schema, payload)
         return sorted(set(ci.label))
