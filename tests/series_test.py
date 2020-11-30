@@ -1,5 +1,3 @@
-from bisect import bisect_left, bisect_right
-
 import pytest
 from numpy import asarray
 from pandas import DataFrame
@@ -154,7 +152,7 @@ def test_adjacent_write(series, how):
 
 
 def test_column_types(repo):
-    test_dtypes = [dt for dt in DTYPES if dt != "S20"]  # FIX S20!
+    test_dtypes = [dt for dt in DTYPES]
     cols = [f"{dt} {dt}" for dt in test_dtypes]
     df = {str(dt): asarray([0], dtype=dt) for dt in test_dtypes}
 
@@ -180,20 +178,17 @@ def test_kv_series(repo):
         "category": ["a", "c", "d"],
         "value": [1, 2, 3],
     }
-    print("FIRST WRITE")
     series.write(frm)
     frm = {
         "timestamp": ["2020-01-01", "2020-02-02", "2020-02-03"],
         "category": ["a", "b", "c"],
         "value": [4, 5, 6],
     }
-    print("SECOND WRITE")
     series.write(frm)
     res = series.frame()["value"]
     assert all(res == [4, 2, 5, 6, 3])
 
     # Double-write should be a noop
-    print("DOUBLE WRITE")
     commit = series.write(frm)
     assert commit is None
 
@@ -307,37 +302,3 @@ def test_paginate(series, extra_commit):
 #         series.write(frm)
 #         itv = series.interval()
 #         assert itv == partition
-
-
-def test_bisect_range():
-    schema = Schema(["start timestamp*", "stop timestamp"])
-    frm = Frame(
-        schema,
-        {
-            "start": asarray(["2020-01-01", "2020-01-02", "2020-01-03", "2020-01-04"]),
-            "stop": asarray(["2020-01-02", "2020-01-03", "2020-01-04", "2020-01-05"]),
-        },
-    )
-    new_start, new_stop = asarray(["2020-01-02", "2020-01-04"], "M8")
-
-    idx_start = bisect_left(frm["stop"], new_start)
-    idx_stop = bisect_right(frm["start"], new_stop)
-
-    head = frm.slice(None, idx_start + 1)
-    tail = frm.slice(idx_stop - 1, None)
-
-    new_frm = Frame(
-        schema,
-        {
-            "start": [new_start],
-            "stop": [new_stop],
-        },
-    )
-
-    # res = Frame.concat(head, new_frm, tail)
-    print("HEAD")
-    print(head)
-    print("INNER")
-    print(new_frm)
-    print("TAIL")
-    print(tail)

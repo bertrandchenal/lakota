@@ -76,9 +76,6 @@ class Collection:
                     path = folder / filename
                     pool.submit(sync, path)
 
-    def revisions(self):
-        return list(self.changelog.walk())
-
     def squash(self, archive=False):
         """
         Remove all past revisions, collapse history into one or few large
@@ -265,9 +262,6 @@ class Repo:
 
     def refresh(self):
         self.collection_series.refresh()
-
-    def revisions(self):
-        return self.collection_series.revisions()
 
     def pull(self, remote, *labels):
         assert isinstance(remote, Repo), "A Repo instance is required"

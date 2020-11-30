@@ -45,9 +45,8 @@ def test_multi():
     assert temp_bru.frame() == frame
     assert temp_ory.frame() == frame_ory
 
-    assert len(list(repo.revisions())) == 1
-    assert len(list(temperature.revisions())) == 2
-    assert len(list(temp_bru.revisions())) == 1
+    assert len(list(repo.collection_series.changelog.log())) == 1
+    assert len(list(temperature.changelog.log())) == 2
 
     assert list(temperature) == ["Brussels", "Paris"]
 

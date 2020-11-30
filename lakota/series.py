@@ -1,20 +1,11 @@
 from time import time
 
-from numcodecs import registry
-from numpy import arange, asarray, concatenate, issubdtype, where
+from numpy import arange, issubdtype
 
 from .changelog import phi
-from .frame import Frame, ShallowSegment
-from .schema import Codec, Schema
-from .utils import (
-    Interval,
-    Pool,
-    binhash_len,
-    default_hash,
-    encoder,
-    hashed_path,
-    hexdigest,
-)
+from .commit import Commit
+from .frame import Frame
+from .utils import Interval, Pool, encoder, hashed_path, hexdigest
 
 
 def intersect(revision, start, stop):
@@ -41,10 +32,6 @@ class Series:
         self.changelog = collection.changelog
         self.label = label
 
-    # def revisions(self):
-    #     fltr = lambda rev: rev["label"] == self.label
-    #     return list(self.changelog.walk(fltr))
-
     def refresh(self):
         self.changelog.refresh()
 
@@ -64,7 +51,7 @@ class Series:
 
         payload = leaf_rev.read()
         leaf_ci = Commit.decode(self.schema, payload)
-        # TODO filter on start and stop
+        # TODO pass closed to call hereunder
         return leaf_ci.segments(self.label, self.pod, start, stop)
 
     def period(self, rev):
@@ -127,14 +114,18 @@ class Series:
             for name in self.schema:
                 arr = self.schema[name].cast(frame[name])
                 data = self.schema[name].codec.encode(arr)
-                digest = default_hash(data).digest()
+                digest = hexdigest(data)
                 all_dig.append(digest)
-                folder, filename = hashed_path(digest.hex())
+                folder, filename = hashed_path(digest)
                 pool.submit(self.pod.cd(folder).write, filename, data)
 
         # Build commit info
         start = start or frame.start()  # XXX Use numpy.quantile ?
         stop = stop or frame.stop()
+        if not isinstance(start, tuple):
+            start = (start,)
+        if not isinstance(stop, tuple):
+            stop = (stop,)
 
         # Combine with last commit
         leaf_rev = self.changelog.leaf()
@@ -183,232 +174,6 @@ class Series:
 
     def df(self, **kw):
         return Query(self, **kw).df()
-
-
-class Commit:
-
-    digest_codec = Codec(
-        f"|S{binhash_len}", "zstd"
-    )  # FIXME fail when hash endswith '00'
-    len_codec = Codec("int")
-    label_codec = Codec("str")
-    closed_codec = Codec("str")  # Could be i1
-
-    def __init__(self, schema, label, start, stop, digest, length, closed):
-        assert list(digest) == list(schema)
-        self.schema = schema
-        self.label = label  # Array of str
-        self.start = start  # Dict of Arrays
-        self.stop = stop  # Dict of arrays
-        self.digest = digest  # Dict of arrays
-        self.length = length  # Array of int
-        self.closed = closed  # Array of ("l", "r", "b", None)
-
-    @classmethod
-    def one(cls, schema, label, start, stop, digest, length, closed="both"):
-        label = [label]
-        start = dict(zip(schema.idx, ([s] for s in start)))
-        stop = dict(zip(schema.idx, ([s] for s in stop)))
-        digest = dict(zip(schema, (asarray([d], dtype="S20") for d in digest)))
-        length = [length]
-        closed = [closed]
-        return Commit(schema, label, start, stop, digest, length, closed)
-
-    @classmethod
-    def decode(cls, schema, payload):
-        msgpck = registry.codec_registry["msgpack2"]()
-        data = msgpck.decode(payload)[0]
-        values = {}
-        # Decode starts, stops and digests
-        for key in ("start", "stop", "digest"):
-            key_vals = {}
-            columns = schema if key == "digest" else schema.idx
-            for name in columns:
-                codec = cls.digest_codec if key == "digest" else schema[name].codec
-                key_vals[name] = codec.decode(data[key][name])
-            values[key] = key_vals
-
-        # Decode len and labels
-        values["length"] = cls.len_codec.decode(data["length"])
-        values["label"] = cls.label_codec.decode(data["label"])
-        values["closed"] = cls.closed_codec.decode(data["closed"])
-        return Commit(schema, **values)
-
-    def encode(self):
-        msgpck = registry.codec_registry["msgpack2"]()
-        data = {}
-        # Encode starts, stops and digests
-        for key in ("start", "stop", "digest"):
-            columns = self.schema if key == "digest" else self.schema.idx
-            key_vals = {}
-            for pos, name in enumerate(columns):
-                codec = (
-                    self.digest_codec if key == "digest" else self.schema[name].codec
-                )
-                arr = getattr(self, key)[name]
-                key_vals[name] = codec.encode(arr)
-            data[key] = key_vals
-
-        # Encode digests
-        for name in self.schema:
-            data["digest"][name] = self.digest_codec.encode(self.digest[name])
-
-        # Encode length, closed and labels
-        data["length"] = self.len_codec.encode(self.length)
-        data["closed"] = self.closed_codec.encode(self.closed)
-        data["label"] = self.label_codec.encode(self.label)
-        return msgpck.encode([data])
-
-    def split(self, label, start, stop):
-        start_values = {"label": self.label}
-        start_values.update(self.start)
-        stop_values = {"label": self.label}
-        stop_values.update(self.stop)
-        frm_start = Frame(Schema.from_frame(start_values), start_values)
-        frm_stop = Frame(Schema.from_frame(stop_values), stop_values)
-        start_pos = frm_stop.index((label,) + start, right=False)
-        stop_pos = frm_start.index((label,) + stop, right=True)
-        return start_pos, stop_pos
-
-    def __len__(self):
-        return len(self.label)
-
-    def at(self, pos):
-        if pos < 0:
-            pos = len(self) + pos
-        res = {}
-        for key in ("start", "stop", "digest"):
-            columns = self.schema if key == "digest" else self.schema.idx
-            values = getattr(self, key)
-            res[key] = tuple(values[n][pos] for n in columns)
-
-        for key in ("label", "length", "closed"):
-            res[key] = getattr(self, key)[pos]
-        return res
-
-    def update(self, label, start, stop, digest, length, closed="both"):
-        if not start <= stop:
-            raise ValueError(f"Invalid range {start} -> {stop}")
-        inner = Commit.one(self.schema, label, start, stop, digest, length, closed)
-        if len(self) == 0:
-            return inner
-        if start <= self.at(0)["start"] and stop >= self.at(-1)["stop"]:
-            return inner
-
-        start_pos, stop_pos = self.split(label, start, stop)
-
-        # Truncate start_pos row
-        head = None
-        if start_pos < len(self):
-            start_row = self.at(start_pos)
-            if start <= start_row["stop"] <= stop:
-                start_row["stop"] = start
-                # TODO adapt behavoour if current update is not closed==both
-                start_row["closed"] = (
-                    "left" if start_row["closed"] in ("left", "both") else None
-                )
-                # print("START_ROWS", start_row)
-                if start_row["start"] < start_row["stop"]:
-                    head = Commit.concat(
-                        self.head(start_pos),
-                        Commit.one(schema=self.schema, **start_row),
-                    )
-                # when start_row["start"] == start_row["stop"],
-                # start_row stop and start are both "overshadowed" by
-                # new commit
-
-        if head is None:
-            head = self.head(start_pos)
-
-        # Truncate stop_pos row
-        stop_pos = stop_pos - 1  # -1 because we did a bisect right in split
-        tail = None
-        if stop_pos < len(self):
-            stop_row = self.at(stop_pos)
-            if start <= stop_row["start"] <= stop:
-                stop_row["start"] = stop
-                # TODO adapt behavoour if current update is not closed==both
-                stop_row["closed"] = (
-                    "right" if stop_row["closed"] in ("right", "both") else None
-                )
-                # print("STOP_ROWS", stop_row)
-                if stop_row["start"] < stop_row["stop"]:
-                    tail = Commit.concat(
-                        self.tail(stop_pos + 1),
-                        Commit.one(schema=self.schema, **stop_row),
-                    )
-                # when stop_row["start"] == stop_row["stop"],
-                # stop_row stop and start are both "overshadowed" by
-                # new commit
-        if tail is None:
-            tail = self.tail(stop_pos + 1)
-
-        return Commit.concat(head, inner, tail)
-
-    def slice(self, *pos):
-        slc = slice(*pos)
-        schema = self.schema
-        start = {name: self.start[name][slc] for name in schema.idx}
-        stop = {name: self.stop[name][slc] for name in schema.idx}
-        digest = {name: self.digest[name][slc] for name in schema}
-        label = self.label[slc]
-        length = self.length[slc]
-        closed = self.closed[slc]
-        return Commit(schema, label, start, stop, digest, length, closed)
-
-    def head(self, pos):
-        return self.slice(None, pos)
-
-    def tail(self, pos):
-        return self.slice(pos, None)
-
-    @classmethod
-    def concat(cls, commit, *other_commits):
-        schema = commit.schema
-        all_ci = (commit,) + other_commits
-        start = {
-            name: concatenate([ci.start[name] for ci in all_ci]) for name in schema.idx
-        }
-        stop = {
-            name: concatenate([ci.stop[name] for ci in all_ci]) for name in schema.idx
-        }
-        digest = {
-            name: concatenate([ci.digest[name] for ci in all_ci]) for name in schema
-        }
-        label = concatenate([ci.label for ci in all_ci])
-        length = concatenate([ci.length for ci in all_ci])
-        closed = concatenate([ci.closed for ci in all_ci])
-
-        return Commit(schema, label, start, stop, digest, length, closed)
-
-    def __repr__(self):
-        start = ", ".join(map(str, self.start.values()))
-        stop = ", ".join(map(str, self.stop.values()))
-        return f"<Commit ({start}) -> {stop})>"
-
-    def segments(self, label, pod, start, stop):
-        res = []
-        (matches,) = where(self.label == label)
-        for pos in matches:
-            arr_start = tuple(arr[pos] for arr in self.start.values())
-            arr_stop = tuple(arr[pos] for arr in self.stop.values())
-            digest = [arr[pos] for arr in self.digest.values()]
-            length = self.length[pos]
-            closed = self.closed[pos]
-            # convert digests to hex
-            digest = [d.hex() for d in digest]
-            # TODO get rid of ShallowSegment.slice
-            sgm = ShallowSegment(
-                self.schema,
-                pod,
-                digest,
-                start=arr_start,
-                stop=arr_stop,
-                length=length,
-            ).slice(start or arr_start, stop or arr_stop, closed)
-            # print("SGM", start, stop, closed)
-            res.append(sgm)
-        return res
 
 
 class Query:
@@ -478,7 +243,6 @@ class Query:
         select = qr.params.get("select")
         limit = qr.params.get("limit")
         pos = qr.params.get("offset") or 0
-
         while True:
             lmt = step if limit is None else min(step, limit)
             frm = Frame.from_segments(
@@ -509,9 +273,6 @@ class KVSeries(Series):
 
         if db_frm.empty:
             return super().write(frame, batch=batch)
-        print()
-        print(db_frm)
-        print(frame)
 
         if db_frm == frame:
             # Nothing to do

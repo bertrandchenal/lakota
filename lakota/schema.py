@@ -10,8 +10,7 @@ DTYPES = [
     "f8",
     "U",
     "O",
-    "S20",
-]  # dtype(s) for s in ("M8[s]", "int64", "float64", "U", "O", "S20")
+]  # dtype(s) for s in ("M8[s]", "int64", "float64", "U", "O")
 ALIASES = {
     "timestamp": "M8[s]",
     "float": "f8",
@@ -68,7 +67,7 @@ class Codec:
         for name in reversed(self.codec_names):
             codec = registry.codec_registry[name]
             arr = codec().decode(arr)
-        if self.dt in ("U", "O"):
+        if self.dt in ("O", "U"):
             return arr.astype(self.dt)
         return frombuffer(arr, dtype=self.dt)
 

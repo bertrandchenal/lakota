@@ -45,6 +45,7 @@ def test_insert(pod):
     cluster.close()
 
     # Read it back
+    # FIXME need to merge all commits !
     with timeit(f"\nREAD ({pod.protocol})"):
         series = collection / label
         series.df()

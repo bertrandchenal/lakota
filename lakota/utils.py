@@ -15,7 +15,6 @@ from numpy import arange
 
 default_hash = sha1
 hexhash_len = 40
-binhash_len = 20
 head = lambda it, n=1: list(islice(it, 0, n))
 tail = lambda it, n=1: deque(it, maxlen=n)
 skip = lambda it, n: list(islice(it, n, None))

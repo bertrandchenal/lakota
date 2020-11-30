@@ -32,7 +32,6 @@ class Frame:
         if not segments:
             return Frame(schema)
         select = select or schema.columns
-
         with Pool() as pool:
             for name in schema.columns:
                 if name not in select:
@@ -46,22 +45,24 @@ class Frame:
 
     @classmethod
     def read_segments(cls, segments, name, limit=None, offset=None):
-        total_len = sum(len(s) for s in segments)
         arrays = []
         start = offset or 0
-        stop = total_len + 1 if limit is None else start + limit
+        stop = None if limit is None else start + limit
 
         for sgm in segments:
             if stop == 0:
                 break
             if start >= len(sgm):
                 start = max(start - len(sgm), 0)
-                stop = max(stop - len(sgm), 0)
+                if stop is not None:
+                    stop = max(stop - len(sgm), 0)
                 continue
             arr = sgm.read(name, start=start, stop=stop)
             start = max(start - len(sgm), 0)
-            stop = max(stop - len(sgm), 0)
+            if stop is not None:
+                stop = max(stop - len(sgm), 0)
             arrays.append(arr)
+
         return name, concatenate(arrays) if arrays else []
 
     def df(self, *columns):
