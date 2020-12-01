@@ -77,42 +77,18 @@ class Changelog:
         # https://stackoverflow.com/a/5278667)
         queue = list(reversed(revisions[from_parent]))
         while queue:
-            item = queue.pop()
+            rev = queue.pop()
             # Append children
-            queue.extend(reversed(revisions[item.child]))
+            children = revisions[rev.child]
+            rev.is_leaf = not children
+            queue.extend(reversed(children))
 
             # Yield
-            if before is not None and item.epoch >= before:
-                continue
-            yield item
+            if before is not None and rev.epoch >= before:
+                break
+            yield rev
 
         # TODO detect dangling roots
-
-    # def walk(self, fltr=None):
-    #     """
-    #     Iterator on the list of commits
-    #     """
-    #     if not self._walk_cache:
-    #         revs = []
-    #         # TODO build a frame (index ?) instead of a list of objects
-    #         for commit in self.log():
-    #             revs.extend(self.extract(commit))
-    #         self._walk_cache = revs
-
-    #     if not fltr:
-    #         yield from self._walk_cache
-    #         return
-
-    #     for rev in filter(fltr, self._walk_cache):
-    #         yield rev
-
-    # def extract(self, commit):
-    #     try:
-    #         data = self.pod.read(commit.path)
-    #     except FileNotFoundError:
-    #         return
-    #     for payload in self.schema["revision"].decode(data):
-    #         yield Revision(commit=commit, payload=payload)
 
     def pull(self, remote):
         new_paths = []
@@ -154,6 +130,7 @@ class Revision:
         self.changelog = changelog
         self.parent = parent
         self.child = child
+        self.is_leaf = False
 
     @classmethod
     def from_path(cls, changelog, path):

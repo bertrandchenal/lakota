@@ -26,8 +26,8 @@ def test_create_collections(pod):
         collection = repo / label
         assert collection.label == label
 
-    # Same after packing
-    repo.pack()
+    # Same after merge
+    repo.merge()
     for label in labels:
         coll = repo / label
         assert coll.label == label
@@ -37,8 +37,8 @@ def test_create_collections(pod):
     assert sorted(repo.ls()) == sorted(labels)
 
 
-@pytest.mark.parametrize("squash", [True, False])
-def test_create_labels_chunks(pod, squash):
+@pytest.mark.parametrize("merge", [True, False])
+def test_create_labels_chunks(pod, merge):
     """
     Create all labels in chunks
     """
@@ -51,22 +51,16 @@ def test_create_labels_chunks(pod, squash):
         coll = repo / label
         assert coll.label == label
 
-    # Same after packing
-    repo.pack()
-    if squash:
-        repo.squash()
-    for label in labels:
-        coll = repo / label
-        assert coll.label == label
-
-    # Same after sqash
+    # Same after merge
+    if merge:
+        repo.merge()
     for label in labels:
         coll = repo / label
         assert coll.label == label
 
 
-@pytest.mark.parametrize("squash", [False, True])
-def test_delete(pod, squash):
+@pytest.mark.parametrize("merge", [False, True])
+def test_delete(pod, merge):
     repo = Repo(pod=pod)
     repo.create_collection(schema, *labels)
     expected = sorted(labels)
@@ -75,25 +69,25 @@ def test_delete(pod, squash):
     # Remove one label and check result
     sleep(0.01)
     repo.delete("seven")
-    if squash:
-        repo.squash()
+    if merge:
+        repo.merge()
     expected = [l for l in expected if l != "seven"]
     assert list(repo) == expected
 
     # Remove two labels and check result
     repo.delete("nine", "zero")
-    if squash:
-        repo.squash()
+    if merge:
+        repo.merge()
     expected = [l for l in expected if l not in ("nine", "zero", "seven")]
     assert list(repo) == expected
 
     # Same after sqash
-    repo.squash()
+    repo.merge()
     assert list(repo) == expected
 
 
-@pytest.mark.parametrize("squash", [True, False])
-def test_delete_and_recreate(pod, squash):
+@pytest.mark.parametrize("merge", [True, False])
+def test_delete_and_recreate(pod, merge):
     repo = Repo(pod=pod)
     clct = repo.create_collection(schema, "test_coll")
     series = clct / "test_series"
@@ -106,8 +100,8 @@ def test_delete_and_recreate(pod, squash):
 
     # Delete & re-create
     repo.delete("test_coll")
-    if squash:
-        repo.squash()
+    if merge:
+        repo.merge()
     clct = repo.create_collection(schema, "test_coll")
     assert list(clct) == []
 
@@ -141,9 +135,9 @@ def test_gc(archive, pod):
                 }
             )
 
-    # Squash label_a
+    # Merge label_a
     coll = repo / "a_collection"
-    coll.squash(archive=archive)
+    coll.merge(archive=archive)
 
     # Launch garbage collection
     count = repo.gc()

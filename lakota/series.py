@@ -1,3 +1,4 @@
+from itertools import chain
 from time import time
 
 from numpy import arange, issubdtype
@@ -150,8 +151,10 @@ class Series:
         return rev
 
     def digests(self):
-        for revision in self.revisions():
-            yield from revision["digests"]
+        for rev in self.changelog.log():
+            payload = rev.read()
+            ci = Commit.decode(self.schema, payload)
+            yield from chain.from_iterable(ci.digest.values())
 
     def __getitem__(self, by):
         return Query(self)[by]

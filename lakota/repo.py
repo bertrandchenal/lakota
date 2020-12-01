@@ -78,6 +78,10 @@ class Collection:
                     path = folder / filename
                     pool.submit(sync, path)
 
+    def merge(self, **kw):
+        # TODO
+        return
+
     def squash(self, archive=False):
         """
         Remove all past revisions, collapse history into one or few large
@@ -294,8 +298,9 @@ class Repo:
     def squash(self):
         return self.registry.squash()
 
-    def pack(self):
-        return self.registry.pack()
+    def merge(self, **kw):
+        return
+        # TODO : self.registry.merge()
 
     def gc(self):
         """

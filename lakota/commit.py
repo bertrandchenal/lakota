@@ -118,10 +118,12 @@ class Commit:
             return inner
 
         start_pos, stop_pos = self.split(label, start, stop)
+
+        # Corner case: we hit right in the middle of an existing row
         if start_pos + 1 == stop_pos:
             row = self.at(start_pos)
-            if row["start"] < start <= stop < row["stop"]:
-                # Corner case: we hit right in the middle of an existing row
+            # FIXME test also label!
+            if row["start"] < start and stop < row["stop"]:
                 start_row = row
                 start_row["stop"] = start
                 start_row["closed"] = (
@@ -146,6 +148,7 @@ class Commit:
         if start_pos < len(self):
             start_row = self.at(start_pos)
             if start <= start_row["stop"] <= stop:
+                # We hit the right of an existing row
                 # FIXME check start_row['label'] !
                 start_row["stop"] = start
                 # XXX adapt behaviour if current update is not closed==both
@@ -160,7 +163,6 @@ class Commit:
                 # when start_row["start"] == start_row["stop"],
                 # start_row stop and start are both "overshadowed" by
                 # new commit
-
         if head is None:
             head = self.head(start_pos)
 
@@ -170,6 +172,7 @@ class Commit:
         if stop_pos < len(self):
             stop_row = self.at(stop_pos)
             if start <= stop_row["start"] <= stop:
+                # We hit the left of an existing row
                 stop_row["start"] = stop
                 # XXX adapt behavoour if current update is not closed==both
                 stop_row["closed"] = (
@@ -177,14 +180,15 @@ class Commit:
                 )
                 if stop_row["start"] < stop_row["stop"]:
                     tail = Commit.concat(
-                        self.tail(stop_pos + 1),
                         Commit.one(schema=self.schema, **stop_row),
+                        self.tail(stop_pos + 1),
                     )
                 # when stop_row["start"] == stop_row["stop"],
                 # stop_row stop and start are both "overshadowed" by
                 # new commit
         if tail is None:
             tail = self.tail(stop_pos + 1)
+
         return Commit.concat(head, inner, tail)
 
     def slice(self, *pos):
@@ -224,9 +228,11 @@ class Commit:
         return Commit(schema, label, start, stop, digest, length, closed)
 
     def __repr__(self):
-        start = ", ".join(map(str, self.start.values()))
-        stop = ", ".join(map(str, self.stop.values()))
-        return f"<Commit ({start}) -> {stop})>"
+        fmt = lambda a: "/".join(a)
+        starts = list(map(fmt, zip(*self.start.values())))
+        stops = list(map(fmt, zip(*self.stop.values())))
+        items = " ".join(f"[{a} -> {b}]" for a, b in zip(starts, stops))
+        return f"<Commit {items}>"
 
     def segments(self, label, pod, start, stop):
         res = []
