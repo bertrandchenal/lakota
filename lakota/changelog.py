@@ -61,6 +61,9 @@ class Changelog:
             return None
         return revisions[0]
 
+    def leafs(self):
+        return [rev for rev in self.log() if rev.is_leaf]
+
     def log(self, before=None, from_parent=phi):
         """
         Re-Create a list of all the active revisions
@@ -103,27 +106,6 @@ class Changelog:
         self.refresh()
         return new_paths
 
-    def pack(self, fltr=None):
-        """
-        Combine the current list of revisions into one array of revision.
-        The filter function `fltr` allows to keep only some items (and
-        so remove the others).
-        """
-
-        revs = list(self.walk(fltr=fltr))
-        if not revs:
-            return
-        if not fltr:
-            # we can skip packing if there is only one previous revision
-            # or if previous revision is alreay a packing one
-            if len(set(r.path for r in revs)) == 1:
-                return
-
-        revision = self.revision([r.payload for r in revs], force_parent=phi)
-        # Clean other revisions
-        self.pod.clear(revision.path)
-        return revision
-
 
 class Revision:
     def __init__(self, changelog, parent, child):
@@ -151,7 +133,7 @@ class Revision:
         return self.child.split("-", 1)[0]
 
     def __repr__(self):
-        return f"<Revision {self.path}>"
+        return f"<Revision {self.path} {'*' if self.is_leaf else ''}>"
 
     def read(self):
         payload = self.changelog.pod.read(self.path)

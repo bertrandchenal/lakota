@@ -2,7 +2,10 @@ from concurrent.futures import ThreadPoolExecutor
 
 from lakota import Changelog
 from lakota.changelog import Revision, phi
+from lakota.pod import MemPOD
 from lakota.utils import hexdigest
+
+datum = b"ham spam foo bar baz".split()
 
 
 def populate(changelog, datum):
@@ -20,7 +23,6 @@ def test_phi():
 
 def test_simple_commit(pod):
     # Create 5 changeset in series
-    datum = b"ham spam foo bar baz".split()
     changelog = Changelog(pod)
     populate(changelog, datum)
 
@@ -35,7 +37,6 @@ def test_simple_commit(pod):
 
 
 def test_concurrent_commit(pod):
-    datum = b"ham spam foo bar baz".split()
     changelogs = [Changelog(pod) for _ in range(len(datum))]
     contents = []
     for data in datum:
@@ -70,20 +71,6 @@ def test_concurrent_commit(pod):
     assert not expected
 
 
-def test_pack(pod):
-    # Create 5 changeset in series
-    datum = b"ham spam foo bar baz".split()
-    changelog = Changelog(pod)
-    populate(changelog, datum)
-
-    changelog.pack()
-
-    # Read commits
-    revs = list(changelog.walk())
-    for rev, expected in zip(revs, datum):
-        assert rev.payload.startswith(hexdigest(expected))
-
-
 def test_commit_object():
     parent = "a-A"
     child = "b-B"
@@ -94,3 +81,26 @@ def test_commit_object():
     ):
         assert ci.digests == ("A", "B")
         assert ci.path == "a-A.b-B"
+
+
+def test_leafs():
+    # One new branch per commit
+    changelog = Changelog(MemPOD("/"))
+    for data in datum:
+        changelog.commit(data, parent=phi)
+    assert len(changelog.leafs()) == len(datum)
+
+    # 4 commits in two branches
+    changelog = Changelog(MemPOD("/"))
+    for data in [b"ham", b"spam"]:
+        changelog.commit(data)
+
+    rev = changelog.commit(b"foo", parent=phi)
+    changelog.commit(b"bar", parent=rev.child)
+    leafs = changelog.leafs()
+    assert len(leafs) == 2
+    assert leafs[0].read() == b"bar"
+    assert leafs[1].read() == b"spam"
+
+    # The 'Master' revision is the last one of the first created branch
+    assert changelog.leaf().read() == b"spam"
