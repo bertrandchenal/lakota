@@ -265,10 +265,14 @@ class Commit:
         return res
 
     def __contains__(self, row):
-        import pdb
-
-        pdb.set_trace()
-        return False
+        start_pos, _ = self.split(row["label"], row["start"], row["stop"])
+        if start_pos >= len(self):
+            return False
+        match_row = self.at(start_pos)
+        for attr in ("start", "stop", "digest"):
+            if match_row[attr] != row[attr]:
+                return False
+        return True
 
 
 class Segment:
