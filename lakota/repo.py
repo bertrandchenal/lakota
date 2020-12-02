@@ -1,3 +1,4 @@
+from collections import defaultdict
 from contextlib import contextmanager
 from itertools import chain
 
@@ -78,9 +79,57 @@ class Collection:
                     path = folder / filename
                     pool.submit(sync, path)
 
-    def merge(self, **kw):
-        # TODO
-        return
+    def merge(self, *heads):
+        revisions = self.changelog.log()
+        # Corner cases
+        if not revisions:
+            return
+        if not heads:
+            heads = [r for r in revisions if r.is_leaf]
+
+        # Reorganise revision as child->parents dict
+        ch2pr = defaultdict(list)
+        for r in revisions:
+            ch2pr[r.child].append(r)
+
+        old, *heads = heads
+        while heads:
+            new, *heads = heads
+            old = self._merge(old, new, ch2pr)
+            TODO Call changelog.commit(old)
+        return old
+
+    def _merge(self, old, new, ch2pr):
+        root = None
+        old_parents = list(self._find_parents(old, ch2pr))
+        new_parents = list(self._find_parents(new, ch2pr))
+        for root in new_parents:
+            if root in old_parents:
+                break
+
+        # Reify commits
+        old_ci = old.commit(self)
+        new_ci = new.commit(self)
+        root_ci = root.commit(self) if root else []
+
+        for pos in range(len(new_ci)):
+            row = new_ci.at(pos)
+            if row in old or row in root_ci:
+                continue
+            else:
+                old_ci = old_ci.update(**row)
+
+        return old_ci
+
+    @staticmethod
+    def _find_parents(rev, ch2pr):
+        queue = ch2pr[rev.child][:]
+        while queue:
+            rev = queue.pop()
+            # Append children
+            parents = ch2pr[rev.child]
+            queue.extend(parents)
+            yield rev
 
     def squash(self, archive=False):
         """
@@ -298,9 +347,10 @@ class Repo:
     def squash(self):
         return self.registry.squash()
 
+
     def merge(self, **kw):
+        # TODO loop on collection and merge them
         return
-        # TODO : self.registry.merge()
 
     def gc(self):
         """

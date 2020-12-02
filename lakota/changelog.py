@@ -2,6 +2,7 @@ from collections import defaultdict
 from random import random
 from time import sleep
 
+from .commit import Commit
 from .utils import hexdigest, hexhash_len, hextime, tail
 
 zero_hextime = "0" * 11
@@ -23,7 +24,7 @@ class Changelog:
         assert isinstance(payload, bytes)
 
         # Find parent & write revisions
-        if parent is None:
+        if not parent:
             last_revision = self.leaf()
             if last_revision is None:
                 parent = phi
@@ -141,3 +142,10 @@ class Revision:
         _, child_digest = self.digests
         assert key == child_digest, "Corrupted file!"
         return payload
+
+    def commit(self, series):
+        """
+        Instanciate commit based on self payload and series schema
+        """
+        payload = self.read()
+        return Commit.decode(series.schema, payload)

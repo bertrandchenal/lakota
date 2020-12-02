@@ -50,8 +50,7 @@ class Series:
         if not leaf_rev:
             return
 
-        payload = leaf_rev.read()
-        leaf_ci = Commit.decode(self.schema, payload)
+        leaf_ci = leaf_rev.commit(self)
         # TODO pass closed to call hereunder
         return leaf_ci.segments(self.label, self.pod, start, stop)
 
@@ -128,11 +127,12 @@ class Series:
         if not isinstance(stop, tuple):
             stop = (stop,)
 
+        # root force commit on phi
+        leaf_rev = None if root else self.changelog.leaf()
+
         # Combine with last commit
-        leaf_rev = self.changelog.leaf()
         if leaf_rev:
-            payload = leaf_rev.read()
-            leaf_ci = Commit.decode(self.schema, payload)
+            leaf_ci = leaf_rev.commit(self)
             new_ci = leaf_ci.update(self.label, start, stop, all_dig, len(frame))
             # TODO early return if new_ci == leaf_ci
         else:
@@ -146,14 +146,12 @@ class Series:
             return
 
         payload = new_ci.encode()
-        rev = self.changelog.commit(payload, parent=leaf_rev and leaf_rev.child)
-
+        rev = self.changelog.commit(payload, parent=leaf_rev.child if leaf_rev else phi)
         return rev
 
     def digests(self):
         for rev in self.changelog.log():
-            payload = rev.read()
-            ci = Commit.decode(self.schema, payload)
+            ci = rev.commit(self)
             yield from chain.from_iterable(ci.digest.values())
 
     def __getitem__(self, by):
