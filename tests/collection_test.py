@@ -1,6 +1,5 @@
-import pytest
+from numpy import arange
 
-from lakota.changelog import Revision
 from lakota.repo import Repo, Schema
 
 schema = Schema(["timestamp timestamp*", "value float"])
@@ -103,9 +102,16 @@ def test_merge():
     bxl = temperature / "Brussels"
     bxl.write(mk_frm(0))
     bxl.write(mk_frm(10), root=True)
+    leafs = bxl.changelog.leafs()
+    assert len(leafs) == 2
+    assert len(set(l.child for l in leafs)) == 2
 
+    revs = temperature.merge()
+    assert len(revs) == 2
+    leafs = bxl.changelog.leafs()
     assert len(bxl.changelog.leafs()) == 2
+    assert len(set(l.child for l in leafs)) == 1
 
-    rev = temperature.merge()
-    assert rev is not None
-    assert len(bxl.changelog.leafs()) == 1
+    # Check no data is lost
+    fr = bxl.frame()
+    assert all(fr["value"] == arange(20))

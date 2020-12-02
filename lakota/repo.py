@@ -93,11 +93,18 @@ class Collection:
             ch2pr[r.child].append(r)
 
         old, *heads = heads
+        merge_rev = None
+        parents = [old.child]
         while heads:
             new, *heads = heads
-            old = self._merge(old, new, ch2pr)
-            TODO Call changelog.commit(old)
-        return old
+            parents.append(new.child)
+            merge_rev = self._merge(old, new, ch2pr)
+            old = merge_rev  # Setup for next loop
+
+        if not merge_rev:
+            return
+        payload = merge_rev.encode()
+        return self.changelog.commit(payload, parents=parents)
 
     def _merge(self, old, new, ch2pr):
         root = None
@@ -114,7 +121,7 @@ class Collection:
 
         for pos in range(len(new_ci)):
             row = new_ci.at(pos)
-            if row in old or row in root_ci:
+            if row in old_ci or row in root_ci:
                 continue
             else:
                 old_ci = old_ci.update(**row)
@@ -346,7 +353,6 @@ class Repo:
 
     def squash(self):
         return self.registry.squash()
-
 
     def merge(self, **kw):
         # TODO loop on collection and merge them

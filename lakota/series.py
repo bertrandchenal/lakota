@@ -146,7 +146,8 @@ class Series:
             return
 
         payload = new_ci.encode()
-        rev = self.changelog.commit(payload, parent=leaf_rev.child if leaf_rev else phi)
+        parent = leaf_rev.child if leaf_rev else phi
+        (rev,) = self.changelog.commit(payload, parents=[parent])
         return rev
 
     def digests(self):

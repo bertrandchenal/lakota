@@ -20,35 +20,41 @@ class Changelog:
         self.pod = pod
         self._walk_cache = None
 
-    def commit(self, payload, parent=None, _jitter=False):
+    def commit(self, payload, parents=None, _jitter=False):
         assert isinstance(payload, bytes)
 
         # Find parent & write revisions
-        if not parent:
+        if not parents:
             last_revision = self.leaf()
             if last_revision is None:
-                parent = phi
+                parents = [phi]
             else:
-                parent = last_revision.child
+                parent = [last_revision.child]
 
         # Debug helper
         if _jitter:
             sleep(random())
 
-        # Create array and encode it
+        # Compute new key
         key = hexdigest(payload)
-        if parent is not phi:
-            parent_key = parent.split("-", 1)[1]
-            if parent_key == key:
-                # Catch double writes
-                return
 
-        # Construct new filename and save content
-        child = hextime() + "-" + key
-        revision = Revision(self, parent, child)
-        self.pod.write(revision.path, payload)
+        # Create one commit per parent
+        revs = []
+        for parent in parents:
+            if parent is not phi:
+                parent_key = parent.split("-", 1)[1]
+                if parent_key == key:
+                    # Catch double writes
+                    continue
+
+            # Construct new filename and save content
+            child = hextime() + "-" + key
+            revision = Revision(self, parent, child)
+            self.pod.write(revision.path, payload)
+            revs.append(revision)
+
         self.refresh()
-        return revision
+        return revs
 
     def refresh(self):
         self._walk_cache = None

@@ -264,6 +264,12 @@ class Commit:
             res.append(sgm)
         return res
 
+    def __contains__(self, row):
+        import pdb
+
+        pdb.set_trace()
+        return False
+
 
 class Segment:
     def __init__(self, schema, pod, digests, start, stop, closed):
