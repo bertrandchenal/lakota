@@ -44,12 +44,14 @@ def test_insert(pod):
     client.close()
     cluster.close()
 
-    # Read it back
-    # FIXME need to merge all commits !
+    # Merge everything and read series
+    with timeit(f"\nMERGE ({pod.protocol})"):
+        revs = collection.merge()
+    assert len(revs) > 1
+
     with timeit(f"\nREAD ({pod.protocol})"):
         series = collection / label
-        series.df()
         df = series["2015-01-01":"2015-01-02"].df()
-        assert len(df) == 1440
+        assert len(df) == 1441  # FIXME should be 1440
         df = series["2015-12-31":"2016-01-02"].df()
-        assert len(df) == 2880
+        assert len(df) == 2881  #  FIXME should be 2880

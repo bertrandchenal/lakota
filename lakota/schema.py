@@ -56,6 +56,9 @@ class Codec:
             return b""
         # encoding may require contiguous memory
         arr = ascontiguousarray(arr)
+        # convert to proper type
+        arr = arr.astype(self.dt)
+        # Apply codecs
         for codec_name in self.codec_names:
             codec = registry.codec_registry[codec_name]
             arr = codec().encode(arr)
@@ -64,6 +67,7 @@ class Codec:
     def decode(self, arr):
         if len(arr) == 0:
             return asarray([], dtype=self.dt)
+        # Apply all codecs
         for name in reversed(self.codec_names):
             codec = registry.codec_registry[name]
             arr = codec().decode(arr)
@@ -76,7 +80,7 @@ class Codec:
 
     def __repr__(self):
         names = ", ".join(self.codec_names)
-        return f"<Codec {self.dt}: {names}>"
+        return f"<Codec {self.dt}:{names}>"
 
 
 class SchemaColumn:

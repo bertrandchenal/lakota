@@ -80,53 +80,46 @@ class Collection:
                     pool.submit(sync, path)
 
     def merge(self, *heads):
-        revisions = self.changelog.log()
+        revisions = list(self.changelog.log())
         # Corner cases
         if not revisions:
             return
         if not heads:
             heads = [r for r in revisions if r.is_leaf]
 
+        if len(heads) < 2:
+            return
+
         # Reorganise revision as child->parents dict
         ch2pr = defaultdict(list)
         for r in revisions:
             ch2pr[r.child].append(r)
 
-        old, *heads = heads
-        merge_rev = None
-        parents = [old.child]
-        while heads:
-            new, *heads = heads
-            parents.append(new.child)
-            merge_rev = self._merge(old, new, ch2pr)
-            old = merge_rev  # Setup for next loop
-
-        if not merge_rev:
-            return
-        payload = merge_rev.encode()
-        return self.changelog.commit(payload, parents=parents)
-
-    def _merge(self, old, new, ch2pr):
+        # Find common root
         root = None
-        old_parents = list(self._find_parents(old, ch2pr))
-        new_parents = list(self._find_parents(new, ch2pr))
-        for root in new_parents:
-            if root in old_parents:
+        first_parents, *other_parents = [
+            list(self._find_parents(h, ch2pr)) for h in heads
+        ]
+        for root in first_parents:
+            if all(root in op for op in other_parents):
                 break
 
         # Reify commits
-        old_ci = old.commit(self)
-        new_ci = new.commit(self)
+        first_ci, *other_ci = [h.commit(self) for h in heads]
         root_ci = root.commit(self) if root else []
+        # Pile all rows for all other commit into the first one
+        for ci in other_ci:
+            for pos in range(len(ci)):
+                row = ci.at(pos)
+                if row in first_ci or row in root_ci:
+                    continue
+                else:
+                    first_ci = first_ci.update(**row)
 
-        for pos in range(len(new_ci)):
-            row = new_ci.at(pos)
-            if row in old_ci or row in root_ci:
-                continue
-            else:
-                old_ci = old_ci.update(**row)
-
-        return old_ci
+        # encode and commit
+        payload = first_ci.encode()
+        revs = self.changelog.commit(payload, parents=[h.child for h in heads])
+        return revs
 
     @staticmethod
     def _find_parents(rev, ch2pr):
@@ -134,7 +127,7 @@ class Collection:
         while queue:
             rev = queue.pop()
             # Append children
-            parents = ch2pr[rev.child]
+            parents = ch2pr[rev.parent]
             queue.extend(parents)
             yield rev
 
@@ -351,12 +344,8 @@ class Repo:
                         raise ValueError(msg)
                 pool.submit(l_clct.pull, r_clct)
 
-    def squash(self):
-        return self.registry.squash()
-
-    def merge(self, **kw):
-        # TODO loop on collection and merge them
-        return
+    def merge(self):
+        return self.registry.merge()
 
     def gc(self):
         """

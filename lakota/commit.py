@@ -25,9 +25,9 @@ class Commit:
 
     @classmethod
     def one(cls, schema, label, start, stop, digest, length, closed="both"):
-        label = [label]
-        start = dict(zip(schema.idx, ([s] for s in start)))
-        stop = dict(zip(schema.idx, ([s] for s in stop)))
+        label = asarray([label])
+        start = dict(zip(schema.idx, (asarray([s]) for s in start)))
+        stop = dict(zip(schema.idx, (asarray([s]) for s in stop)))
         digest = dict(zip(schema, (asarray([d], dtype="U") for d in digest)))
         length = [length]
         closed = [closed]
@@ -228,7 +228,7 @@ class Commit:
         return Commit(schema, label, start, stop, digest, length, closed)
 
     def __repr__(self):
-        fmt = lambda a: "/".join(a)
+        fmt = lambda a: "/".join(map(str, a))
         starts = list(map(fmt, zip(*self.start.values())))
         stops = list(map(fmt, zip(*self.stop.values())))
         items = " ".join(f"[{a} -> {b}]" for a, b in zip(starts, stops))
@@ -240,19 +240,12 @@ class Commit:
         for pos in matches:
             arr_start = tuple(arr[pos] for arr in self.start.values())
             arr_stop = tuple(arr[pos] for arr in self.stop.values())
+            if start is not None and start > arr_stop:
+                continue
+            if stop is not None and stop < arr_start:
+                continue
             digest = [arr[pos] for arr in self.digest.values()]
             closed = self.closed[pos]
-
-            # length = self.length[pos]
-            # sgm = ShallowSegment(
-            #     self.schema,
-            #     pod,
-            #     digest,
-            #     start=arr_start,
-            #     stop=arr_stop,
-            #     length=length,
-            # ).slice(start or arr_start, stop or arr_stop, closed)
-
             sgm = Segment(
                 self.schema,
                 pod,
@@ -282,7 +275,6 @@ class Segment:
         self.start = start
         self.stop = stop
         self.closed = closed
-        # self.length = length
         self.digest = dict(zip(schema, digests))
         self._frm = None
 
