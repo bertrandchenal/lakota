@@ -47,7 +47,7 @@ def test_double_write(series):
     # Write some values
     commit = series.write(orig_frm)
     revs = list(series.changelog.log())
-    assert commit is None
+    assert not commit
     assert series.frame() == orig_frm
     assert len(revs) == 1
 
@@ -190,7 +190,7 @@ def test_kv_series(repo):
 
     # Double-write should be a noop
     commit = series.write(frm)
-    assert commit is None
+    assert not commit
 
 
 def test_rev_filter(series):

@@ -143,12 +143,10 @@ class Series:
         # Create new digest
         if batch:
             ...  # TODO
-            return
 
         payload = new_ci.encode()
         parent = leaf_rev.child if leaf_rev else phi
-        (rev,) = self.changelog.commit(payload, parents=[parent])
-        return rev
+        return self.changelog.commit(payload, parents=[parent])
 
     def digests(self):
         for rev in self.changelog.log():
@@ -312,4 +310,4 @@ class KVSeries(Series):
                 "meta": keep_meta,
             }
         # Write result to db
-        self.write(new_frm, start=start, stop=stop, root=True)
+        self.write(new_frm, start=start, stop=stop)

@@ -29,7 +29,7 @@ class Changelog:
             if last_revision is None:
                 parents = [phi]
             else:
-                parent = [last_revision.child]
+                parents = [last_revision.child]
 
         # Debug helper
         if _jitter:

@@ -118,7 +118,6 @@ class Commit:
             return inner
 
         start_pos, stop_pos = self.split(label, start, stop)
-
         # Corner case: we hit right in the middle of an existing row
         if start_pos + 1 == stop_pos:
             row = self.at(start_pos)
@@ -234,16 +233,17 @@ class Commit:
         items = " ".join(f"[{a} -> {b}]" for a, b in zip(starts, stops))
         return f"<Commit {items}>"
 
-    def segments(self, label, pod, start, stop):
+    def segments(self, label, pod, start=None, stop=None):
         res = []
         (matches,) = where(self.label == label)
         for pos in matches:
             arr_start = tuple(arr[pos] for arr in self.start.values())
             arr_stop = tuple(arr[pos] for arr in self.stop.values())
-            if start is not None and start > arr_stop:
+            if start and start > arr_stop:
                 continue
-            if stop is not None and stop < arr_start:
+            if stop and stop < arr_start:
                 continue
+
             digest = [arr[pos] for arr in self.digest.values()]
             closed = self.closed[pos]
             sgm = Segment(

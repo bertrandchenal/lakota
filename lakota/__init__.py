@@ -1,7 +1,8 @@
 from .changelog import Changelog
+from .collection import Collection
 from .frame import Frame
 from .pod import POD
-from .repo import Collection, Repo
+from .repo import Repo
 from .schema import Schema
 from .series import Series
 

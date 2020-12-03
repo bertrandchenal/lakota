@@ -87,7 +87,7 @@ def test_leafs():
     # One new branch per commit
     changelog = Changelog(MemPOD("/"))
     for data in datum:
-        changelog.commit(data, parent=phi)
+        changelog.commit(data, parents=[phi])
     assert len(changelog.leafs()) == len(datum)
 
     # 4 commits in two branches
@@ -95,8 +95,8 @@ def test_leafs():
     for data in [b"ham", b"spam"]:
         changelog.commit(data)
 
-    rev = changelog.commit(b"foo", parent=phi)
-    changelog.commit(b"bar", parent=rev.child)
+    revs = changelog.commit(b"foo", parents=[phi])
+    changelog.commit(b"bar", parents=[r.child for r in revs])
     leafs = changelog.leafs()
     assert len(leafs) == 2
     assert leafs[0].read() == b"bar"

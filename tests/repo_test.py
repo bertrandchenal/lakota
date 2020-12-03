@@ -121,8 +121,7 @@ def test_label_regexp():
             repo.create_collection(schema, label + " ")
 
 
-@pytest.mark.parametrize("archive", [True, False])
-def test_gc(archive, pod):
+def test_gc(pod):
     repo = Repo(pod=pod)
     coll = repo.create_collection(schema, "a_collection")
     for offset, label in enumerate(("label_a", "label_b")):
@@ -137,19 +136,13 @@ def test_gc(archive, pod):
 
     # Merge label_a
     coll = repo / "a_collection"
-    coll.merge(archive=archive)
+    coll.merge()
 
     # Launch garbage collection
+    # TODO implement and test squash
     count = repo.gc()
-    if archive:
-        assert count == 0
-    else:
-        assert count > 0
+    assert count == 0
 
     # Read back data
     coll = repo / "a_collection"
     assert list(coll.ls()) == ["label_a", "label_b"]
-
-    if archive:
-        arch_coll = repo.collection("a_collection", mode="archive")
-        assert list(arch_coll.ls()) == ["label_a", "label_b"]
