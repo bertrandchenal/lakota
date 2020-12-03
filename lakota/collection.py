@@ -168,27 +168,35 @@ class Collection:
 
 
 class Batch:
-    def __init__(self, collection, force_parent=None):
+    def __init__(self, collection, root=False):
         self.collection = collection
-        self._commits = []
-        self.commit = None
-        self.force_parent = force_parent
+        self._ci_info = []
+        self.revs = None
+        self.root = root
 
-    def append(self, rev_info, key):
-        self._commits.append((rev_info, key))
+    def append(self, ci_info):
+        self._ci_info.append(ci_info)
 
     def flush(self):
-        if len(self._commits) == 0:
+        if len(self._ci_info) == 0:
             return
-        # Build key
-        all_revs, keys = list(zip(*self._commits))
-        if len(keys) == 1:
-            (key,) = keys
-        else:
-            key = hexdigest(*(k.encode() for k in keys))
-        # Create combined commit
-        changelog = self.collection.changelog
 
-        self.commit = changelog.commit(
-            all_revs, key=key, force_parent=self.force_parent
-        )
+        changelog = self.collection.changelog
+        leaf_rev = None if self.root else changelog.leaf()
+        all_ci_info = iter(self._ci_info)
+
+        # Combine with last commit
+        if leaf_rev:
+            last_ci = leaf_rev.commit(self)
+        else:
+            label, start, stop, all_dig, length = next(all_ci_info)
+            last_ci = Commit.one(
+                self.collection.schema, label, start, stop, all_dig, length
+            )
+        for label, start, stop, all_dig, length in all_ci_info:
+            last_ci = last_ci.update(label, start, stop, all_dig, length)
+
+        # Save it
+        payload = last_ci.encode()
+        parent = leaf_rev.child if leaf_rev else phi
+        self.revs = self.changelog.commit(payload, parents=[parent])

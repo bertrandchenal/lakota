@@ -127,22 +127,24 @@ class Series:
         if not isinstance(stop, tuple):
             stop = (stop,)
 
+        # Create new digest
+        if batch:
+            ci_info = (self.label, start, stop, all_dig, len(frame))
+            batch.append(ci_info)
+            return
+        self.commit(start, stop, all_dig, len(frame), root=root)
+
+    def commit(self, start, stop, all_dig, length, root=False):
         # root force commit on phi
         leaf_rev = None if root else self.changelog.leaf()
 
         # Combine with last commit
         if leaf_rev:
             leaf_ci = leaf_rev.commit(self)
-            new_ci = leaf_ci.update(self.label, start, stop, all_dig, len(frame))
+            new_ci = leaf_ci.update(self.label, start, stop, all_dig, length)
             # TODO early return if new_ci == leaf_ci
         else:
-            new_ci = Commit.one(
-                self.schema, self.label, start, stop, all_dig, len(frame)
-            )
-
-        # Create new digest
-        if batch:
-            ...  # TODO
+            new_ci = Commit.one(self.schema, self.label, start, stop, all_dig, length)
 
         payload = new_ci.encode()
         parent = leaf_rev.child if leaf_rev else phi
