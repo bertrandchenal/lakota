@@ -1,9 +1,10 @@
 from collections import defaultdict
 from contextlib import contextmanager
+from itertools import chain
 
 from .changelog import Changelog, phi
 from .series import Commit, KVSeries, Series
-from .utils import Pool, hashed_path, hexdigest, logger
+from .utils import Pool, hashed_path, logger
 
 
 class Collection:
@@ -59,8 +60,7 @@ class Collection:
 
         # TODO use local storage as cache for remote (when reading revisions)
         local_digs = set()
-        for revision in self.revisions():
-            local_digs.update(revision.get("digests", []))
+        local_digs.update(self.digests())
         self.changelog.pull(remote.changelog)
         self.refresh()
         # XXX optionaly isolate local path not detected in the loop
@@ -68,13 +68,12 @@ class Collection:
         # the deletions) (but what about local history?)
         sync = lambda path: self.pod.write(path, remote.pod.read(path))
         with Pool() as pool:
-            for revision in self.revisions():
-                for dig in revision.get("digests", []):
-                    if dig in local_digs:
-                        continue
-                    folder, filename = hashed_path(dig)
-                    path = folder / filename
-                    pool.submit(sync, path)
+            for dig in self.digests():
+                if dig in local_digs:
+                    continue
+                folder, filename = hashed_path(dig)
+                path = folder / filename
+                pool.submit(sync, path)
 
     def merge(self, *heads):
         revisions = list(self.changelog.log())
@@ -159,6 +158,11 @@ class Collection:
 
         self.changelog.pod.clear(batch.commit.path)
         return batch.commit
+
+    def digests(self):
+        for rev in self.changelog.log():
+            ci = rev.commit(self)
+            yield from chain.from_iterable(ci.digest.values())
 
     @contextmanager
     def batch(self, force_parent=None):

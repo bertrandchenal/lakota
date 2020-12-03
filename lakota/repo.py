@@ -165,14 +165,9 @@ class Repo:
 
         active_digests = set()
         for mode in (None, "archive"):
-            coll_series = (
-                self.collection_series if mode is None else self.registry.series(mode)
-            )
-            active_digests.update(coll_series.digests())
+            active_digests.update(self.registry.digests())
             for clct in self.search(mode=mode):
-                all_series = [clct.series(s) for s in clct]
-                per_series = (s.digests() for s in all_series)
-                active_digests.update(chain.from_iterable(per_series))
+                active_digests.update(clct.digests())
 
         base_folders = self.pod.ls()
         with Pool(8) as pool:

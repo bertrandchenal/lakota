@@ -1,4 +1,3 @@
-from itertools import chain
 from time import time
 
 from numpy import arange, issubdtype
@@ -149,11 +148,6 @@ class Series:
         payload = new_ci.encode()
         parent = leaf_rev.child if leaf_rev else phi
         return self.changelog.commit(payload, parents=[parent])
-
-    def digests(self):
-        for rev in self.changelog.log():
-            ci = rev.commit(self)
-            yield from chain.from_iterable(ci.digest.values())
 
     def __getitem__(self, by):
         return Query(self)[by]
