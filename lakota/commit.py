@@ -1,5 +1,5 @@
 from numcodecs import registry
-from numpy import asarray, concatenate, where
+from numpy import asarray, concatenate, isin, where
 
 from .frame import Frame
 from .schema import Codec, Schema
@@ -256,6 +256,18 @@ class Commit:
             )
             res.append(sgm)
         return res
+
+    def delete_labels(self, rm_labels):
+        keep = ~isin(self.label, rm_labels)
+        return Commit(
+            schema=self.schema,
+            label=self.label[keep],
+            start={k: v[keep] for k, v in self.start.items()},
+            stop={k: v[keep] for k, v in self.stop.items()},
+            digest={k: v[keep] for k, v in self.digest.items()},
+            length=self.length[keep],
+            closed=self.closed[keep],
+        )
 
     def __contains__(self, row):
         start_pos, _ = self.split(row["label"], row["start"], row["stop"])

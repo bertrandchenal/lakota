@@ -104,8 +104,8 @@ class Changelog:
         new_paths = []
         local_digests = set(Revision.from_path(self, p).digests for p in self)
         for remote_path in remote:
-            remote_ci = Revision.from_path(remote, remote_path)
-            if remote_ci.digests in local_digests:
+            remote_rev = Revision.from_path(remote, remote_path)
+            if remote_rev.digests in local_digests:
                 continue
             new_paths.append(remote_path)
             payload = remote.pod.read(remote_path)

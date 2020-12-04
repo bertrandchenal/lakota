@@ -40,11 +40,15 @@ class Collection:
         return self.changelog.pack()
 
     def delete(self, *labels):
-        if not labels:
+        leaf_rev = self.changelog.leaf()
+        if not leaf_rev:
             return
-        with self.batch(phi) as batch:
-            for label in labels:
-                self.series(label).delete(batch=batch)
+
+        ci = leaf_rev.commit(self)
+        ci = ci.delete_labels(labels)
+        parent = leaf_rev.child
+        payload = ci.encode()
+        return self.changelog.commit(payload, parents=[parent])
 
     def refresh(self):
         self.changelog.refresh()
@@ -141,23 +145,24 @@ class Collection:
                 for frm in series.paginate(step):
                     series.write(frm, batch=batch)
 
-        if not batch.commit:
+        if not batch.revs:
             return
 
-        if archive:
-            # TODO prefix/suffix schema with an _wtime column to keep
-            # trace of revisions (to be able to write larger segments
-            # and squash changelog)
-            archive_pod = self.repo.archive(self).changelog.pod
-            # TODO use pack instead (and give archive pod as arg)
-            for path in self.changelog:
-                if path == batch.commit.path:
-                    continue
-                data = self.changelog.pod.read(path)
-                archive_pod.write(path, data)
+        # if archive:
+        #     # TODO prefix/suffix schema with an _wtime column to keep
+        #     # trace of revisions (to be able to write larger segments
+        #     # and squash changelog)
+        #     archive_pod = self.repo.archive(self).changelog.pod
+        #     # TODO use pack instead (and give archive pod as arg)
+        #     for path in self.changelog:
+        #         if path == batch.commit.path:
+        #             continue
+        #         data = self.changelog.pod.read(path)
+        #         archive_pod.write(path, data)
 
-        self.changelog.pod.clear(batch.commit.path)
-        return batch.commit
+        skip = (r.path for r in batch.revs)
+        self.changelog.pod.clear(*skip)
+        return batch.revs
 
     def digests(self):
         for rev in self.changelog.log():
@@ -203,4 +208,4 @@ class Batch:
         # Save it
         payload = last_ci.encode()
         parent = leaf_rev.child if leaf_rev else phi
-        self.revs = self.changelog.commit(payload, parents=[parent])
+        self.revs = self.collection.changelog.commit(payload, parents=[parent])
