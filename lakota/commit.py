@@ -146,7 +146,7 @@ class Commit:
         head = None
         if start_pos < len(self):
             start_row = self.at(start_pos)
-            if start <= start_row["stop"] <= stop:
+            if start_row["start"] < start <= start_row["stop"]:
                 # We hit the right of an existing row
                 # FIXME check start_row['label'] !
                 start_row["stop"] = start
@@ -170,7 +170,7 @@ class Commit:
         tail = None
         if stop_pos < len(self):
             stop_row = self.at(stop_pos)
-            if start <= stop_row["start"] <= stop:
+            if stop_row["start"] <= stop < stop_row["stop"]:
                 # We hit the left of an existing row
                 stop_row["start"] = stop
                 # XXX adapt behavoour if current update is not closed==both
