@@ -257,20 +257,21 @@ class Frame:
             schema = Schema.from_frame(non_agg, idx_columns=list(non_agg))
             return Frame(schema, non_agg)
 
-        # Compute binning
-        records = rec.fromarrays(non_agg.values(), names=list(non_agg))
-        keys, bins = unique(records, return_inverse=True)
-
-        # Build resulting columns
         res = {}
-        for alias in non_agg:
-            res[alias] = keys[alias]
+        if non_agg:
+            # Compute binning
+            records = rec.fromarrays(non_agg.values(), names=list(non_agg))
+            keys, bins = unique(records, return_inverse=True)
+            # Build resulting columns
+            for alias in non_agg:
+                res[alias] = keys[alias]
+            env.update({"_keys": keys, "_bins": bins})
 
         # Compute aggregates
-        env.update({"_keys": keys, "_bins": bins})
         for alias, expr in agg_ast.items():
             arr = expr.eval(env)
-            res[alias] = arr
+            # Without bins, eval will return a scalar value
+            res[alias] = arr if non_agg else asarray([arr])
         schema = Schema.from_frame(res, idx_columns=list(non_agg))
         return Frame(schema, res)
 
