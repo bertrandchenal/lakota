@@ -4,7 +4,7 @@ from time import sleep
 import pytest
 
 from lakota import Frame, Repo, Schema
-from lakota.changelog import Commit
+from lakota.changelog import Revision
 from lakota.utils import drange
 
 schema = Schema(
@@ -104,9 +104,12 @@ def test_label_delete_push(squash):
     local_clct.delete("c")
     local_clct.push(remote_clct)
     if squash:
+        remote_clct.merge()
         remote_clct.squash()
+
     else:
         remote_clct.refresh()
+
     assert list(remote_clct) == list("abd")
     assert list(local_clct) == list("abd")
 
@@ -144,6 +147,14 @@ def test_series_squash_stability():
     local_files = local_coll.pod.walk()
     remote_files = remote_coll.pod.walk()
 
-    local_digests = set(Commit.from_path(f).digests for f in local_files if "." in f)
-    remote_digests = set(Commit.from_path(f).digests for f in remote_files if "." in f)
+    local_digests = set(
+        Revision.from_path(local_coll.changelog, f).digests
+        for f in local_files
+        if "." in f
+    )
+    remote_digests = set(
+        Revision.from_path(remote_coll.changelog, f).digests
+        for f in remote_files
+        if "." in f
+    )
     assert local_digests == remote_digests

@@ -1,8 +1,11 @@
 from concurrent.futures import ThreadPoolExecutor
 
 from lakota import Changelog
-from lakota.changelog import Commit, phi
+from lakota.changelog import Revision, phi
+from lakota.pod import MemPOD
 from lakota.utils import hexdigest
+
+datum = b"ham spam foo bar baz".split()
 
 
 def populate(changelog, datum):
@@ -11,7 +14,7 @@ def populate(changelog, datum):
         timestamp = 1234
         author = "Doe"
         info = f"{key} {timestamp} {author}"
-        changelog.commit(info)
+        changelog.commit(info.encode())
 
 
 def test_phi():
@@ -20,7 +23,6 @@ def test_phi():
 
 def test_simple_commit(pod):
     # Create 5 changeset in series
-    datum = b"ham spam foo bar baz".split()
     changelog = Changelog(pod)
     populate(changelog, datum)
 
@@ -28,13 +30,13 @@ def test_simple_commit(pod):
     assert len(res) == len(datum)
 
     # Read commits
-    revs = list(changelog.walk())
+    revs = list(changelog.log())
     for rev, expected in zip(revs, datum):
-        assert rev.payload.startswith(hexdigest(expected))
+        payload = rev.read().decode()
+        assert payload.startswith(hexdigest(expected))
 
 
 def test_concurrent_commit(pod):
-    datum = b"ham spam foo bar baz".split()
     changelogs = [Changelog(pod) for _ in range(len(datum))]
     contents = []
     for data in datum:
@@ -48,10 +50,9 @@ def test_concurrent_commit(pod):
     with ThreadPoolExecutor() as executor:
         futs = []
         for changelog, info in zip(changelogs, contents):
-            f = executor.submit(changelog.commit, info.decode(), _jitter=True)
+            f = executor.submit(changelog.commit, info, _jitter=True)
             futs.append(f)
         executor.shutdown()
-
     for f in futs:
         assert not f.exception()
 
@@ -63,28 +64,43 @@ def test_concurrent_commit(pod):
     expected = set(map(hexdigest, datum))
     chlg = changelogs[0]
     chlg.refresh()
-    for rev in chlg.walk():
-        key, _ = rev.payload.split(" ", 1)
+    for rev in chlg.log():
+        payload = rev.read().decode()
+        key, _ = payload.split(" ", 1)
         expected.remove(key)
     assert not expected
 
 
-def test_pack(pod):
-    # Create 5 changeset in series
-    datum = b"ham spam foo bar baz".split()
-    changelog = Changelog(pod)
-    populate(changelog, datum)
-
-    changelog.pack()
-
-    # Read commits
-    revs = list(changelog.walk())
-    for rev, expected in zip(revs, datum):
-        assert rev.payload.startswith(hexdigest(expected))
-
 def test_commit_object():
-    parent = 'a-A'
-    child = 'b-B'
-    for ci in (Commit(parent, child), Commit.from_path('a-A.b-B')):
-        assert ci.digests == ('A', 'B')
-        assert ci.path == 'a-A.b-B'
+    parent = "a-A"
+    child = "b-B"
+    changelog = None
+    for ci in (
+        Revision(changelog, parent, child),
+        Revision.from_path(changelog, "a-A.b-B"),
+    ):
+        assert ci.digests == ("A", "B")
+        assert ci.path == "a-A.b-B"
+
+
+def test_leafs():
+    # One new branch per commit
+    changelog = Changelog(MemPOD("/"))
+    for data in datum:
+        changelog.commit(data, parents=[phi])
+    assert len(changelog.leafs()) == len(datum)
+
+    # 4 commits in two branches
+    changelog = Changelog(MemPOD("/"))
+    for data in [b"ham", b"spam"]:
+        changelog.commit(data)
+
+    revs = changelog.commit(b"foo", parents=[phi])
+    changelog.commit(b"bar", parents=[r.child for r in revs])
+    leafs = changelog.leafs()
+    assert len(leafs) == 2
+    assert leafs[0].read() == b"bar"
+    assert leafs[1].read() == b"spam"
+
+    # The 'Master' revision is the last one of the first created branch
+    assert changelog.leaf().read() == b"spam"

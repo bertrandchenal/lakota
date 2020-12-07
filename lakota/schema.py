@@ -4,7 +4,13 @@ from dataclasses import dataclass
 from numcodecs import registry
 from numpy import asarray, ascontiguousarray, dtype, frombuffer, issubdtype
 
-DTYPES = [dtype(s) for s in ("M8[s]", "int64", "float64", "U", "O")]
+DTYPES = [
+    "M8[s]",
+    "i8",
+    "f8",
+    "U",
+    "O",
+]  # dtype(s) for s in ("M8[s]", "int64", "float64", "U", "O")
 ALIASES = {
     "timestamp": "M8[s]",
     "float": "f8",
@@ -22,9 +28,8 @@ ALIASES = {
 # saved along side the current digest in the revision payload
 
 
-class ColumnDefinition:
-    def __init__(self, name, dt, codecs, idx):
-        self.name = name
+class Codec:
+    def __init__(self, dt, *codec_names):
         # Make sure dtype is valid
         dt = dtype(ALIASES.get(dt, dt))
         for base_type in DTYPES:
@@ -35,25 +40,26 @@ class ColumnDefinition:
             raise ValueError(f"Column type '{dt}' not supported")
         self.dt = dt
         # Build list of codecs
-        if codecs:
-            self.codecs = codecs
+        if codec_names:
+            self.codec_names = codec_names
         else:
-            # Adapt dtypes and codecs
-            default_codecs = ["blosc"]
+            # Adapt dtypes and codec_names
+            default_codec_names = ["blosc"]
             if dt == dtype("<U"):
-                default_codecs = ["vlen-utf8", "zstd"]
+                default_codec_names = ["vlen-utf8", "zstd"]  # TODO use msgpck too
             elif dt == dtype("O"):
-                default_codecs = ["msgpack2", "zstd"]
-            self.codecs = default_codecs
-        # Is column part of the index:
-        self.idx = idx
+                default_codec_names = ["msgpack2", "zstd"]
+            self.codec_names = default_codec_names
 
     def encode(self, arr):
         if len(arr) == 0:
             return b""
         # encoding may require contiguous memory
         arr = ascontiguousarray(arr)
-        for codec_name in self.codecs:
+        # convert to proper type
+        arr = arr.astype(self.dt)
+        # Apply codecs
+        for codec_name in self.codec_names:
             codec = registry.codec_registry[codec_name]
             arr = codec().encode(arr)
         return arr
@@ -61,44 +67,57 @@ class ColumnDefinition:
     def decode(self, arr):
         if len(arr) == 0:
             return asarray([], dtype=self.dt)
-        for codec_name in reversed(self.codecs):
-            codec = registry.codec_registry[codec_name]
+        # Apply all codecs
+        for name in reversed(self.codec_names):
+            codec = registry.codec_registry[name]
             arr = codec().decode(arr)
-        if self.dt in ("<U", "O"):
+        if self.dt in ("O", "U"):
             return arr.astype(self.dt)
         return frombuffer(arr, dtype=self.dt)
 
-    def cast(self, arr):
-        return asarray(arr, dtype=self.dt)
-
     def __eq__(self, other):
-        return self.name == other.name and self.dt == other.dt
+        return self.codec_names == other.codec_names and self.dt == other.dt
 
     def __repr__(self):
-        return f"<ColumnDefinition {self.name}:{self.dt}>"
+        names = ", ".join(self.codec_names)
+        return f"<Codec {self.dt}:{names}>"
+
+
+class SchemaColumn:
+    def __init__(self, name, dt, codecs, idx):
+        self.name = name
+        self.codec = Codec(dt, *codecs)
+        self.idx = idx
 
     @classmethod
     def from_ui(cls, line):
         parser = shlex.shlex(line, posix=True, punctuation_chars="|*")
         parser.wordchars += "[]"
         name, dt, *tokens = parser
-        kw = {"idx": False, "codecs": []}
+        idx = False
+        codec_names = []
         state = None
         for tk in tokens:
             if tk == "|":
                 state = "codec"
             elif tk == "*":
-                kw["idx"] = True
+                idx = True
             elif state == "codec":
-                kw["codecs"].append(tk)
+                codec_names.append(tk)
             else:
                 raise ValueError(f"Unexpected item: {tk}")
-        return ColumnDefinition(name, dt, **kw)
+        return SchemaColumn(name, dt, codecs=codec_names, idx=idx)
+
+    def cast(self, arr):
+        return asarray(arr, dtype=self.codec.dt)
+
+    def cast_scalar(self, value):
+        return dtype(self.codec.dt).type(value)
 
     def dump(self):
         return {
-            "dt": str(self.dt),
-            "codecs": self.codecs,
+            "dt": str(self.codec.dt),
+            "codecs": self.codec.codec_names,
             "idx": self.idx,
         }
 
@@ -121,10 +140,11 @@ class Schema:
                 line = line.strip()
                 if not line:
                     continue
-                col = ColumnDefinition.from_ui(line)
+                col = SchemaColumn.from_ui(line)
                 self.columns[col.name] = col
 
         self.idx = {n: c for n, c in self.columns.items() if c.idx}
+        self.non_idx = {n: c for n, c in self.columns.items() if not c.idx}
         if len(self.idx) == 0:
             raise ValueError(
                 "Invalid schema, no index defined: " + str(from_ui or from_columns)
@@ -139,9 +159,7 @@ class Schema:
         col_defs = []
         for name in frame:
             arr = frame[name]
-            col_defs.append(
-                ColumnDefinition(name, arr.dtype, None, name in idx_columns)
-            )
+            col_defs.append(SchemaColumn(name, arr.dtype, [], name in idx_columns))
         return Schema(from_columns=col_defs)
 
     def serialize(self, values):
@@ -157,14 +175,14 @@ class Schema:
             return tuple()
         if not isinstance(values, (list, tuple)):
             values = (values,)
-        res = tuple(col.dt.type(val) for col, val in zip(self.columns.values(), values))
+        res = tuple(
+            col.cast_scalar(val) for col, val in zip(self.columns.values(), values)
+        )
         return res
 
     @classmethod
     def loads(self, data):
-        columns = [
-            ColumnDefinition(name, **opts) for name, opts in data["columns"].items()
-        ]
+        columns = [SchemaColumn(name, **opts) for name, opts in data["columns"].items()]
         return Schema(from_columns=columns, kind=data["kind"])
 
     def dump(self):
@@ -175,7 +193,7 @@ class Schema:
         return iter(self.columns.keys())
 
     def __repr__(self):
-        cols = [f"{c.name} {c.dt}" for c in self.columns.values()]
+        cols = [f"{c.name} {c.codec.dt}" for c in self.columns.values()]
         return "<Schema {}>".format(" ".join(cols))
 
     def __eq__(self, other):

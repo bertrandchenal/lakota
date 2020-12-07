@@ -3,7 +3,7 @@ import shlex
 from functools import reduce
 
 import numpy
-from numpy import bincount, inf, max, maximum, minimum, repeat
+from numpy import bincount, inf, max, maximum, mean, min, minimum, quantile, repeat, sum
 
 UNSET = object()
 
@@ -103,19 +103,29 @@ class Agg:
         self.op = op
         self.env = env
 
-    def __call__(self, arr=None):  # XXX Use *arr and do re-reduce ?
+    def __call__(self, arr=None, *operands):
         bins = self.env.get("_bins", None)
         keys = self.env.get("_keys", None)
         if bins is not None:
-            return self.binned(arr, bins, keys)
-        return self.plain(arr)
+            return self.binned(arr, bins, keys, operands=operands)
+        return self.plain(arr, operands=operands)
 
-    def plain(self, arr):
+    def plain(self, arr, operands=None):
         """
         Plain aggregates
         """
         if self.op == "max":
             return max(arr)
+        elif self.op == "min":
+            return min(arr)
+        elif self.op == "mean":
+            return mean(arr)
+        elif self.op == "sum":
+            return sum(arr)
+        elif self.op == "quantile":
+            qt = operands[0] if len(operands) > 0 else 0.5
+            interpolation = operands[1] if len(operands) > 1 else "linear"
+            return quantile(arr, qt, interpolation=interpolation)
         raise ValueError(f'Aggregation "{self.op}" is not supported')
 
     def binned(self, arr, bins, keys):
@@ -204,6 +214,7 @@ class AST:
         "last",
         "mean",
         "average",
+        "quantile",
         "count",
         "len",
     }

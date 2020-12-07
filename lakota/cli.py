@@ -35,20 +35,17 @@ def read(args):
     reduce = False
     if not args.columns:
         columns = list(series.schema.columns)
-    elif any('(' in c for c in args.columns):
+    elif any("(" in c for c in args.columns):
         columns = list(series.schema.columns)
         reduce = True
     else:
         columns = args.columns
-    after = strpt(args.after)
     before = strpt(args.before)
-    after = after and after.timestamp()
     before = before and before.timestamp()
 
     query = series[columns][args.greater_than : args.less_than] @ {
         "limit": args.limit,
         "offset": args.offset,
-        "after": after,
         "before": before,
     }
     if args.paginate:
@@ -92,36 +89,19 @@ def length(args):
         clc = repo / args.label
         if clc is None:
             exit(f'Collection "{args.label}" not found')
-        series = [clc/name for name in clc]
+        series = [clc / name for name in clc]
     print(sum(len(s) for s in series))
 
 
 def revisions(args):
     repo = get_repo(args)
-    collection = series = None
-    cols = ["start", "stop", "len", "epoch"]
-    if args.label:
-        if "/" in args.label:
-            series = get_series(args)
-        else:
-            collection = repo / args.label
-            cols = ["label"] + cols
-    else:
-        series = repo.collection_series
+    collection = None
+    collection = repo / args.label
+    if collection is None:
+        exit(f"Collection '{args.label}' not found")
 
-    what = collection or series
-
-    rows = []
-    for r in what.revisions():
-        r["epoch"] = datetime.fromtimestamp(r["epoch"]).isoformat()
-        rows.append(tuple(r[c] for c in cols))
-
-    if args.pretty:
-        print(tabulate(rows, headers=cols))
-    else:
-        writer = csv.writer(sys.stdout)
-        writer.writerow(cols)
-        writer.writerows(rows)
+    for r in collection.changelog.log():
+        print(r.epoch, "*" if r.is_leaf else "")
 
 
 def ls(args):
@@ -257,7 +237,6 @@ def run():
     parser_read.add_argument("--offset", "-o", type=int, default=None)
     parser_read.add_argument("--paginate", "-p", type=int, default=None)
     parser_read.add_argument("--before", "-B", default=None)
-    parser_read.add_argument("--after", "-A", default=None)
     parser_read.add_argument("--mask", "-m", type=str, default=None)
     parser_read.add_argument(
         "--greater-than",

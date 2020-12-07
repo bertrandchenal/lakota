@@ -32,7 +32,6 @@ class Frame:
         if not segments:
             return Frame(schema)
         select = select or schema.columns
-
         with Pool() as pool:
             for name in schema.columns:
                 if name not in select:
@@ -46,21 +45,24 @@ class Frame:
 
     @classmethod
     def read_segments(cls, segments, name, limit=None, offset=None):
-        total_len = sum(len(s) for s in segments)
         arrays = []
         start = offset or 0
-        stop = total_len + 1 if limit is None else start + limit
+        stop = None if limit is None else start + limit
+
         for sgm in segments:
             if stop == 0:
                 break
             if start >= len(sgm):
                 start = max(start - len(sgm), 0)
-                stop = max(stop - len(sgm), 0)
+                if stop is not None:
+                    stop = max(stop - len(sgm), 0)
                 continue
             arr = sgm.read(name, start=start, stop=stop)
             start = max(start - len(sgm), 0)
-            stop = max(stop - len(sgm), 0)
+            if stop is not None:
+                stop = max(stop - len(sgm), 0)
             arrays.append(arr)
+
         return name, concatenate(arrays) if arrays else []
 
     def df(self, *columns):
@@ -136,8 +138,8 @@ class Frame:
         return len(self) == 0
 
     def rowdict(self, *idx):
-        pos = self.index(*self.schema.deserialize(idx))
-        values = self.schema.row(pos)
+        pos = self.index(self.schema.deserialize(idx), right=False)
+        values = self.schema.row(self, pos)
         return dict(zip(self.schema.columns, values))
 
     def rows(self):
@@ -157,7 +159,7 @@ class Frame:
         if stop:
             right = closed in ("both", "right")
             idx_stop = self.index(stop, right=right)
-        return self.slice(idx_start, idx_stop)
+        return idx_start, idx_stop
 
     def index(self, values, right=False):
         if not values:
@@ -187,6 +189,9 @@ class Frame:
 
     def __eq__(self, other):
         return all(array_equal(self[c], other[c]) for c in self.schema.columns)
+
+    def __contains__(self, column):
+        return column in self.columns
 
     def __len__(self):
         if not self.columns:
@@ -252,20 +257,21 @@ class Frame:
             schema = Schema.from_frame(non_agg, idx_columns=list(non_agg))
             return Frame(schema, non_agg)
 
-        # Compute binning
-        records = rec.fromarrays(non_agg.values(), names=list(non_agg))
-        keys, bins = unique(records, return_inverse=True)
-
-        # Build resulting columns
         res = {}
-        for alias in non_agg:
-            res[alias] = keys[alias]
+        if non_agg:
+            # Compute binning
+            records = rec.fromarrays(non_agg.values(), names=list(non_agg))
+            keys, bins = unique(records, return_inverse=True)
+            # Build resulting columns
+            for alias in non_agg:
+                res[alias] = keys[alias]
+            env.update({"_keys": keys, "_bins": bins})
 
         # Compute aggregates
-        env.update({"_keys": keys, "_bins": bins})
         for alias, expr in agg_ast.items():
             arr = expr.eval(env)
-            res[alias] = arr
+            # Without bins, eval will return a scalar value
+            res[alias] = arr if non_agg else asarray([arr])
         schema = Schema.from_frame(res, idx_columns=list(non_agg))
         return Frame(schema, res)
 
@@ -274,10 +280,15 @@ class Frame:
         if isinstance(by, slice):
             start = by.start and self.schema.deserialize(by.start)
             stop = by.stop and self.schema.deserialize(by.stop)
-            return self.index_slice(start, stop)
+            return self.slice(*self.index_slice(start, stop))
         # By mask -> return a frame
         if isinstance(by, ndarray):
             return self.mask(by)
+        # By list -> return a frame with the corresponding columns
+        if isinstance(by, list):
+            cols = [self[c] for c in by]
+            sch = Schema.from_frame(cols)
+            return Frame(sch, cols)
         # By column name -> return an array
         if by in self.columns:
             return self.columns[by]
@@ -342,7 +353,7 @@ class ShallowSegment:
                 {name: self.read(name) for name in self.schema},
             )
             # Compute slice and apply it
-            frm = frm.index_slice(start, stop, closed=closed)
+            frm = frm.slice(*frm.index_slice(start, stop, closed=closed))
             return Segment(start, stop, frm)
 
     def __len__(self):
@@ -355,7 +366,7 @@ class ShallowSegment:
 
     def read(self, name, start=None, stop=None):
         data = self._read(name)
-        arr = self.schema[name].decode(data)
+        arr = self.schema[name].codec.decode(data)
         if start is stop is None:
             return arr
         return arr[start:stop]

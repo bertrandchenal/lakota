@@ -1,8 +1,25 @@
 from numpy import asarray
-from pandas import DataFrame
+from pandas import DataFrame, date_range
 
-from lakota import Schema
+from lakota.schema import Codec, Schema
 from lakota.utils import strpt
+
+
+def test_simple_codec():
+    dt = "M8[s]"
+    ts = date_range(f"2020-01-01", f"2021-01-01", freq="1min", closed="left")
+    arr = asarray(ts, dtype=dt)
+    codec = Codec(dt, "blosc")
+    data = codec.encode(arr)
+    arr2 = codec.decode(data)
+    assert all(arr == arr2)
+
+    dt = "f8"
+    arr = asarray(range(-100, 100), dtype=dt)
+    codec = Codec(dt, "blosc")
+    data = codec.encode(arr)
+    arr2 = codec.decode(data)
+    assert all(arr == arr2)
 
 
 def test_vlen_codecs():
@@ -10,8 +27,8 @@ def test_vlen_codecs():
         schema = Schema(f"val str*  |{codecs}")
 
         arr = asarray(["ham", "spam"])
-        buff = schema["val"].encode(arr)
-        arr2 = schema["val"].decode(buff)
+        buff = schema["val"].codec.encode(arr)
+        arr2 = schema["val"].codec.decode(buff)
 
         assert all(arr == arr2)
         assert arr.dtype == arr2.dtype
@@ -29,10 +46,10 @@ def test_schema_from_frame():
         if use_df:
             frm = DataFrame(frm)
         schema = Schema.from_frame(frm, ["timestamp"])
-        assert schema["str"].dt == "O"
-        assert schema["timestamp"].dt == "M8[s]"
-        assert schema["int"].dt == "int"
-        assert schema["float"].dt == "float"
+        assert schema["str"].codec.dt == "O"
+        assert schema["timestamp"].codec.dt == "M8[s]"
+        assert schema["int"].codec.dt == "i8"
+        assert schema["float"].codec.dt == "f8"
 
 
 def test_serialize():

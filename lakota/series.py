@@ -3,8 +3,9 @@ from time import time
 from numpy import arange, issubdtype
 
 from .changelog import phi
+from .commit import Commit
 from .frame import Frame
-from .utils import Pool, encoder, hashed_path, hexdigest, Interval
+from .utils import Interval, Pool, encoder, hashed_path, hexdigest
 
 
 def intersect(revision, start, stop):
@@ -31,10 +32,6 @@ class Series:
         self.changelog = collection.changelog
         self.label = label
 
-    def revisions(self):
-        fltr = lambda rev: rev["label"] == self.label
-        return list(self.changelog.walk(fltr))
-
     def refresh(self):
         self.changelog.refresh()
 
@@ -42,48 +39,24 @@ class Series:
         self,
         start=None,
         stop=None,
-        after=None,
         before=None,
         closed="left",
     ):
         """
-        Find all matching segments
+        Find matching segments
         """
-        # Extract start and stop
-        start = self.schema.deserialize(start)
-        stop = self.schema.deserialize(stop)
+        leaf_rev = self.changelog.leaf(before=before)
+        if not leaf_rev:
+            return
 
-        # Collect all revisions
-        all_revision = []
-        for rev in self.revisions():
-            if rev.get("tombstone"):
-                # A tombstone hide all previous revisions
-                all_revision = []
-                continue
-            if after is not None and rev["epoch"] < after:  # closed on left
-                continue
-            elif before is not None and rev["epoch"] >= before:  # right-opened
-                continue
-
-            rev["start"] = self.schema.deserialize(rev["start"])
-            rev["stop"] = self.schema.deserialize(rev["stop"])
-            if intersect(rev, start, stop):
-                all_revision.append(rev)
-
-        # Order revision backward
-        all_revision = list(reversed(all_revision))
-
-        # Recursive discovery of matching frames
-        segments = list(self._read_segments(all_revision, start, stop, closed=closed))
-
-        # Sort (non-overlaping frames)
-        segments.sort(key=lambda s: s.start)
-        return segments
+        leaf_ci = leaf_rev.commit(self.collection)
+        # TODO pass closed to call hereunder
+        return leaf_ci.segments(self.label, self.pod, start, stop)
 
     def period(self, rev):
-        '''
+        """
         Return average period (time delta between two tic) of a given revision
-        '''
+        """
         start = self.schema.deserialize(rev["start"])[0]
         stop = self.schema.deserialize(rev["stop"])[0]
         span = stop - start
@@ -92,70 +65,19 @@ class Series:
         return span / rev["len"]
 
     def interval(self, size=500_000):
-        '''
+        """
         Find smallest natural partition that will fit `size` items
-        '''
+        """
         schema = self.schema
         head_col = next(iter(schema.idx))
-        assert issubdtype(schema[head_col].dt,  'datetime64')
+        assert issubdtype(schema[head_col].codec.dt, "datetime64")
 
-        revisions = self.revisions()
+        revisions = self.changelog.log()
         if not revisions:
             return None
-        min_period = min(self.period(rev) for rev in self.revisions())
+        min_period = min(self.period(rev) for rev in revisions)
         target = min_period * size
         return Interval.bisect(target)
-
-    def _read_segments(self, revisions, start, stop, closed="left"):
-        for pos, revision in enumerate(revisions):
-            match = intersect(revision, start, stop)
-            if not match:
-                continue
-            mstart, mstop = match
-            clsd = closed
-            if closed == "right" and mstart > start:
-                clsd = "both"
-            elif closed == None and mstart > start:
-                clsd = "left"
-            if clsd == "left" and (mstop < stop or not stop):
-                clsd = "both"
-            elif clsd == None and (mstop < stop or not stop):
-                clsd = "right"
-
-            # instanciate frame
-            sgm = revision.segment(self).slice(mstart, mstop, clsd)
-            yield sgm
-
-            # We have found one result and the search range is
-            # collapsed, stop recursion:
-            if len(start) and start == stop:
-                return
-
-            # recurse left
-            if mstart > start:
-                if closed == "both":
-                    clsd = "left"
-                elif closed == "right":
-                    clsd = None
-                else:
-                    clsd = closed
-                left_frm = self._read_segments(
-                    revisions[pos + 1 :], start, mstart, closed=clsd
-                )
-                yield from left_frm
-            # recurse right
-            if not stop or mstop < stop:
-                if closed == "both":
-                    clsd = "right"
-                elif closed == "left":
-                    clsd = None
-                else:
-                    clsd = closed
-                right_frm = self._read_segments(
-                    revisions[pos + 1 :], mstop, stop, closed=clsd
-                )
-                yield from right_frm
-            break
 
     def delete(self, root=False, batch=False):
         rev_info = {
@@ -172,6 +94,13 @@ class Series:
         return commit
 
     def write(self, frame, start=None, stop=None, root=False, batch=False):
+        # Each commit is like a frame. A row in this frame represent a
+        # write (aka a segment) and contains one digest per series
+        # column + 2*N extra columns that encode start-stop values (N
+        # being the number of index columns of the series) + a column
+        # containing the series name (like that we can write all the
+        # series in one commit)
+
         if not isinstance(frame, Frame):
             frame = Frame(self.schema, frame)
         # Make sure frame is sorted
@@ -183,7 +112,7 @@ class Series:
         with Pool() as pool:
             for name in self.schema:
                 arr = self.schema[name].cast(frame[name])
-                data = self.schema[name].encode(arr)
+                data = self.schema[name].codec.encode(arr)
                 digest = hexdigest(data)
                 all_dig.append(digest)
                 folder, filename = hashed_path(digest)
@@ -192,31 +121,33 @@ class Series:
         # Build commit info
         start = start or frame.start()  # XXX Use numpy.quantile ?
         stop = stop or frame.stop()
-        sstart = self.schema.serialize(start)
-        sstop = self.schema.serialize(stop)
-        # XXX rev_info = {self.label: {}} (to be able to write on several labels)
-        rev_info = {
-            "start": sstart,
-            "stop": sstop,
-            "len": len(frame),
-            "digests": all_dig,
-            "epoch": time(),
-            "label": self.label,
-        }
-        key = hexdigest(
-            *encoder(self.label, str(len(frame)), *all_dig, *sstart, *sstop)
-        )
+        if not isinstance(start, tuple):
+            start = (start,)
+        if not isinstance(stop, tuple):
+            stop = (stop,)
+
+        # Create new digest
         if batch:
-            batch.append(rev_info, key)
+            ci_info = (self.label, start, stop, all_dig, len(frame))
+            batch.append(ci_info)
             return
+        self.commit(start, stop, all_dig, len(frame), root=root)
 
-        force_parent = phi if root else None
-        commit = self.changelog.commit(rev_info, key=key, force_parent=force_parent)
-        return commit
+    def commit(self, start, stop, all_dig, length, root=False):
+        # root force commit on phi
+        leaf_rev = None if root else self.changelog.leaf()
 
-    def digests(self):
-        for revision in self.revisions():
-            yield from revision["digests"]
+        # Combine with last commit
+        if leaf_rev:
+            leaf_ci = leaf_rev.commit(self.collection)
+            new_ci = leaf_ci.update(self.label, start, stop, all_dig, length)
+            # TODO early return if new_ci == leaf_ci
+        else:
+            new_ci = Commit.one(self.schema, self.label, start, stop, all_dig, length)
+
+        payload = new_ci.encode()
+        parent = leaf_rev.child if leaf_rev else phi
+        return self.changelog.commit(payload, parents=[parent])
 
     def __getitem__(self, by):
         return Query(self)[by]
@@ -258,7 +189,7 @@ class Query:
         elif key in ("start", "stop"):
             self.params[key] = self.series.schema.deserialize(value)
         else:
-            if not key in ("limit", "offset", "before", "after", "select"):
+            if not key in ("limit", "offset", "before", "select"):
                 raise ValueError(f"Unsupported parameter: {key}")
             self.params[key] = value
 
@@ -278,7 +209,7 @@ class Query:
         return Query(self.series, **params)
 
     def segments(self):
-        keys = ("start", "stop", "before", "after", "closed")
+        keys = ("start", "stop", "before", "closed")
         kw = {k: self.params.get(k) for k in keys}
         segments = self.series.segments(**kw)
         return segments
@@ -308,7 +239,6 @@ class Query:
         select = qr.params.get("select")
         limit = qr.params.get("limit")
         pos = qr.params.get("offset") or 0
-
         while True:
             lmt = step if limit is None else min(step, limit)
             frm = Frame.from_segments(
@@ -376,4 +306,4 @@ class KVSeries(Series):
                 "meta": keep_meta,
             }
         # Write result to db
-        self.write(new_frm, start=start, stop=stop, root=True)
+        self.write(new_frm, start=start, stop=stop)

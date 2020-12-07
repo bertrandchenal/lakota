@@ -1,154 +1,10 @@
-from contextlib import contextmanager
 from itertools import chain
 
-from .changelog import Changelog, phi, zero_hash
+from .changelog import zero_hash
+from .collection import Collection
 from .pod import POD
 from .schema import Schema
-from .series import KVSeries, Series
 from .utils import Pool, hashed_path, hexdigest, logger
-
-
-class Collection:
-    def __init__(self, label, schema, path, repo):
-        self.repo = repo
-        self.pod = repo.pod
-        self.schema = schema
-        self.label = label
-        self.changelog = Changelog(self.pod / path)
-
-    def series(self, label):
-        label = label.strip()
-        if len(label) == 0:
-            raise ValueError(f"Invalid label")
-        cls = KVSeries if self.schema.kind == "kv" else Series
-        return cls(label, self)
-
-    def __truediv__(self, name):
-        return self.series(name)
-
-    def __iter__(self):
-        return iter(self.ls())
-
-    def ls(self):
-        revs = self.changelog.walk()
-        labels = set()
-        for r in revs:
-            label = r["label"]
-            if r.get("tombstone"):
-                labels.discard(label)
-            else:
-                labels.add(label)
-        return sorted(labels)
-
-    def pack(self):
-        return self.changelog.pack()
-
-    def delete(self, *labels):
-        if not labels:
-            return
-        with self.batch(phi) as batch:
-            for label in labels:
-                self.series(label).delete(batch=batch)
-
-    def refresh(self):
-        self.changelog.refresh()
-
-    def push(self, remote, *labels):
-        return remote.pull(self, *labels)
-
-    def pull(self, remote):
-        """
-        Pull remote series into self
-        """
-        assert isinstance(remote, Collection), "A Collection instance is required"
-
-        # TODO use local storage as cache for remote (when reading revisions)
-        local_digs = set()
-        for revision in self.revisions():
-            local_digs.update(revision.get("digests", []))
-        self.changelog.pull(remote.changelog)
-        self.refresh()
-        # XXX optionaly isolate local path not detected in the loop
-        # here-under (and return them at the end to let Repo.pull do
-        # the deletions) (but what about local history?)
-        sync = lambda path: self.pod.write(path, remote.pod.read(path))
-        with Pool() as pool:
-            for revision in self.revisions():
-                for dig in revision.get("digests", []):
-                    if dig in local_digs:
-                        continue
-                    folder, filename = hashed_path(dig)
-                    path = folder / filename
-                    pool.submit(sync, path)
-
-    def revisions(self):
-        return list(self.changelog.walk())
-
-    def squash(self, archive=False):
-        """
-        Remove all past revisions, collapse history into one or few large
-        frames.
-        """
-        step = 500_000
-        all_labels = self.ls()
-        with self.batch(phi) as batch:
-            for label in all_labels:
-                logger.info('SQUASH label "%s"', label)
-                # Re-write each series
-                series = self / label
-                for frm in series.paginate(step):
-                    series.write(frm, batch=batch)
-
-        if not batch.commit:
-            return
-
-        if archive:
-            # TODO prefix/suffix schema with an _wtime column to keep
-            # trace of revisions (to be able to write larger segments
-            # and squash changelog)
-            archive_pod = self.repo.archive(self).changelog.pod
-            # TODO use pack instead (and give archive pod as arg)
-            for path in self.changelog:
-                if path == batch.commit.path:
-                    continue
-                data = self.changelog.pod.read(path)
-                archive_pod.write(path, data)
-
-        self.changelog.pod.clear(batch.commit.path)
-        return batch.commit
-
-    @contextmanager
-    def batch(self, force_parent=None):
-        b = Batch(self, force_parent)
-        yield b
-        b.flush()
-
-
-class Batch:
-    def __init__(self, collection, force_parent=None):
-        self.collection = collection
-        self._commits = []
-        self.commit = None
-        self.force_parent = force_parent
-
-    def append(self, rev_info, key):
-        self._commits.append((rev_info, key))
-
-    def flush(self):
-        if len(self._commits) == 0:
-            return
-        # Build key
-        all_revs, keys = list(zip(*self._commits))
-        if len(keys) == 1:
-            (key,) = keys
-        else:
-            key = hexdigest(*(k.encode() for k in keys))
-        # Create combined commit
-        changelog = self.collection.changelog
-
-        self.commit = changelog.commit(
-            all_revs, key=key, force_parent=self.force_parent
-        )
 
 
 class Repo:
@@ -201,7 +57,7 @@ class Repo:
 
         if not from_frm:
             from_frm = series.frame()
-        frm = from_frm.index_slice([label], [label], closed="both")
+        frm = from_frm.slice(*from_frm.index_slice([label], [label], closed="both"))
 
         if frm.empty:
             return None
@@ -215,7 +71,7 @@ class Repo:
         meta = []
         schema_dump = schema.dump()
 
-        # TODO validate columns(can not start with a _)
+        # TODO assert collection does not already exists!
 
         if mode is None:
             series = self.collection_series
@@ -271,9 +127,6 @@ class Repo:
     def refresh(self):
         self.collection_series.refresh()
 
-    def revisions(self):
-        return self.collection_series.revisions()
-
     def pull(self, remote, *labels):
         assert isinstance(remote, Repo), "A Repo instance is required"
         # Pull registry
@@ -300,11 +153,8 @@ class Repo:
                         raise ValueError(msg)
                 pool.submit(l_clct.pull, r_clct)
 
-    def squash(self):
-        return self.registry.squash()
-
-    def pack(self):
-        return self.registry.pack()
+    def merge(self):
+        return self.registry.merge()
 
     def gc(self):
         """
@@ -315,14 +165,9 @@ class Repo:
 
         active_digests = set()
         for mode in (None, "archive"):
-            coll_series = (
-                self.collection_series if mode is None else self.registry.series(mode)
-            )
-            active_digests.update(coll_series.digests())
+            active_digests.update(self.registry.digests())
             for clct in self.search(mode=mode):
-                all_series = [clct.series(s) for s in clct]
-                per_series = (s.digests() for s in all_series)
-                active_digests.update(chain.from_iterable(per_series))
+                active_digests.update(clct.digests())
 
         base_folders = self.pod.ls()
         with Pool(8) as pool:
