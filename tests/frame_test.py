@@ -105,6 +105,9 @@ def test_reduce_agg():
 
     frm = Frame(schema, values)
     for op in AST.aggregates:
+        if op == "quantile":
+            # quantile not avail with binning
+            continue
         new_frm = frm.reduce(category="category", value=f"({op} self.value)")
         if op == "min":
             assert list(new_frm["value"]) == [1, 2]
@@ -124,6 +127,9 @@ def test_reduce_agg():
             raise ValueError(f'op "{op}" not tested')
 
     for op in AST.aggregates:
+        if op == "quantile":
+            # quantile not avail with binning
+            continue
         new_frm = frm.reduce(
             timestamp='(floor self.timestamp "D")', value=f"({op} self.value)"
         )

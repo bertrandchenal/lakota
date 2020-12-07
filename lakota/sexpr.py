@@ -107,7 +107,7 @@ class Agg:
         bins = self.env.get("_bins", None)
         keys = self.env.get("_keys", None)
         if bins is not None:
-            return self.binned(arr, bins, keys, operands=operands)
+            return self.binned(arr, bins, keys)
         return self.plain(arr, operands=operands)
 
     def plain(self, arr, operands=None):
@@ -128,7 +128,7 @@ class Agg:
             return quantile(arr, qt, interpolation=interpolation)
         raise ValueError(f'Aggregation "{self.op}" is not supported')
 
-    def binned(self, arr, bins, keys):
+    def binned(self, arr, bins, keys):  # XXX operands ?
         if self.op == "sum":
             return bincount(bins, weights=arr)
         elif self.op in ("mean", "average"):
