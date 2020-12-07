@@ -102,7 +102,8 @@ class Series:
         # series in one commit)
 
         if not isinstance(frame, Frame):
-            frame = Frame(self.schema, frame)
+            frame = Frame(self.schema, self.schema.cast(frame))
+
         # Make sure frame is sorted
         sort_mask = frame.argsort()
         assert (sort_mask == arange(len(sort_mask))).all(), "Dataframe is not sorted!"

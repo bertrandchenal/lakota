@@ -206,7 +206,7 @@ class Schema:
             df = {}
             columns = list(self)
         else:
-            columns = list(df)
+            columns = [c for c in df if c in self]
         for name in columns:
             col = self[name]
             df[col.name] = col.cast(df.get(col.name, []))
