@@ -149,9 +149,9 @@ class Revision:
         assert key == child_digest, "Corrupted file!"
         return payload
 
-    def commit(self, series):
+    def commit(self, collection):
         """
         Instanciate commit based on self payload and series schema
         """
         payload = self.read()
-        return Commit.decode(series.schema, payload)
+        return Commit.decode(collection.schema, payload)

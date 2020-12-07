@@ -196,7 +196,7 @@ class Batch:
 
         # Combine with last commit
         if leaf_rev:
-            last_ci = leaf_rev.commit(self)
+            last_ci = leaf_rev.commit(self.collection)
         else:
             label, start, stop, all_dig, length = next(all_ci_info)
             last_ci = Commit.one(

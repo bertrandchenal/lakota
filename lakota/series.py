@@ -49,7 +49,7 @@ class Series:
         if not leaf_rev:
             return
 
-        leaf_ci = leaf_rev.commit(self)
+        leaf_ci = leaf_rev.commit(self.collection)
         # TODO pass closed to call hereunder
         return leaf_ci.segments(self.label, self.pod, start, stop)
 
@@ -139,7 +139,7 @@ class Series:
 
         # Combine with last commit
         if leaf_rev:
-            leaf_ci = leaf_rev.commit(self)
+            leaf_ci = leaf_rev.commit(self.collection)
             new_ci = leaf_ci.update(self.label, start, stop, all_dig, length)
             # TODO early return if new_ci == leaf_ci
         else:

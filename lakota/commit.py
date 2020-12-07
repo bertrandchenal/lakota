@@ -85,8 +85,8 @@ class Commit:
         stop_values.update(self.stop)
         frm_start = Frame(Schema.from_frame(start_values), start_values)
         frm_stop = Frame(Schema.from_frame(stop_values), stop_values)
-        start_pos = frm_stop.index((label,) + start, right=False)
-        stop_pos = frm_start.index((label,) + stop, right=True)
+        start_pos = frm_stop.index((label,) + start, right=True)
+        stop_pos = frm_start.index((label,) + stop, right=False)
         return start_pos, stop_pos
 
     def __len__(self):
@@ -121,8 +121,7 @@ class Commit:
         # Corner case: we hit right in the middle of an existing row
         if start_pos + 1 == stop_pos:
             row = self.at(start_pos)
-            # FIXME test also label!
-            if row["start"] < start and stop < row["stop"]:
+            if label == row["start"] and row["start"] < start and stop < row["stop"]:
                 start_row = row
                 start_row["stop"] = start
                 start_row["closed"] = (
@@ -146,9 +145,11 @@ class Commit:
         head = None
         if start_pos < len(self):
             start_row = self.at(start_pos)
-            if start_row["start"] < start <= start_row["stop"]:
+            if (
+                label == start_row["label"]
+                and start_row["start"] < start <= start_row["stop"]
+            ):
                 # We hit the right of an existing row
-                # FIXME check start_row['label'] !
                 start_row["stop"] = start
                 # XXX adapt behaviour if current update is not closed==both
                 start_row["closed"] = (
@@ -166,27 +167,25 @@ class Commit:
             head = self.head(start_pos)
 
         # Truncate stop_pos row
-        stop_pos = stop_pos - 1  # -1 because we did a bisect right in split
         tail = None
-        if stop_pos < len(self):
-            stop_row = self.at(stop_pos)
-            if stop_row["start"] <= stop < stop_row["stop"]:
-                # We hit the left of an existing row
-                stop_row["start"] = stop
-                # XXX adapt behavoour if current update is not closed==both
-                stop_row["closed"] = (
-                    "right" if stop_row["closed"] in ("right", "both") else None
+        stop_row = self.at(stop_pos - 1)
+        if label == stop_row["label"] and stop_row["start"] <= stop < stop_row["stop"]:
+            # We hit the left of an existing row
+            stop_row["start"] = stop
+            # XXX adapt behavoour if current update is not closed==both
+            stop_row["closed"] = (
+                "right" if stop_row["closed"] in ("right", "both") else None
+            )
+            if stop_row["start"] < stop_row["stop"]:
+                tail = Commit.concat(
+                    Commit.one(schema=self.schema, **stop_row),
+                    self.tail(stop_pos),
                 )
-                if stop_row["start"] < stop_row["stop"]:
-                    tail = Commit.concat(
-                        Commit.one(schema=self.schema, **stop_row),
-                        self.tail(stop_pos + 1),
-                    )
-                # when stop_row["start"] == stop_row["stop"],
-                # stop_row stop and start are both "overshadowed" by
-                # new commit
+            # when stop_row["start"] == stop_row["stop"],
+            # stop_row stop and start are both "overshadowed" by
+            # new commit
         if tail is None:
-            tail = self.tail(stop_pos + 1)
+            tail = self.tail(stop_pos)
 
         return Commit.concat(head, inner, tail)
 
@@ -211,6 +210,17 @@ class Commit:
     def concat(cls, commit, *other_commits):
         schema = commit.schema
         all_ci = (commit,) + other_commits
+        all_ci = tuple(ci for ci in all_ci if len(ci) > 0)
+
+        # Make sure there are no overlaps
+        for prv, nxt in zip(all_ci[:-1], all_ci[1:]):
+            prv_tail = prv.at(-1)
+            nxt_head = nxt.at(0)
+            assert (prv_tail["label"], prv_tail["stop"]) <= (
+                nxt_head["label"],
+                nxt_head["start"],
+            )
+
         start = {
             name: concatenate([ci.start[name] for ci in all_ci]) for name in schema.idx
         }
@@ -230,7 +240,9 @@ class Commit:
         fmt = lambda a: "/".join(map(str, a))
         starts = list(map(fmt, zip(*self.start.values())))
         stops = list(map(fmt, zip(*self.stop.values())))
-        items = " ".join(f"[{a} -> {b}]" for a, b in zip(starts, stops))
+        items = "\n        ".join(
+            f"{l}[{a} -> {b}]" for l, a, b in zip(self.label, starts, stops)
+        )
         return f"<Commit {items}>"
 
     def segments(self, label, pod, start=None, stop=None):

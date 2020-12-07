@@ -95,30 +95,13 @@ def length(args):
 
 def revisions(args):
     repo = get_repo(args)
-    collection = series = None
-    cols = ["start", "stop", "len", "epoch"]
-    if args.label:
-        if "/" in args.label:
-            series = get_series(args)
-        else:
-            collection = repo / args.label
-            cols = ["label"] + cols
-    else:
-        series = repo.collection_series
+    collection = None
+    collection = repo / args.label
+    if collection is None:
+        exit(f"Collection '{args.label}' not found")
 
-    what = collection or series
-
-    rows = []
-    for r in what.revisions():
-        r["epoch"] = datetime.fromtimestamp(r["epoch"]).isoformat()
-        rows.append(tuple(r[c] for c in cols))
-
-    if args.pretty:
-        print(tabulate(rows, headers=cols))
-    else:
-        writer = csv.writer(sys.stdout)
-        writer.writerow(cols)
-        writer.writerows(rows)
+    for r in collection.changelog.log():
+        print(r.epoch, "*" if r.is_leaf else "")
 
 
 def ls(args):

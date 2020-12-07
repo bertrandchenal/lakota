@@ -304,12 +304,11 @@ def test_paginate(series, extra_commit):
 #         assert itv == partition
 
 
-def _bisect(frm, new_start, new_stop, _pdb=False):
+def _bisect(frm, new_start, new_stop):
     from bisect import bisect_left, bisect_right
 
     idx_start = bisect_right(frm["stop"], new_start)
     idx_stop = bisect_left(frm["start"], new_stop)
-
     head = tail = None
     if idx_start < len(frm):
         if frm["start"][idx_start] < new_start < frm["stop"][idx_start]:
@@ -324,7 +323,7 @@ def _bisect(frm, new_start, new_stop, _pdb=False):
             if idx_start > 0:
                 head = Frame.concat(frm.slice(None, idx_start), head)  # -1
 
-    if frm["start"][idx_stop - 1] < new_stop < frm["stop"][idx_stop - 1]:
+    if frm["start"][idx_stop - 1] <= new_stop < frm["stop"][idx_stop - 1]:
         # Split @ idx_stop
         tail = Frame(
             frm.schema,
@@ -359,7 +358,7 @@ def test_bisect_range():
         },
     )
 
-    print("DOUBLE LEN")
+    # print("DOUBLE LEN")
     new_start, new_stop = asarray(["2020-01-10", "2020-01-30"], "M8")
     res = _bisect(frm, new_start, new_stop)
     assert all(res["start"] == asarray(["2020-01-01", "2020-01-10"], "M8"))
@@ -370,7 +369,7 @@ def test_bisect_range():
     assert all(res["start"] == asarray(["2020-01-01", "2020-01-20"], "M8"))
     assert all(res["stop"] == asarray(["2020-01-20", "2020-01-30"], "M8"))
 
-    print("SINGLE LEN")
+    # print("SINGLE LEN")
     for new_start, new_stop in (
         asarray(["2020-01-01", "2020-01-10"], "M8"),
         asarray(["2020-01-10", "2020-01-20"], "M8"),
@@ -385,7 +384,7 @@ def test_bisect_range():
             res["stop"] == asarray(["2020-01-10", "2020-01-20", "2020-01-30"], "M8")
         )
 
-    print("FULL RIGHT")
+    # print("FULL RIGHT")
     new_start, new_stop = asarray(["2020-02-01", "2020-02-10"], "M8")
     res = _bisect(frm, new_start, new_stop)
     expect = asarray(["2020-01-01", "2020-01-10", "2020-01-20", "2020-02-01"], "M8")
@@ -393,7 +392,7 @@ def test_bisect_range():
     expect = asarray(["2020-01-10", "2020-01-20", "2020-01-30", "2020-02-10"], "M8")
     assert all(res["stop"] == expect)
 
-    print("FULL LEFT")
+    # print("FULL LEFT")
     new_start, new_stop = asarray(["2019-12-20", "2019-12-30"], "M8")
     res = _bisect(frm, new_start, new_stop)
     expect = asarray(
@@ -411,9 +410,9 @@ def test_bisect_range():
         == asarray(["2019-12-30", "2020-01-10", "2020-01-20", "2020-01-30"], "M8")
     )
 
-    print("STRADDLE")
+    # print("STRADDLE")
     new_start, new_stop = asarray(["2020-01-05", "2020-01-15"], "M8")
-    res = _bisect(frm, new_start, new_stop, True)
+    res = _bisect(frm, new_start, new_stop)
     expect = asarray(
         [
             "2020-01-01",
@@ -428,8 +427,17 @@ def test_bisect_range():
     assert all(res["stop"] == expect)
 
     new_start, new_stop = asarray(["2020-01-15", "2020-01-25"], "M8")
-    res = _bisect(frm, new_start, new_stop, True)
+    res = _bisect(frm, new_start, new_stop)
     expect = asarray(["2020-01-01", "2020-01-10", "2020-01-15", "2020-01-25"], "M8")
     assert all(res["start"] == expect)
     expect = asarray(["2020-01-10", "2020-01-15", "2020-01-25", "2020-01-30"], "M8")
     assert all(res["stop"] == expect)
+
+    # print("INNER")
+    # new_start, new_stop = asarray(["2020-01-03", "2020-01-07"], "M8")
+
+    # res = _bisect(frm, new_start, new_stop, True)
+    # expect = asarray(["2020-01-01", "2020-01-03", "2020-01-07", "2020-01-10"], "M8")
+    # assert all(res["start"] == expect)
+    # expect = asarray(["2020-01-03", "2020-01-07", "2020-01-10", "2020-01-20"], "M8")
+    # assert all(res["stop"] == expect)
