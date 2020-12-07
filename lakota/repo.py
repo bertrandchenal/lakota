@@ -57,7 +57,7 @@ class Repo:
 
         if not from_frm:
             from_frm = series.frame()
-        frm = from_frm.index_slice([label], [label], closed="both")
+        frm = from_frm.slice(*from_frm.index_slice([label], [label], closed="both"))
 
         if frm.empty:
             return None

@@ -159,7 +159,7 @@ class Frame:
         if stop:
             right = closed in ("both", "right")
             idx_stop = self.index(stop, right=right)
-        return self.slice(idx_start, idx_stop)
+        return idx_start, idx_stop
 
     def index(self, values, right=False):
         if not values:
@@ -189,6 +189,9 @@ class Frame:
 
     def __eq__(self, other):
         return all(array_equal(self[c], other[c]) for c in self.schema.columns)
+
+    def __contains__(self, column):
+        return column in self.columns
 
     def __len__(self):
         if not self.columns:
@@ -276,7 +279,7 @@ class Frame:
         if isinstance(by, slice):
             start = by.start and self.schema.deserialize(by.start)
             stop = by.stop and self.schema.deserialize(by.stop)
-            return self.index_slice(start, stop)
+            return self.slice(*self.index_slice(start, stop))
         # By mask -> return a frame
         if isinstance(by, ndarray):
             return self.mask(by)
@@ -349,7 +352,7 @@ class ShallowSegment:
                 {name: self.read(name) for name in self.schema},
             )
             # Compute slice and apply it
-            frm = frm.index_slice(start, stop, closed=closed)
+            frm = frm.slice(*frm.index_slice(start, stop, closed=closed))
             return Segment(start, stop, frm)
 
     def __len__(self):

@@ -301,27 +301,35 @@ class Segment:
         self.closed = closed
         self.digest = dict(zip(schema, digests))
         self._frm = None
+        self.start_pos = None
+        self.stop_pos = None
 
     def __len__(self):
         return len(self.frame)
 
     def read(self, name, start=None, stop=None):
-        arr = self.frame[name][start:stop]
-        return arr
+        if not name in self.frame:
+            self.frame[name] = self._read(name)
+        return self.frame[name][start:stop]
+
+    def _read(self, name):
+        folder, filename = hashed_path(self.digest[name])
+        payload = self.pod.cd(folder).read(filename)
+        arr = self.schema[name].codec.decode(payload)
+        return arr[self.start_pos : self.stop_pos]
 
     @property
     def frame(self):
-        # TODO put only schema.idx in frame (and try to minimize reads)
+        # Use a Frame instance as container to cache columns
         if self._frm is not None:
             return self._frm
 
         cols = {}
-        for name in self.schema:
-            folder, filename = hashed_path(self.digest[name])
-            arr = self.pod.cd(folder).read(filename)
-            cols[name] = self.schema[name].codec.decode(arr)
-        frm = Frame(self.schema, cols).index_slice(
+        for name in self.schema.idx:
+            cols[name] = self._read(name)
+        frm = Frame(self.schema, cols)
+        self.start_pos, self.stop_pos = frm.index_slice(
             self.start, self.stop, closed=self.closed
         )
-        self._frm = frm
+        self._frm = frm.slice(self.start_pos, self.stop_pos)
         return frm

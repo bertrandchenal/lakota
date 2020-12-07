@@ -29,25 +29,25 @@ def test_index_slice():
     frm = Frame(schema, {"x": [1, 2, 3, 4, 5, 5, 5, 6]})
 
     # include both side
-    res = frm.index_slice([2], [4], closed="both")["x"]
+    res = frm.slice(*frm.index_slice([2], [4], closed="both"))["x"]
     assert all(res == [2, 3, 4])
 
     # include only left
-    res = frm.index_slice([2], [4], closed="left")["x"]
+    res = frm.slice(*frm.index_slice([2], [4], closed="left"))["x"]
     assert all(res == [2, 3])
 
     # include only right
-    res = frm.index_slice([2], [4], closed="right")["x"]
+    res = frm.slice(*frm.index_slice([2], [4], closed="right"))["x"]
     assert all(res == [3, 4])
 
     # implict right
-    res = frm.index_slice([5], [5], closed="both")["x"]
+    res = frm.slice(*frm.index_slice([5], [5], closed="both"))["x"]
     assert all(res == [5, 5, 5])
 
-    res = frm.index_slice([1], [1], closed="both")["x"]
+    res = frm.slice(*frm.index_slice([1], [1], closed="both"))["x"]
     assert all(res == [1])
 
-    res = frm.index_slice([6], [6], closed="both")["x"]
+    res = frm.slice(*frm.index_slice([6], [6], closed="both"))["x"]
     assert all(res == [6])
 
 
@@ -161,15 +161,15 @@ def test_reduce_without_agg():
 
     frm = Frame(schema, values)
     # No changes to column
-    assert frm == frm.reduce(timestamp='timestamp', category='category', value='value')
+    assert frm == frm.reduce(timestamp="timestamp", category="category", value="value")
     # Mapping on one column
-    res = frm.reduce(value='(% self.value 2)')['value']
+    res = frm.reduce(value="(% self.value 2)")["value"]
     assert list(res) == [1, 0, 1, 0]
 
     # Mapping over two columns
-    expected = frm['timestamp'] + frm['value']
-    new_frm = frm.reduce(new_col='(+ self.value self.timestamp)')
-    assert all(new_frm['new_col'] == expected)
+    expected = frm["timestamp"] + frm["value"]
+    new_frm = frm.reduce(new_col="(+ self.value self.timestamp)")
+    assert all(new_frm["new_col"] == expected)
 
 
 def test_concat(frm):
@@ -189,10 +189,12 @@ def test_eq(frm):
 
 
 def test_df_conversion():
-    df = DataFrame({
-        "category": NAMES,
-        "value": VALUES,
-    })
+    df = DataFrame(
+        {
+            "category": NAMES,
+            "value": VALUES,
+        }
+    )
     # Convert to lakota frame and back to df
     frm = Frame(base_schema, df)
     for col in frm:
