@@ -2,7 +2,6 @@ import argparse
 import csv
 import os
 import sys
-from datetime import datetime
 
 from tabulate import tabulate
 
@@ -154,7 +153,7 @@ def squash(args):
                 exit(f'Collection "{label}" not found')
             collection.squash()
     else:
-        repo.squash()
+        repo.registry.squash()
 
 
 def push(args):
@@ -167,18 +166,6 @@ def pull(args):
     repo = get_repo(args)
     remote_reg = Repo(args.remote)
     repo.pull(remote_reg, *args.labels)
-
-
-def pack(args):
-    repo = get_repo(args)
-    labels = args.labels
-    if not labels:
-        repo.pack()
-    for label in labels:
-        collection = repo / label
-        if not collection:
-            exit(f'Collection "{args.label}" not found')
-        collection.changelog.pack()
 
 
 def truncate(args):
@@ -283,11 +270,6 @@ def run():
     parser_pull.add_argument("remote")
     parser_pull.add_argument("labels", nargs="*")
     parser_pull.set_defaults(func=pull)
-
-    # Add pack command
-    parser_pack = subparsers.add_parser("pack")
-    parser_pack.add_argument("labels", nargs="*")
-    parser_pack.set_defaults(func=pack)
 
     # Add create command
     parser_create = subparsers.add_parser("create")
