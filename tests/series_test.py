@@ -3,7 +3,7 @@ from numpy import asarray
 from pandas import DataFrame
 
 from lakota import Frame, Repo, Schema
-from lakota.schema import DTYPES
+from lakota.schema import ALIASES
 
 schema = Schema(["timestamp int *", "value float"])
 orig_frm = {
@@ -152,9 +152,9 @@ def test_adjacent_write(series, how):
 
 
 def test_column_types(repo):
-    test_dtypes = [dt for dt in DTYPES]
-    cols = [f"{dt} {dt}" for dt in test_dtypes]
-    df = {str(dt): asarray([0], dtype=dt) for dt in test_dtypes}
+    cols = [f"{dt} {dt}" for dt in ALIASES]
+    print(cols)
+    df = {str(dt): asarray([0], dtype=ALIASES[dt]) for dt in ALIASES}
 
     for idx_len in range(1, len(cols)):
         stars = ["*"] * idx_len + [""] * (len(cols) - idx_len)
@@ -164,7 +164,7 @@ def test_column_types(repo):
         series.write(df)
         frm = series.frame()
 
-        for dt in test_dtypes:
+        for dt in ALIASES:
             assert all(frm[str(dt)] == df[str(dt)])
 
 

@@ -4,13 +4,8 @@ from dataclasses import dataclass
 from numcodecs import registry
 from numpy import asarray, ascontiguousarray, dtype, frombuffer, issubdtype
 
-DTYPES = [
-    "M8[s]",
-    "i8",
-    "f8",
-    "U",
-    "O",
-]  # dtype(s) for s in ("M8[s]", "int64", "float64", "U", "O")
+DTYPES = [dtype(s) for s in ("datetime64[s]", "int64", "float64", "U", "O")]
+
 ALIASES = {
     "timestamp": "M8[s]",
     "float": "f8",

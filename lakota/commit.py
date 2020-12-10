@@ -1,3 +1,5 @@
+from threading import Lock
+
 from numcodecs import registry
 from numpy import asarray, concatenate, isin, where
 
@@ -258,6 +260,7 @@ class Commit:
 
             digest = [arr[pos] for arr in self.digest.values()]
             closed = self.closed[pos]
+
             sgm = Segment(
                 self.schema,
                 pod,
@@ -303,6 +306,7 @@ class Segment:
         self._frm = None
         self.start_pos = None
         self.stop_pos = None
+        self.lock = Lock()
 
     def __len__(self):
         return len(self.frame)
@@ -324,12 +328,13 @@ class Segment:
         if self._frm is not None:
             return self._frm
 
-        cols = {}
-        for name in self.schema.idx:
-            cols[name] = self._read(name)
-        frm = Frame(self.schema, cols)
-        self.start_pos, self.stop_pos = frm.index_slice(
-            self.start, self.stop, closed=self.closed
-        )
-        self._frm = frm.slice(self.start_pos, self.stop_pos)
-        return frm
+        with self.lock:
+            cols = {}
+            for name in self.schema.idx:
+                cols[name] = self._read(name)
+            frm = Frame(self.schema, cols)
+            self.start_pos, self.stop_pos = frm.index_slice(
+                self.start, self.stop, closed=self.closed
+            )
+            self._frm = frm.slice(self.start_pos, self.stop_pos)
+            return frm

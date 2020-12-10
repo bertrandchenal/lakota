@@ -1,5 +1,3 @@
-from itertools import chain
-
 from .changelog import zero_hash
 from .collection import Collection
 from .pod import POD

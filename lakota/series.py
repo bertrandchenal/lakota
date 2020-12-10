@@ -108,6 +108,8 @@ class Series:
         sort_mask = frame.argsort()
         assert (sort_mask == arange(len(sort_mask))).all(), "Dataframe is not sorted!"
 
+        # TODO assert all columns have the same length
+
         # Save segments
         all_dig = []
         with Pool() as pool:
