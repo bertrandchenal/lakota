@@ -2,13 +2,14 @@ import argparse
 import csv
 import os
 import sys
+from datetime import datetime
 
 from tabulate import tabulate
 
 from . import __version__
 from .repo import Repo
 from .schema import Schema
-from .utils import logger, strpt, timeit
+from .utils import hextime, logger, strpt, timeit
 
 
 def get_repo(args):
@@ -40,8 +41,7 @@ def read(args):
     else:
         columns = args.columns
     before = strpt(args.before)
-    before = before and before.timestamp()
-
+    before = before and hextime(before.timestamp())
     query = series[columns][args.greater_than : args.less_than] @ {
         "limit": args.limit,
         "offset": args.offset,
@@ -99,8 +99,23 @@ def revisions(args):
     if collection is None:
         exit(f"Collection '{args.label}' not found")
 
-    for r in collection.changelog.log():
-        print(r.epoch, "*" if r.is_leaf else "")
+    fmt = lambda a: " / ".join(map(str, a))
+    for rev in collection.changelog.log():
+        timestamp = str(datetime.fromtimestamp(int(rev.epoch, 16) / 1000))
+        print(
+            f"""
+Revision: {rev.path}{"*" if rev.is_leaf else ""}
+Date: {timestamp}"""
+        )
+        if not args.extended:
+            continue
+        ci = rev.commit(collection)
+        starts = list(map(fmt, zip(*ci.start.values())))
+        stops = list(map(fmt, zip(*ci.stop.values())))
+        digests = list(map(fmt, zip(*ci.digest.values())))
+        rows = zip(ci.label, starts, stops, ci.length, digests)
+        print(tabulate(rows, headers="label start stop length digests".split()))
+        print()
 
 
 def ls(args):
@@ -247,6 +262,9 @@ def run():
     # Add rev command
     parser_rev = subparsers.add_parser("rev")
     parser_rev.add_argument("label", nargs="?")
+    parser_rev.add_argument(
+        "-e", "--extended", action="store_true", help="Extended output"
+    )
     parser_rev.set_defaults(func=revisions)
 
     # Add len command
