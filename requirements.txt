@@ -5,6 +5,7 @@ moto
 numcodecs
 numpy
 pandas
+pdoc3
 pytest
 s3fs<0.5
 tabulate
