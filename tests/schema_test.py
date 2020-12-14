@@ -67,3 +67,12 @@ def test_serialize():
     expected = ("2020-01-01 00:00:00", "1.1", "1", "one")
     assert schema.serialize(values) == expected
     assert schema.deserialize(expected) == values
+
+def test_equality():
+    definition =  """
+    timestamp timestamp*
+    float f8
+    int i8
+    str str
+    """
+    assert Schema(definition) == Schema(definition)

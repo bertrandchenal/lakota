@@ -12,15 +12,8 @@ ALIASES = {
     "int": "i8",
     "str": "U",
 }
-# TODO PRE-COMPUTED AGG: for each column in the index, compute
-# aggregated values with that column removed
 
-
-# TODO INDEXING pre-compute population per column (initialy per
-# secondary index column, the ones that comes after the timestamp),
-# this allows to speed up filters (and in some cases show the
-# population itself). Ex pre-compute: meteor_id count. This can be
-# saved along side the current digest in the revision payload
+__all__ = ['Schema']
 
 
 class Codec:
@@ -116,6 +109,12 @@ class SchemaColumn:
             "idx": self.idx,
         }
 
+    def __eq__(self, other):
+        return (
+            self.name == other.name
+            and self.idx == other.idx
+            and self.codec == other.codec
+            )
 
 class Schema:
     def __init__(self, from_ui=None, from_columns=None, kind=None):
