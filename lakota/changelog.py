@@ -9,6 +9,8 @@ zero_hextime = "0" * 11
 zero_hash = "0" * hexhash_len
 phi = f"{zero_hextime}-{zero_hash}"
 
+__all__ = ["Changelog", "Revision"]
+
 
 class Changelog:
 
@@ -18,7 +20,7 @@ class Changelog:
 
     def __init__(self, pod):
         self.pod = pod
-        self._walk_cache = None
+        self._log_cache = None
 
     def commit(self, payload, parents=None, _jitter=False):
         assert isinstance(payload, bytes)
@@ -57,7 +59,7 @@ class Changelog:
         return revs
 
     def refresh(self):
-        self._walk_cache = None
+        self._log_cache = None
 
     def __iter__(self):
         yield from self.pod.ls(missing_ok=True)
@@ -73,8 +75,16 @@ class Changelog:
 
     def log(self, before=None, from_parent=phi):
         """
-        Re-Create a list of all the active revisions
+        Create a list of all the active revisions
         """
+        if before is not None or from_parent != phi:
+            return self._log(before, from_parent)
+
+        if self._log_cache is None:
+            self._log_cache = list(self._log())
+        return self._log_cache
+
+    def _log(self, before=None, from_parent=phi):
         # Extract parent->children relations
         revisions = defaultdict(list)
         for name in sorted(self):
@@ -143,11 +153,16 @@ class Revision:
         return f"<Revision {self.path} {'*' if self.is_leaf else ''}>"
 
     def read(self):
-        payload = self.changelog.pod.read(self.path)
-        key = hexdigest(payload)
-        _, child_digest = self.digests
-        assert key == child_digest, "Corrupted file!"
-        return payload
+        for i in range(1, 5):
+            payload = self.changelog.pod.read(self.path)
+            key = hexdigest(payload)
+            _, child_digest = self.digests
+            # Incorrect checksum is usualy because file is being written concurrently
+            if key == child_digest:
+                return payload
+            else:
+                sleep(i / 10)
+        raise RuntimeError("Unable to read {self.path}")
 
     def commit(self, collection):
         """
