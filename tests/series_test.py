@@ -153,7 +153,6 @@ def test_adjacent_write(series, how):
 
 def test_column_types(repo):
     cols = [f"{dt} {dt}" for dt in ALIASES]
-    print(cols)
     df = {str(dt): asarray([0], dtype=ALIASES[dt]) for dt in ALIASES}
 
     for idx_len in range(1, len(cols)):
