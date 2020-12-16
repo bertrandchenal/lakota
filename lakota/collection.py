@@ -1,3 +1,49 @@
+"""
+## Read and Writes Series
+
+A collection is instantiated from a `lakota.repo.Repo` object (see `lakota.repo`):
+```python
+clct = repo / 'my_collection'
+```
+
+Series instantiation
+
+```python
+all_series = clct.ls()
+
+my_series = clct.series('my_series')
+# or
+my_series = clct.series / 'my_series'
+```
+
+See `lakota.series` on how to use `lakota.series.Series`.
+
+The `lakota.collection.Collection.batch` method returns a contect manager that will provide atomic
+(and faster) writes across several series
+```python
+with clct.batch() as batch:
+    for label, df in ...:
+        series = clct / label
+        series.write(df, batch=batch)
+```
+
+## Concurrent writes and synchronization
+
+Collections can also be pushed/pulled and merged.
+
+```python
+clct = local_repo / 'my_collection'
+remote_clct = remote_repo / 'my_collection'
+clct.pull(remote_clct)
+clct.merge()
+```
+
+Squash remove past revisions
+```python
+clct.squash()
+```
+"""
+
 from collections import defaultdict
 from contextlib import contextmanager
 from itertools import chain
@@ -5,6 +51,8 @@ from itertools import chain
 from .changelog import Changelog, phi
 from .series import Commit, KVSeries, Series
 from .utils import Pool, hashed_path, logger
+
+__all__ = ["Collection", "Batch"]
 
 
 class Collection:
@@ -35,9 +83,6 @@ class Collection:
         payload = rev.read()
         ci = Commit.decode(self.schema, payload)
         return sorted(set(ci.label))
-
-    def pack(self):
-        return self.changelog.pack()
 
     def delete(self, *labels):
         leaf_rev = self.changelog.leaf()
@@ -80,7 +125,7 @@ class Collection:
                 pool.submit(sync, path)
 
     def merge(self, *heads):
-        revisions = list(self.changelog.log())
+        revisions = self.changelog.log()
         # Corner cases
         if not revisions:
             return
@@ -137,6 +182,7 @@ class Collection:
         """
         step = 500_000
         all_labels = self.ls()
+        # TODO run in parallel
         with self.batch(phi) as batch:
             for label in all_labels:
                 logger.info('SQUASH label "%s"', label)
@@ -153,7 +199,6 @@ class Collection:
         #     # trace of revisions (to be able to write larger segments
         #     # and squash changelog)
         #     archive_pod = self.repo.archive(self).changelog.pod
-        #     # TODO use pack instead (and give archive pod as arg)
         #     for path in self.changelog:
         #         if path == batch.commit.path:
         #             continue
@@ -185,6 +230,10 @@ class Batch:
 
     def append(self, ci_info):
         self._ci_info.append(ci_info)
+
+    def extend(self, *other_batches):
+        for b in other_batches:
+            self._ci_info.extend(b._ci_info)
 
     def flush(self):
         if len(self._ci_info) == 0:

@@ -6,6 +6,8 @@ import s3fs
 
 from .utils import logger
 
+__all__ = ["POD"]
+
 
 class POD:
     _by_token = {}

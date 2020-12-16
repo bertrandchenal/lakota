@@ -7,6 +7,8 @@ from .commit import Commit
 from .frame import Frame
 from .utils import Interval, Pool, encoder, hashed_path, hexdigest
 
+__all__ = ["Series", "KVSeries"]
+
 
 def intersect(revision, start, stop):
     ok_start = not stop or revision["start"][: len(stop)] <= stop
@@ -31,9 +33,6 @@ class Series:
         self.pod = collection.pod
         self.changelog = collection.changelog
         self.label = label
-
-    def refresh(self):
-        self.changelog.refresh()
 
     def segments(
         self,
@@ -159,7 +158,6 @@ class Series:
         return Query(self) @ by
 
     def __len__(self):
-        # TODO select only index columns
         return len(Query(self, select=list(self.schema.idx)))
 
     def paginate(self, step=100_000, **kw):
@@ -227,7 +225,11 @@ class Query:
         offset = qr.params.get("offset")
         select = qr.params.get("select")
         return Frame.from_segments(
-            qr.series.schema, segments, limit=limit, offset=offset, select=select
+            qr.series.schema,
+            segments,
+            limit=limit,
+            offset=offset,
+            select=select,
         )
 
     def df(self, **kw):

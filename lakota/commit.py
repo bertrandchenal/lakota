@@ -1,3 +1,131 @@
+"""
+The `Commit` class is responsible to structure the content of a
+commit file. A commit is like a sorted dataframe with the following
+columns: `label`, `start`, `stop`, `digest`, `length`, `closed`.
+
+Each row represent a slice of a series: its label, the indexes at
+which it starts an stops and the digests of the different columns.
+
+So for a given commit, if we want to know all the data related to a
+given series, we can simply filter on the `label` column. Furthermore
+if only a part of the series is needed (for usually between two
+dates), we can use `start` and `stop` to detect if a row is relevant.
+
+Once one or more rows are identified, the digests allows to know which
+files contain the data we want. We can then read and uncompress those
+and instanciate a dataframe.
+
+Let's use the command line interface to illustrate this:
+
+```shell
+$ lakota create temperature "timestamp timestamp*" "value float"
+$ cat input.csv | lakota write temperature/Paris
+$ cat input.csv | lakota write temperature/Brussels
+```
+We have create two series with the same content.
+
+
+The `rev` subcomment with the `--extend` flag lists revisions and
+print their content (the commits):
+
+```shell
+$ lakota rev temperature -e
+
+Revision: 00000000000-0000000000000000000000000000000000000000.17665b9f49e-8e692971744a1222b8a7c706b31e24c8d0a22653
+Date: 2020-12-15 10:27:34.302000
+label    start                stop                   length  digests
+-------  -------------------  -------------------  --------  -----------------------------------------------------------------------------------
+Paris    2020-06-22T00:00:00  2020-06-27T00:00:00         6  8dc25a6911f09119919c2b3d177cd4430f43c73a / de46c7d97cc7dde24962e31ee5fdee1acadd114e
+
+
+Revision: 17665b9f49e-8e692971744a1222b8a7c706b31e24c8d0a22653.17665ba05dd-1b188c517bb45f98669620e4822a67a81dd15b3b*
+Date: 2020-12-15 10:27:38.717000
+label     start                stop                   length  digests
+--------  -------------------  -------------------  --------  -----------------------------------------------------------------------------------
+Brussels  2020-06-22T00:00:00  2020-06-27T00:00:00         6  8dc25a6911f09119919c2b3d177cd4430f43c73a / de46c7d97cc7dde24962e31ee5fdee1acadd114e
+Paris     2020-06-22T00:00:00  2020-06-27T00:00:00         6  8dc25a6911f09119919c2b3d177cd4430f43c73a / de46c7d97cc7dde24962e31ee5fdee1acadd114e
+```
+
+(revisions are documented in `lakota.changelog`)
+
+So we can see the two commits made in the collection, they show us
+different states. The first one with only the series `Paris` and the
+second with both. We can use `read` with verbose flags to illustrate
+file access (see comments inlined):
+
+```shell
+$ lakota -vv read temperature/Brussels
+ # The first 4 storage access (1 LIST and 3 READ) are used to identify
+ #  where our collection is.
+LIST .lakota/00/00/000000000000000000000000000000000000 .
+READ .lakota/00/00/000000000000000000000000000000000000 00000000000-0000000000000000000000000000000000000000.17665b9e79b-acf6e197ece6782a6da6e8a50bfd7d9aa3543e90
+READ .lakota/6d/1d 7aa3d69158cdfdee236f3b18791204e6e308
+READ .lakota/2e/0f f7b7988ee10ef47a8973afa3f9da60b6c892
+ # This directory contains our collection, listing it gives us the revisions
+LIST .lakota/70/33/e90fcdda169d2f5d08da17507b0c5db52029 .
+ # The latest commit is read:
+READ .lakota/70/33/e90fcdda169d2f5d08da17507b0c5db52029 17665b9f49e-8e692971744a1222b8a7c706b31e24c8d0a22653.17665ba05dd-1b188c517bb45f98669620e4822a67a81dd15b3b
+ # Based on the commit info, we know which file to read for each column
+READ .lakota/8d/c2 5a6911f09119919c2b3d177cd4430f43c73a # -> payload of timestamp column
+READ .lakota/de/46 c7d97cc7dde24962e31ee5fdee1acadd114e # -> payload of value column
+ # The array are then combined in a dataframe and dumped as csv
+timestamp,value
+2020-06-22T00:00:00,25.0
+2020-06-23T00:00:00,24.0
+2020-06-24T00:00:00,27.0
+2020-06-25T00:00:00,31.0
+2020-06-26T00:00:00,32.0
+2020-06-27T00:00:00,30.0
+```
+
+Each time a write is done on a collection, a new revision file is
+created, its content is a new commit. This commit is based on the
+previous one, usually with an extra line or an update line (or
+both). For example, if we update the `Paris` series, and print the
+commits:
+
+```shell
+
+$ cat input-corrected.csv
+2020-06-23,24.2
+2020-06-24,27.9
+2020-06-25,31.0
+2020-06-26,32.5
+2020-06-27,30.1
+2020-06-28,29.2
+$ cat input-corrected.csv | lakota write temperature/Paris
+$ lakota rev temperature -e
+[...snipped...]
+Revision: 17665ba05dd-1b188c517bb45f98669620e4822a67a81dd15b3b.17665cf207b-b5ef411d8f000b5eafcdd5c58cc4c26a82ac757e*
+Date: 2020-12-15 10:50:41.787000
+label     start                stop                   length  digests
+--------  -------------------  -------------------  --------  -----------------------------------------------------------------------------------
+Brussels  2020-06-22T00:00:00  2020-06-27T00:00:00         6  8dc25a6911f09119919c2b3d177cd4430f43c73a / de46c7d97cc7dde24962e31ee5fdee1acadd114e
+Paris     2020-06-22T00:00:00  2020-06-23T00:00:00         6  8dc25a6911f09119919c2b3d177cd4430f43c73a / de46c7d97cc7dde24962e31ee5fdee1acadd114e
+Paris     2020-06-23T00:00:00  2020-06-28T00:00:00         6  1602a81fb4eafda5226880c7ef9145a8dada8cf0 / fda980aa244f5bef17b9feb5faa3e6532d0f815b
+```
+
+We see two lines for the `Paris` series. The first one has been
+updated (stop is now `2020-06-23`) and the second one has been
+appended. The next time this series is read both line will be
+used except if we filter it:
+
+```shell
+$ lakota -vv read temperature/Paris --greater-than 2020-06-23
+[...snipped...]
+READ .lakota/70/33/e90fcdda169d2f5d08da17507b0c5db52029 17665ba05dd-1b188c517bb45f98669620e4822a67a81dd15b3b.17665cf207b-b5ef411d8f000b5eafcdd5c58cc4c26a82ac757e
+READ .lakota/16/02 a81fb4eafda5226880c7ef9145a8dada8cf0
+READ .lakota/fd/a9 80aa244f5bef17b9feb5faa3e6532d0f815b
+timestamp,value
+2020-06-23T00:00:00,24.2
+2020-06-24T00:00:00,27.9
+2020-06-25T00:00:00,31.0
+2020-06-26T00:00:00,32.5
+2020-06-27T00:00:00,30.1
+2020-06-28T00:00:00,29.2
+```
+"""
+
 from threading import Lock
 
 from numcodecs import registry
@@ -6,6 +134,8 @@ from numpy import asarray, concatenate, isin, where
 from .frame import Frame
 from .schema import Codec, Schema
 from .utils import hashed_path
+
+__all__ = ["Commit", "Segment"]
 
 
 class Commit:
@@ -174,7 +304,7 @@ class Commit:
         if label == stop_row["label"] and stop_row["start"] <= stop < stop_row["stop"]:
             # We hit the left of an existing row
             stop_row["start"] = stop
-            # XXX adapt behavoour if current update is not closed==both
+            # XXX adapt behavior if current update is not closed==both
             stop_row["closed"] = (
                 "right" if stop_row["closed"] in ("right", "both") else None
             )
@@ -253,10 +383,17 @@ class Commit:
         for pos in matches:
             arr_start = tuple(arr[pos] for arr in self.start.values())
             arr_stop = tuple(arr[pos] for arr in self.stop.values())
-            if start and start > arr_stop:
-                continue
-            if stop and stop < arr_start:
-                continue
+            closed = self.closed[pos]
+            if start:
+                if closed in ("both", "right") and start > arr_stop:
+                    continue
+                if closed in ("None", "left") and start >= arr_stop:
+                    continue
+            if stop:
+                if closed in ("both", "left") and stop < arr_start:
+                    continue
+                if closed in (None, "right") and stop <= arr_start:
+                    continue
 
             digest = [arr[pos] for arr in self.digest.values()]
             closed = self.closed[pos]
@@ -319,16 +456,17 @@ class Segment:
     def _read(self, name):
         folder, filename = hashed_path(self.digest[name])
         payload = self.pod.cd(folder).read(filename)
+        # TODO check payload checksum
         arr = self.schema[name].codec.decode(payload)
         return arr[self.start_pos : self.stop_pos]
 
     @property
     def frame(self):
         # Use a Frame instance as container to cache columns
-        if self._frm is not None:
-            return self._frm
-
         with self.lock:
+            if self._frm is not None:
+                return self._frm
+
             cols = {}
             for name in self.schema.idx:
                 cols[name] = self._read(name)

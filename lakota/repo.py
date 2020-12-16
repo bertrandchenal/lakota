@@ -1,14 +1,93 @@
+'''
+## Create and access collections
+
+Create a `Repo` instance:
+```python
+# in-memory
+repo = Repo()
+repo = Repo("memory://")
+# From a local directory
+repo = Repo('some/local/path')
+repo = Repo('file://some/local/path')
+# From an S3 location
+repo = Repo('s3://my_bucket')
+# Chain uri with `+` to enable caching
+repo = Repo('memory://+s3://my_bucket')
+repo = Repo('file:///tmp/local_cache+s3://my_bucket')
+```
+
+Create one or several collections:
+```python
+# Define schema
+schema = Schema(
+"""
+timestamp int *
+value float
+"""
+)
+# Create one collections
+repo.create_collection(schema, 'my_collection')
+# Create a few more
+labels = ['one', 'or_more', 'labels']
+repo.create_collection(schema, *labels)
+```
+
+List and instanciate collections
+```python
+print(list(repo.ls())) # Print collections names
+# Instanciate a collection
+clct = repo.collection('my_collection')
+# like pathlib, the `/` operator can be used
+clct = repo / 'my_collection'
+```
+
+See `lakota.collection` on how to manipulate collections
+
+
+## Garbage Collection
+
+After some times, some series can be overwritten, deleted, squashed or
+merged. Sooner or later some pieces of data will get dereferenced,
+those can be deleted to recover storage space. It is simply done with
+the `gc` method, which returns the number of deleted files.
+
+```python
+nb_file_deleted = repo.gc()
+```
+'''
+
+
 from .changelog import zero_hash
 from .collection import Collection
 from .pod import POD
 from .schema import Schema
 from .utils import Pool, hashed_path, hexdigest, logger
 
+__all__ = ["Repo"]
+
 
 class Repo:
+    """
+    The `Repo` class manage the organisation of a storage location. It
+    provides creation and deletion of collections, synchronization
+    with remote repositories and garbage collection.
+    """
+
     schema = Schema(["label str*", "meta O"], kind="kv")
 
     def __init__(self, uri=None, pod=None):
+        """
+        Usually a repo object can be created based on a uri, like this:
+        ```python
+        repo = Repo('file://some/dir')
+        ```
+        It also accept a `POD` object:
+        ```python
+        pod = POD.from_uri('s3://a-bucket-id')
+        repo = Repo(pod=pod)
+        ```
+
+        """
         pod = pod or POD.from_uri(uri)
         folder, filename = hashed_path(zero_hash)
         self.pod = pod
@@ -18,10 +97,10 @@ class Repo:
         self.collection_series = self.registry.series("collection")
 
     def ls(self):
-        return (item.label for item in self.search())
+        return [item.label for item in self.search()]
 
     def __iter__(self):
-        return self.ls()
+        return iter(self.ls())
 
     def push(self, remote, *labels):
         return remote.pull(self, *labels)
@@ -37,7 +116,7 @@ class Repo:
             series = self.collection_series
         qr = series[start:stop] @ {"closed": "both"}
 
-        frm = qr.frame()  # TODO re-use cache
+        frm = qr.frame()
         for l in frm["label"]:
             yield self.collection(l, frm)
 
