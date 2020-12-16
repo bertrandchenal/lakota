@@ -6,6 +6,7 @@ Inspired by Git, Lakota is a version-control system for numerical
 series. It is meant to be used on top of S3, on the local filesystem
 or in memory.
 
+Documentation: https://bertrandchenal.github.io/lakota/
 
 # Quickstart
 
