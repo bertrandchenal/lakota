@@ -255,18 +255,30 @@ def get_repo(args):
     return Repo(args.repo)
 
 
+def get_collection(repo, label):
+    collection = repo / label
+
+    if collection:
+        return collection
+    match = [c for c in repo if c.startswith(label)]
+    if len(match) == 1:
+        return repo / match[0]
+    exit(f'Collection "{label}" not found')
+
+
 def get_series(args):
     repo = get_repo(args)
     if not "/" in args.label:
         exit(f'Label argument should have the form "collection/series"')
     c_label, s_label = args.label.split("/", 1)
-    collection = repo / c_label
-    if collection is None:
-        exit(f"Collection '{c_label}' not found")
+    collection = get_collection(repo, c_label)
     series = collection / s_label
-    if series is None:
-        exit(f"Series '{args.label}' not found")
-    return series
+    if series:
+        return series
+    match = [s for s in collection if s.startswith(s_label)]
+    if len(match) == 1:
+        return collection / match[0]
+    exit(f"Series '{args.label}' not found")
 
 
 def read(args):
@@ -293,7 +305,6 @@ def read(args):
     lakota read my_collection/my_series --mask "(< self.some_field 42)
     ```
     """
-
     series = get_series(args)
     reduce = False
     if not args.columns:
@@ -410,9 +421,7 @@ def ls(args):
     """
     repo = get_repo(args)
     if args.label:
-        collection = repo / args.label
-        if collection is None:
-            exit(f'Collection "{args.label}" not found')
+        collection = get_collection(repo, args.label)
         header = "series"
     else:
         collection = repo
