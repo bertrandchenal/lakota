@@ -107,14 +107,13 @@ class Collection:
         """
         assert isinstance(remote, Collection), "A Collection instance is required"
 
-        # TODO use local storage as cache for remote (when reading revisions)
         local_digs = set()
         local_digs.update(self.digests())
+        # TODO call changelog.pull _after_ the sync loop hereunder, the preserve consistency for concurrent reads
+
         self.changelog.pull(remote.changelog)
         self.refresh()
-        # XXX optionaly isolate local path not detected in the loop
-        # here-under (and return them at the end to let Repo.pull do
-        # the deletions) (but what about local history?)
+
         sync = lambda path: self.pod.write(path, remote.pod.read(path))
         with Pool() as pool:
             for dig in self.digests():

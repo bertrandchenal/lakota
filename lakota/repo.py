@@ -228,7 +228,7 @@ class Repo:
                             "incompatible meta-info."
                         )
                         raise ValueError(msg)
-                pool.submit(l_clct.pull, r_clct)
+                pool.submit(l_clct.pull, r_clct) # TODO invert the work (call collection.pull first and then self.create_collection) to show consistent state to concurrent reads
 
     def merge(self):
         return self.registry.merge()
