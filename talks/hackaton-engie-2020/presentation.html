@@ -1,0 +1,228 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+   <meta charset="utf-8">
+   <title>Lakota</title>
+
+<meta name="generator" content="GitHub Pages w/ Jekyll">
+<meta name="author"    content="Gerald Bauer et al" >
+
+<!-- S6 style sheet links -->
+<link rel="stylesheet" href="s62/screen.css">
+<link rel="stylesheet" href="pygments.css">
+<link rel="stylesheet" href="style.css">
+
+  
+
+</head>
+<body>
+
+<article id="presentation">
+
+<section class="slide" id="s0"><h1>Lakota</h1>
+
+<p>A git-like storage for timeseries</p>
+</section>
+<section class="slide" id="s1"><h2>How does git keep track of your data ?</h2>
+</section>
+<section class="slide" id="s2"><h3>Checksums</h3>
+
+<p>A checkum is a function that transform a message into a number.</p>
+
+<p>Example</p>
+<div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">hashlib</span> <span class="kn">import</span> <span class="n">sha1</span>
+
+<span class="n">important_info</span> <span class="o">=</span> <span class="sa">b</span><span class="s2">&quot;Hello world&quot;</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">sha1</span><span class="p">(</span><span class="n">important_info</span><span class="p">)</span><span class="o">.</span><span class="n">hexdigest</span><span class="p">())</span>
+<span class="c1"># -&gt; 7b502c3a1f48c8609ae212cdfb639dee39673f5e</span>
+
+<span class="n">another_info</span> <span class="o">=</span> <span class="sa">b</span><span class="s2">&quot;Hello world!&quot;</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">sha1</span><span class="p">(</span><span class="n">another_info</span><span class="p">)</span><span class="o">.</span><span class="n">hexdigest</span><span class="p">())</span>
+<span class="c1"># -&gt; d3486ae9136e7856bc42212385ea797094475802</span>
+</pre></div>
+</section>
+<section class="slide" id="s3"><p>Properties:</p>
+
+<ul>
+<li>Fast and Deterministic</li>
+<li>Any change to the message will generate a different result</li>
+<li>Impossible to revert</li>
+</ul>
+</section>
+<section class="slide" id="s4"><p>Reverting is impossible but we can store the information:</p>
+<div class="highlight"><pre><span></span><span class="n">db</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="sa">b</span><span class="s1">&#39;7b502c3a1f48c8609ae212cdfb639dee39673f5e&#39;</span><span class="p">:</span> <span class="n">important_info</span><span class="p">,</span> <span class="c1"># &quot;Hello world&quot;</span>
+    <span class="sa">b</span><span class="s1">&#39;d3486ae9136e7856bc42212385ea797094475802&#39;</span><span class="p">:</span> <span class="n">another_info</span><span class="p">,</span>  <span class="c1"># &quot;Hello world!&quot;</span>
+<span class="p">}</span>
+</pre></div>
+
+<p>So we can query it:</p>
+<div class="highlight"><pre><span></span><span class="nb">print</span><span class="p">(</span><span class="n">db</span><span class="p">[</span><span class="sa">b</span><span class="s1">&#39;7b502c3a1f48c8609ae212cdfb639dee39673f5e&#39;</span><span class="p">])</span>
+<span class="c1"># -&gt; b&#39;Hello world&#39;</span>
+</pre></div>
+</section>
+<section class="slide" id="s5"><p>Moreover we can compute a digest of digests</p>
+<div class="highlight"><pre><span></span><span class="n">cheksum</span> <span class="o">=</span> <span class="n">sha1</span><span class="p">(</span><span class="sa">b</span><span class="s1">&#39;7b502c3a1f48c8609ae212cdfb639dee39673f5e&#39;</span><span class="p">)</span>
+<span class="n">cheksum</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="sa">b</span><span class="s1">&#39;d3486ae9136e7856bc42212385ea797094475802&#39;</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">cheksum</span><span class="o">.</span><span class="n">hexdigest</span><span class="p">())</span>
+<span class="c1"># -&gt; 4812b3c515b3c453d399fb95bb5b0a261c3542c9</span>
+
+<span class="n">db</span><span class="p">[</span><span class="sa">b</span><span class="s1">&#39;4812b3c515b3c453d399fb95bb5b0a261c3542c9&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="p">[</span>
+    <span class="sa">b</span><span class="s1">&#39;7b502c3a1f48c8609ae212cdfb639dee39673f5e&#39;</span><span class="p">,</span>
+    <span class="sa">b</span><span class="s1">&#39;d3486ae9136e7856bc42212385ea797094475802&#39;</span>
+<span class="p">]</span>
+</pre></div>
+
+<p>(and store it)</p>
+</section>
+<section class="slide" id="s6"><p>Let&#39;s add a new message</p>
+<div class="highlight"><pre><span></span><span class="n">some_new_info</span> <span class="o">=</span> <span class="sa">b</span><span class="s1">&#39;Bye&#39;</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">sha1</span><span class="p">(</span><span class="n">some_new_info</span><span class="p">)</span><span class="o">.</span><span class="n">hexdigest</span><span class="p">())</span>
+<span class="c1"># -&gt; f792424064d0ca1a7d14efe0588f10c052d28e69</span>
+<span class="n">db</span><span class="p">[</span><span class="sa">b</span><span class="s1">&#39;f792424064d0ca1a7d14efe0588f10c052d28e69&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">some_new_info</span>
+</pre></div>
+
+<p>And update our checksum of checksum</p>
+<div class="highlight"><pre><span></span><span class="n">cheksum</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="sa">b</span><span class="s1">&#39;f792424064d0ca1a7d14efe0588f10c052d28e69&#39;</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">cheksum</span><span class="o">.</span><span class="n">hexdigest</span><span class="p">())</span>
+<span class="c1"># -&gt; 87230955960e9c54c6cc43db35ad91602bdfdd73</span>
+
+<span class="n">db</span><span class="p">[</span><span class="sa">b</span><span class="s1">&#39;87230955960e9c54c6cc43db35ad91602bdfdd73&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="p">[</span>
+    <span class="sa">b</span><span class="s1">&#39;7b502c3a1f48c8609ae212cdfb639dee39673f5e&#39;</span><span class="p">,</span>
+    <span class="sa">b</span><span class="s1">&#39;d3486ae9136e7856bc42212385ea797094475802&#39;</span><span class="p">,</span>
+    <span class="sa">b</span><span class="s1">&#39;f792424064d0ca1a7d14efe0588f10c052d28e69&#39;</span><span class="p">,</span>
+<span class="p">]</span>
+</pre></div>
+</section>
+<section class="slide" id="s7"><p>Our minimal git implementation is nearly complete.</p>
+<div class="highlight"><pre><span></span><span class="n">log</span> <span class="o">=</span> <span class="p">[</span>
+    <span class="sa">b</span><span class="s1">&#39;4812b3c515b3c453d399fb95bb5b0a261c3542c9&#39;</span><span class="p">,</span> <span class="c1"># First commit</span>
+    <span class="sa">b</span><span class="s1">&#39;87230955960e9c54c6cc43db35ad91602bdfdd73&#39;</span><span class="p">,</span> <span class="c1"># Second commit</span>
+<span class="p">]</span>
+</pre></div>
+
+<p>The log contains only the digests of digests (not the original messages)</p>
+</section>
+<section class="slide" id="s8"><p>For example the equivalent of a checkout is:</p>
+<div class="highlight"><pre><span></span><span class="n">commit</span> <span class="o">=</span> <span class="sa">b</span><span class="s1">&#39;87230955960e9c54c6cc43db35ad91602bdfdd73&#39;</span>
+<span class="k">for</span> <span class="n">key</span> <span class="ow">in</span> <span class="n">db</span><span class="p">[</span><span class="n">commit</span><span class="p">]:</span>
+    <span class="n">msg</span> <span class="o">=</span> <span class="n">db</span><span class="p">[</span><span class="n">key</span><span class="p">]</span>
+    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">key</span><span class="si">}</span><span class="s1">: </span><span class="si">{</span><span class="n">msg</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
+
+<span class="c1"># -&gt; b&#39;7b502c3a1f48c8609ae212cdfb639dee39673f5e&#39;: b&#39;Hello world&#39;</span>
+<span class="c1">#    b&#39;d3486ae9136e7856bc42212385ea797094475802&#39;: b&#39;Hello world!&#39;</span>
+<span class="c1">#    b&#39;f792424064d0ca1a7d14efe0588f10c052d28e69&#39;: b&#39;Bye&#39;</span>
+</pre></div>
+</section>
+<section class="slide" id="s9"><p>So with the above concept, we see how we can:</p>
+
+<ul>
+<li>Detect a file modification.</li>
+<li>Abstract the state of a large collection of file into one checksum</li>
+<li>Deduplicate content</li>
+<li>Ensure data consistency</li>
+</ul>
+</section>
+<section class="slide" id="s10"><h3>Merkle tree</h3>
+
+<p>This checksum of checksums (or checksum of checksums of checksums ...) is
+called a Merkle Tree. </p>
+</section>
+<section class="slide" id="s11"><h2>What about timeseries ?</h2>
+</section>
+<section class="slide" id="s12"><p>A timeseries is a dataframe with at least two columns</p>
+<div class="highlight"><pre><span></span><span class="n">df</span> <span class="o">=</span> <span class="n">DataFrame</span><span class="p">({</span>
+    <span class="s1">&#39;timestamp&#39;</span><span class="p">:</span> <span class="p">[</span><span class="s1">&#39;2020-01-01&#39;</span><span class="p">,</span> <span class="s1">&#39;2020-01-02&#39;</span><span class="p">,</span> <span class="s1">&#39;2020-01-03&#39;</span><span class="p">,</span> <span class="s1">&#39;2020-01-04&#39;</span><span class="p">,</span> <span class="s1">&#39;2020-01-05&#39;</span><span class="p">],</span>
+    <span class="s1">&#39;value&#39;</span><span class="p">:</span> <span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="mi">4</span><span class="p">,</span> <span class="mi">5</span><span class="p">],</span>
+<span class="p">})</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">df</span><span class="p">)</span>
+
+<span class="c1"># -&gt;</span>
+<span class="c1">#        timestamp  value</span>
+<span class="c1">#    0  2020-01-01      1</span>
+<span class="c1">#    1  2020-01-02      2</span>
+<span class="c1">#    2  2020-01-03      3</span>
+<span class="c1">#    3  2020-01-04      4</span>
+<span class="c1">#    4  2020-01-05      5</span>
+</pre></div>
+</section>
+<section class="slide" id="s13"><p>We compute one digest per column:</p>
+<div class="highlight"><pre><span></span><span class="nb">print</span><span class="p">(</span><span class="n">sha1</span><span class="p">(</span><span class="n">df</span><span class="p">[</span><span class="s1">&#39;timestamp&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">to_numpy</span><span class="p">())</span><span class="o">.</span><span class="n">hexdigest</span><span class="p">())</span>
+<span class="c1"># -&gt; 35926b0130f74f08c6020af537e765258deeef03</span>
+
+<span class="nb">print</span><span class="p">(</span><span class="n">sha1</span><span class="p">(</span><span class="n">df</span><span class="p">[</span><span class="s1">&#39;value&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">to_numpy</span><span class="p">())</span><span class="o">.</span><span class="n">hexdigest</span><span class="p">())</span>
+<span class="c1"># -&gt; 7bfa1c0042237357f6eb89ec07d5e8a89e2d1d0e</span>
+</pre></div>
+
+<p>And combine those to have a digest of our dataframe:</p>
+<div class="highlight"><pre><span></span><span class="n">sha1</span><span class="p">(</span><span class="sa">b</span><span class="s1">&#39;3592...&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="sa">b</span><span class="s1">&#39;7bf...&#39;</span><span class="p">)</span>
+</pre></div>
+</section>
+<section class="slide" id="s14"><p>And then do the same operations for a collection of
+dataframe:</p>
+<div class="highlight"><pre><span></span><span class="n">second_df</span> <span class="o">=</span> <span class="n">DataFrame</span><span class="p">({</span>
+    <span class="s1">&#39;timestamp&#39;</span><span class="p">:</span> <span class="p">[</span><span class="s1">&#39;2020-01-06&#39;</span><span class="p">,</span> <span class="s1">&#39;2020-01-07&#39;</span><span class="p">,</span> <span class="s1">&#39;2020-01-08&#39;</span><span class="p">,</span> <span class="s1">&#39;2020-01-09&#39;</span><span class="p">,</span> <span class="s1">&#39;2020-01-10&#39;</span><span class="p">],</span>
+    <span class="s1">&#39;value&#39;</span><span class="p">:</span> <span class="p">[</span><span class="mi">6</span><span class="p">,</span> <span class="mi">7</span><span class="p">,</span> <span class="mi">8</span><span class="p">,</span> <span class="mi">9</span><span class="p">,</span> <span class="mi">10</span><span class="p">],</span>
+<span class="p">})</span>
+</pre></div>
+
+<p>(rince and repeat)</p>
+
+<p>Remarks:</p>
+
+<ul>
+<li>Each dataframe is a piece of a timeseries and is represented by a checksum.</li>
+<li>So the timeseries state is also abstracted by one checksum.</li>
+</ul>
+</section>
+<section class="slide" id="s15"><h3>Conclusions</h3>
+
+<p>If we add two ingredients:</p>
+
+<ul>
+<li>an efficient compression of the columns data</li>
+<li>a remote storage</li>
+</ul>
+
+<p>We get a timeseries database that offer the following properties:</p>
+
+<ul>
+<li>Space efficiency</li>
+<li>Ease of synchronisation, ease of caching</li>
+<li>Concurrent and atomic access (reads and writes)</li>
+<li>Ability to &quot;rewind&quot; the database</li>
+</ul>
+
+<p>All those ideas and more have been implement in <a href="https://github.com/bertrandchenal/lakota">Lakota</a></p>
+</section>
+<section class="slide" id="s16"><h3>Demo Time</h3>
+
+<p>Web UI</p>
+
+<p>Pull dataset from CLI</p>
+</section>
+<section class="slide" id="s17"><h2>Thank you.  Questions ?</h2>
+</section>
+
+</article><!-- presentation -->
+
+<!-- S6 JS -->
+  <script src="s62/slides.keys.js"></script>
+  <script src="s62/slides.progress.js"></script>
+  <script src="s62/slides.classes.js"></script>
+  <script src="s62/slides.state.js"></script>
+  <script src="s62/slides.kernel.js"></script>
+  <script>
+     const {Deck, classes, keys, progress, state} = S6;
+     const deck = new Deck({ parent: "#presentation",
+                             plugins: [classes(), keys(), progress(), state()] });
+	var hash = 	window.location.hash;
+	if (!!hash) {
+		deck.jump(parseInt(hash.slice(1)));
+	}
+     
+  </script>
+
+</body>
+</html>

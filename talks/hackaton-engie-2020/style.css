@@ -1,0 +1,50 @@
+@media screen {
+	.bespoke-parent {
+		font-size: 1.1em;
+	}
+	.bespoke-progress-parent {
+		height: .1vw;
+	}
+
+	section {
+		font-family: "Lato", "Helvetica";
+	}
+
+	h1 {
+		/* font-family: "IBM 3270", "SF Mono", "Sans"; */
+		text-align: center;
+		margin: 42% 0 0 3%;
+		text-align: left;
+		font-size: 4em;
+	}
+
+	h2 {
+		text-align: center;
+		margin: 20% 0 0 5%;
+		padding: 1em;
+		text-align: left;
+		font-size: 2em;
+	}
+
+	#s0{
+		background-image: linear-gradient(rgba(0, 0, 0, 0.6), rgba(0, 0, 0, 0.1)), url("heli.jpg");
+		background-position: center;
+		background-repeat: no-repeat;
+		background-size: cover;
+		color: white;
+	}
+	#s0 h1 {
+		margin: 33% 0 0 0%;
+	}
+
+	pre {
+		padding: 1em;
+	}
+
+    code {
+        font-size: 1.2em;
+        background-color: #f8f8f8;
+        /* border: 1px dashed lightgrey; */
+    }
+
+}
