@@ -103,7 +103,7 @@ print(df)
 
 # Caching
 
-Caching can be enabled by instanciating a Repo object combining
+Caching can be enabled by instantiating a Repo object combining
 several locations with a `+`:
 
 ``` python
@@ -112,7 +112,7 @@ from lakota import Repo, Schema
 from lakota.utils import logger
 
 
-# Instanciate a remote repo and populate it
+# Instantiate a remote repo and populate it
 remote_repo = Repo('/tmp/remote_repo')
 schema = Schema('''
 timestamp timestamp*
@@ -146,7 +146,7 @@ print(series.df())
 # 3 2020-01-04    3.0
 
 
-# To illustrate caching behaviour, we "destroy" the source repo
+# To illustrate caching behavior, we "destroy" the source repo
 os.rename('/tmp/remote_repo', '/tmp/remote_repo_bis')
 # Reading the data wont work, the cache still contains data, but rely
 # on remote repo for listing it. So if a file is removed from remote
@@ -198,7 +198,7 @@ repositories or between collection.
 from lakota import Repo, Schema
 
 
-# Instanciate a remote repo and populate it
+# Instantiate a remote repo and populate it
 remote_repo = Repo('/tmp/remote_repo')
 schema = Schema('''
 timestamp timestamp*
@@ -306,7 +306,6 @@ series.write({
     'value': range(4),
 })
 
-
 # Let's write some data through clct_bis
 timestamp = [
     "2020-01-02T00:00", # starts 1 day later !
@@ -321,7 +320,7 @@ series_bis.write({
 })
 
 
-# And try to pull and read it with the original repo, the seconde write (on
+# And try to pull and read it with the original repo, the second write (on
 # `series_bis`) overshadows the first on (on `series`):
 repo.pull(repo_bis)
 pprint(series.df())
@@ -359,3 +358,9 @@ pprint(series.df())
 # 3 2020-01-04   12.0
 # 4 2020-01-05   13.0
 ```
+
+In case of concurrent writes on the same part of the timeseries, the
+last write wins. It's important to note that machine clock is
+important here, if concurrent writes here-above were made through two
+different machines with incorrect clock the "last write" would be the
+one from the machine with a clock running ahead.
