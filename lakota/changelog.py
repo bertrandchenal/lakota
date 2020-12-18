@@ -79,7 +79,6 @@ class Changelog:
         """
         if before is not None or from_parent != phi:
             return self._log(before, from_parent)
-
         if self._log_cache is None:
             self._log_cache = list(self._log())
         return self._log_cache
