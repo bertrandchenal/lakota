@@ -107,13 +107,16 @@ class Series:
         sort_mask = frame.argsort()
         assert (sort_mask == arange(len(sort_mask))).all(), "Dataframe is not sorted!"
 
-        # TODO assert all columns have the same length
-
         # Save segments
         all_dig = []
+        arr_length = None
         with Pool() as pool:
             for name in self.schema:
                 arr = self.schema[name].cast(frame[name])
+                if arr_length is None:
+                    arr_length = len(arr)
+                elif len(arr) != arr_length:
+                    raise ValueError("Length mismatch")
                 data = self.schema[name].codec.encode(arr)
                 digest = hexdigest(data)
                 all_dig.append(digest)
@@ -164,9 +167,6 @@ class Series:
         return Query(self).paginate(step=step, **kw)
 
     def frame(self, **kw):
-        return Query(self, **kw).frame()
-
-    def read(self, **kw):
         return Query(self, **kw).frame()
 
     def df(self, **kw):
