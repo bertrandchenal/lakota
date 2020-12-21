@@ -148,7 +148,8 @@ class Collection:
             if all(root in op for op in other_parents):
                 break
 
-        # Reify commits
+        # Reify commits, changelog.log is a depth first traversal, so
+        # the first head is also the oldest branch.
         first_ci, *other_ci = [h.commit(self) for h in heads]
         root_ci = root.commit(self) if root else []
         # Pile all rows for all other commit into the first one
@@ -174,7 +175,7 @@ class Collection:
             queue.extend(parents)
             yield rev
 
-    def squash(self, archive=False):
+    def squash(self, archive=True):
         """
         Remove all past revisions, collapse history into one or few large
         frames.
@@ -182,7 +183,7 @@ class Collection:
         step = 500_000
         all_labels = self.ls()
         # TODO run in parallel
-        with self.batch(phi) as batch:
+        with self.batch() as batch:
             for label in all_labels:
                 logger.info('SQUASH label "%s"', label)
                 # Re-write each series

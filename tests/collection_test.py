@@ -1,5 +1,7 @@
+import pytest
 from numpy import arange
 
+from lakota.changelog import Revision
 from lakota.repo import Repo, Schema
 
 schema = Schema(["timestamp timestamp*", "value float"])
@@ -50,44 +52,55 @@ def test_multi():
     assert list(temperature) == ["Brussels", "Paris"]
 
 
-# @pytest.mark.parametrize("archive", [False, True])
-# def test_squash(archive):
-#     repo = Repo()
-#     other_frame = frame.copy()
-#     other_frame["value"] = [1, 2, 3]
-#     temperature = repo.create_collection(schema, "temperature")
-#     assert temperature.squash(archive=archive) is None
+@pytest.mark.parametrize(
+    "archive",
+    [
+        False,
+    ],
+)  # True -> TODO
+def test_squash(archive):
+    repo = Repo()
+    other_frame = {
+        "timestamp": [4, 5, 6],
+        "value": [4, 5, 6],
+    }
+    temperature = repo.create_collection(schema, "temperature")
+    assert temperature.squash(archive=archive) is None
 
-#     temp_bru = temperature / "Brussels"
-#     temp_bru.write(other_frame)
+    # We need two writes in order to have something to squash
+    temp_bru = temperature / "Brussels"
+    temp_bru.write(frame)
+    temp_bru.write(other_frame)
 
-#     # Capture changelog state
-#     prev_commits = list(temperature.changelog)
-#     assert len(prev_commits) == 1
+    # Capture changelog state
+    prev_commits = list(temperature.changelog)
+    assert len(prev_commits) == 2
 
-#     # Squash
-#     new_commit = temperature.squash(archive=archive)
-#     # New commit should have the same digests
-#     old_ci = Revision.from_path(prev_commits[0])
-#     assert old_ci.digests == new_commit.digests
-#     assert len(list(temperature.changelog)) == 1
+    # Squash
+    (new_commit,) = temperature.squash(archive=archive)
+    # New commit should have the same digests
+    old_ci = Revision.from_path(temperature.changelog, prev_commits[1])
 
-#     temp_bru.write(frame)
-#     temp_ory = temperature / "Paris"
-#     temp_ory.write(frame)
+    assert old_ci.child == new_commit.parent
+    assert len(list(temperature.changelog)) == 1
 
-#     # Squash collection
-#     temperature.squash(archive=archive)
-#     assert len(list(temperature.changelog)) == 1
-#     if archive:
-#         archive_temperature = repo.collection("temperature", mode="archive")
-#         assert len(list(archive_temperature.changelog)) > 1
+    temp_bru.write(frame)
+    temp_ory = temperature / "Paris"
+    temp_ory.write(frame)
+    temp_ory.write(other_frame)
 
-#     # Read data back
-#     assert list(temperature) == ["Brussels", "Paris"]
-#     for label in ("Brussels", "Paris"):
-#         series = temperature / label
-#         assert len(list(series.revisions())) == 1
+    # Squash collection
+    temperature.squash(archive=archive)
+    assert len(list(temperature.changelog)) == 1
+    if archive:
+        assert len(list(temperature.changelog)) > 1
+
+    # Read data back
+    assert list(temperature) == ["Brussels", "Paris"]
+    assert len(list(temperature.changelog.log())) == 1
+
+
+# TODO implement partial squash (to keep recent history), and change frame or other_frame to have an overlap, and make sure the correct one "wins"
 
 
 def test_merge():

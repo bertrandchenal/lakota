@@ -1,4 +1,5 @@
 from collections import defaultdict
+from itertools import chain
 from random import random
 from time import sleep
 
@@ -73,28 +74,37 @@ class Changelog:
     def leafs(self):
         return [rev for rev in self.log() if rev.is_leaf]
 
-    def log(self, before=None, from_parent=phi):
+    def log(self, before=None):
         """
         Create a list of all the active revisions
         """
-        if before is not None or from_parent != phi:
-            return self._log(before, from_parent)
+        if before is not None:
+            return self._log(before)
         if self._log_cache is None:
             self._log_cache = list(self._log())
         return self._log_cache
 
-    def _log(self, before=None, from_parent=phi):
+    def _log(self, before=None):
         # Extract parent->children relations
         revisions = defaultdict(list)
+        all_children = set()
         for name in sorted(self):
             parent, child = name.split(".")
             if parent == child:
                 continue
+            all_children.add(child)
             revisions[parent].append(Revision(self, parent, child))
+
+        # `revision` is sorted low to high (because filled based on
+        # `sorted(self)`, so `queue` is sorted too (high to low). So
+        # the last revision to be yield is the last child of the
+        # oldest branch (aka oldest parent)
+        parent_revs = [r for r in revisions if r not in all_children]
+        first_gen = list(chain.from_iterable(revisions[p] for p in parent_revs))
+        queue = list(reversed(first_gen))
 
         # Depth first traversal of the tree(see
         # https://stackoverflow.com/a/5278667)
-        queue = list(reversed(revisions[from_parent]))
         while queue:
             rev = queue.pop()
             # Append children
@@ -106,8 +116,6 @@ class Changelog:
             if before is not None and rev.epoch >= before:
                 break
             yield rev
-
-        # TODO detect dangling roots
 
     def pull(self, remote):
         new_paths = []

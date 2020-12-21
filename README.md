@@ -170,8 +170,8 @@ print(series.df())
 # 2 2020-01-03    2.0
 # 3 2020-01-04    3.0
 
-# If we "fix" the source repo, our cache works again, this time we
-# activate logging to show that with a "warm" cache the remote repo is
+# If we "fix" the source repo, our cache works again. This time we
+# activate logging to show that with a warm cache the remote repo is
 # only used for listing the changelog of the collection:
 os.rename('/tmp/remote_repo_bis', '/tmp/remote_repo')
 series = cached_repo / 'temperature' / 'Brussels'
@@ -196,7 +196,6 @@ repositories or between collection.
 
 ``` python
 from lakota import Repo, Schema
-
 
 # Instantiate a remote repo and populate it
 remote_repo = Repo('/tmp/remote_repo')
@@ -348,8 +347,8 @@ pprint(clct.changelog.log())
 
 # We see that the merge as created two revisions both pointing to the
 # new head (`176768ef547-34941...`).
-# And we see the effect of the merge, the 1st of January is back:
-pprint(series.df())
+# And we see the effect of the merge, the 1st of January is back:p
+print(series.df())
 #  ->
 #     timestamp  value
 # 0 2020-01-01    0.0
