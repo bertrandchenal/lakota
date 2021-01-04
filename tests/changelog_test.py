@@ -1,3 +1,4 @@
+import time
 from concurrent.futures import ThreadPoolExecutor
 
 from lakota import Changelog
@@ -95,12 +96,15 @@ def test_leafs():
     for data in [b"ham", b"spam"]:
         changelog.commit(data)
 
-    revs = changelog.commit(b"foo", parents=[phi])
-    changelog.commit(b"bar", parents=[r.child for r in revs])
+    # Sleep a bit, to make sure the 'foo/bar' branch wins
+    time.sleep(0.01)
+
+    (rev,) = changelog.commit(b"foo", parents=[phi])
+    changelog.commit(b"bar", parents=[rev.child])
     leafs = changelog.leafs()
     assert len(leafs) == 2
-    assert leafs[0].read() == b"bar"
-    assert leafs[1].read() == b"spam"
+    assert leafs[0].read() == b"spam"
+    assert leafs[1].read() == b"bar"
 
-    # The 'Master' revision is the last one of the first created branch
-    assert changelog.leaf().read() == b"spam"
+    # Last writes wins
+    assert changelog.leaf().read() == b"bar"
