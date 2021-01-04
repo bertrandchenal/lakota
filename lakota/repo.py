@@ -1,5 +1,11 @@
 '''
-## Create and access collections
+
+The `Repo` class manage the organisation of a storage location. It
+provides creation and deletion of collections, synchronization with
+remote repositories and garbage collection.
+
+
+## Create repositories
 
 Create a `Repo` instance:
 ```python
@@ -15,6 +21,26 @@ repo = Repo('s3://my_bucket')
 repo = Repo('memory://+s3://my_bucket')
 repo = Repo('file:///tmp/local_cache+s3://my_bucket')
 ```
+
+S3 authentication is handled by
+[s3fs](https://s3fs.readthedocs.io/en/latest/#credentials "s3fs
+credentials"). So you can either put your credentials in a
+configuration files or in environment variables. If it's not possible,
+you can still pass them as arguments:
+
+```python
+pod = POD.from_uri('s3://bucket_name', key=key, secret=secret, token=token)
+repo = Repo(pod=pod)
+```
+
+Similarly, you can use a compatible service through the `endpoint_url` parameter:
+
+```python
+pod = POD.from_uri('s3://bucket_name', endpoint_url='http://127.0.0.1:5300')
+repo = Repo(pod=pod)
+```
+
+## Access collections
 
 Create one or several collections:
 ```python
@@ -67,26 +93,15 @@ __all__ = ["Repo"]
 
 
 class Repo:
-    """
-    The `Repo` class manage the organisation of a storage location. It
-    provides creation and deletion of collections, synchronization
-    with remote repositories and garbage collection.
-    """
-
     schema = Schema(["label str*", "meta O"], kind="kv")
 
     def __init__(self, uri=None, pod=None):
         """
-        Usually a repo object can be created based on a uri, like this:
-        ```python
-        repo = Repo('file://some/dir')
-        ```
-        It also accept a `POD` object:
-        ```python
-        pod = POD.from_uri('s3://a-bucket-id')
-        repo = Repo(pod=pod)
-        ```
+        `uri`
+        : a string representing a storage location
 
+        `pod`
+        : a `lakota.pod.POD` instance
         """
         pod = pod or POD.from_uri(uri)
         folder, filename = hashed_path(zero_hash)
@@ -101,9 +116,6 @@ class Repo:
 
     def __iter__(self):
         return iter(self.ls())
-
-    def push(self, remote, *labels):
-        return remote.pull(self, *labels)
 
     def search(self, label=None, mode=None):
         if label:
@@ -142,6 +154,16 @@ class Repo:
         return self.reify(label, meta)
 
     def create_collection(self, schema, *labels, raise_if_exists=True, mode=None):
+        """
+        `schema`
+        : A `lakota.schema.Schema` instance
+
+        `labels`
+        : One or more collection name
+
+        `raise_if_exists`
+        : Raise an exception if the label is already present
+        """
         assert isinstance(
             schema, Schema
         ), "The schema parameter must be an instance of lakota.Schema"
@@ -188,6 +210,13 @@ class Repo:
         return self.create_collection(collection.schema, label, mode="archive")
 
     def delete(self, *labels):
+        """
+        Delete one or more collections
+
+        `*labels`
+        : Strings, names of the collection do delete
+
+        """
         to_remove = []
         for l in labels:
             clct = self.collection(l)
@@ -204,7 +233,27 @@ class Repo:
     def refresh(self):
         self.collection_series.refresh()
 
+    def push(self, remote, *labels):
+        """
+        Push local revisions (and related segments) to `remote` Repo.
+        `remote`
+        : A `lakota.repo.Repo` instance
+
+        `labels`
+        : The collections to push. If not given, all collections are pushed
+        """
+        return remote.pull(self, *labels)
+
     def pull(self, remote, *labels):
+        """
+        Pull revisions from `remote` Repo (and related segments).
+        `remote`
+        : A `lakota.repo.Repo` instance
+
+        `labels`
+        : The collections to pull. If not given, all collections are pulled
+        """
+
         assert isinstance(remote, Repo), "A Repo instance is required"
         # Pull registry
         self.registry.pull(remote.registry)
@@ -228,9 +277,15 @@ class Repo:
                             "incompatible meta-info."
                         )
                         raise ValueError(msg)
-                pool.submit(l_clct.pull, r_clct) # TODO invert the work (call collection.pull first and then self.create_collection) to show consistent state to concurrent reads
+                pool.submit(
+                    l_clct.pull, r_clct
+                )  # TODO invert the work (call collection.pull first and then self.create_collection) to show consistent state to concurrent reads
 
     def merge(self):
+        """
+        Merge repository registry. Needed when collections have been created
+        or deleted concurrently.
+        """
         return self.registry.merge()
 
     def gc(self):
@@ -249,11 +304,11 @@ class Repo:
         base_folders = self.pod.ls()
         with Pool(8) as pool:
             for folder in base_folders:
-                pool.submit(self.gc_folder, folder, active_digests)
+                pool.submit(self._gc_folder, folder, active_digests)
         count = sum(pool.results)
         return count
 
-    def gc_folder(self, folder, active_digests):
+    def _gc_folder(self, folder, active_digests):
         count = 0
         pod = self.pod.cd(folder)
         for filename in pod.walk(max_depth=2):
