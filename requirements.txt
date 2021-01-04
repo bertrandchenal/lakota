@@ -1,11 +1,11 @@
 black
 dask[distributed]
 isort
-moto
+moto[server,s3]
 numcodecs
 numpy
 pandas
 pdoc3
 pytest
-s3fs<0.5  # see https://github.com/aio-libs/aiobotocore/issues/755
+s3fs
 tabulate

@@ -34,7 +34,7 @@ setup(
     install_requires=[
         "numpy",
         "numcodecs",
-        "s3fs<0.5",
+        "s3fs",
         "tabulate",
         "msgpack",
     ],

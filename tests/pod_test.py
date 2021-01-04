@@ -61,6 +61,7 @@ def test_write_delete_recursive(pod):
 
 
 def test_write_clear(pod):
+    assert pod.ls() == []
     data = bytes.fromhex("DEADBEEF")
 
     pod.write("key", data)
@@ -71,7 +72,9 @@ def test_write_clear(pod):
     assert len(pod.ls("ham")) == 2
     assert len(pod.ls("ham/spam")) == 1
     pod.clear()
-    assert pod.ls() == []
+    assert pod.ls(
+        missing_ok=True # moto_server delete the bucket when all keys are removed
+    ) == []
 
 
 def test_walk(pod):

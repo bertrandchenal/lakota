@@ -48,11 +48,11 @@ class POD:
         path = PurePosixPath(path)
         if protocol == "file":
             path = Path(path).expanduser()
-            return FilePOD(path, **fs_kwargs)
+            return FilePOD(path)
         elif protocol == "s3":
             return S3POD(path, **fs_kwargs)
         elif protocol == "memory":
-            return MemPOD(path, **fs_kwargs)
+            return MemPOD(path)
         else:
             raise ValueError(f'Protocol "{protocol}" not supported')
 
@@ -288,7 +288,7 @@ class S3POD(POD):
         self.path = path
         self.fs = fs or s3fs.S3FileSystem(
             anon=False,
-            **kw,
+            client_kwargs=kw,
         )
         super().__init__()
 
