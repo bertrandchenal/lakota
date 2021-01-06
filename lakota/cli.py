@@ -382,10 +382,12 @@ def rev(args):
 
     """
     repo = get_repo(args)
-    collection = None
-    collection = repo / args.label
-    if collection is None:
-        exit(f"Collection '{args.label}' not found")
+    if args.label:
+        collection = repo / args.label
+        if collection is None:
+            exit(f"Collection '{args.label}' not found")
+    else:
+        collection = repo.collection_series
 
     fmt = lambda a: " / ".join(map(str, a))
     for rev in collection.changelog.log():
@@ -615,7 +617,7 @@ def run():
 
     # Add rev command
     parser_rev = subparsers.add_parser("rev")
-    parser_rev.add_argument("label")
+    parser_rev.add_argument("label", nargs="?")
     parser_rev.add_argument(
         "-e", "--extended", action="store_true", help="Extended output"
     )

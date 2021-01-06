@@ -363,3 +363,9 @@ last write wins. It's important to note that machine clock is
 important here, if concurrent writes here-above were made through two
 different machines with incorrect clock the "last write" would be the
 one from the machine with a clock running ahead.
+
+
+# Roadmap
+
+- Shallow clone
+- Improve groupby/aggregate from the cli

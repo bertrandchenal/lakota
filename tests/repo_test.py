@@ -1,95 +1,109 @@
+from itertools import product
 from time import sleep
 
 import pytest
 
 from lakota import Repo, Schema
+from lakota.pod import MemPOD
 from lakota.utils import chunky
 
-labels = "zero one two three four five six seven eight nine".split()
-schema = Schema(
+LABELS = "zero one two three four five six seven eight nine".split()
+SCHEMA = Schema(
     """
 timestamp int *
 value float
 """
 )
 
+@pytest.fixture
+def repo():
+    return Repo(pod=MemPOD('.'))
 
-def test_create_collections(pod):
+
+@pytest.mark.parametrize("squash", [True, False])
+def test_create_collections(repo, squash):
     """
     Create all labels in one go
     """
-    repo = Repo(pod=pod)
-    repo.create_collection(schema, *labels)
+
+    base_labels = ['b', 'c', 'e']
+    repo.create_collection(SCHEMA, *base_labels)
 
     # Test that we can get back those series
-    for label in labels:
+    for label in base_labels:
         collection = repo / label
         assert collection.label == label
 
-    # Same after merge
-    repo.merge()
-    for label in labels:
-        coll = repo / label
-        assert coll.label == label
-
     # Test double creation
-    repo.create_collection(schema, *labels)
-    assert sorted(repo.ls()) == sorted(labels)
+    repo.create_collection(SCHEMA, *base_labels)
+    assert sorted(repo.ls()) == sorted(base_labels)
+
+
+    # Add 'a' (first), 'f' (last) and 'd' (middle)
+    repo.create_collection(SCHEMA, 'a')
+    expected = list('abce')
+    assert list(repo) == expected
+
+    repo.create_collection(SCHEMA, 'f')
+    expected = list('abcef')
+    assert list(repo) == expected
+
+    if squash:
+        repo.registry.squash()
+
+    repo.create_collection(SCHEMA, 'd')
+    expected = list('abcdef')
+    assert list(repo) == expected
 
 
 @pytest.mark.parametrize("merge", [True, False])
-def test_create_labels_chunks(pod, merge):
+def test_create_labels_chunks(repo, merge):
     """
     Create all labels in chunks
     """
-    repo = Repo(pod=pod)
-    for label_chunk in chunky(labels, 3):
-        repo.create_collection(schema, *label_chunk)
+    for label_chunk in chunky(LABELS, 3):
+        repo.create_collection(SCHEMA, *label_chunk)
 
     # Test that we can get back those series
-    for label in labels:
+    for label in LABELS:
         coll = repo / label
         assert coll.label == label
 
     # Same after merge
     if merge:
         repo.merge()
-    for label in labels:
+    for label in LABELS:
         coll = repo / label
         assert coll.label == label
 
 
-@pytest.mark.parametrize("merge", [False, True])
-def test_delete(pod, merge):
-    repo = Repo(pod=pod)
-    repo.create_collection(schema, *labels)
-    expected = sorted(labels)
+@pytest.mark.parametrize(
+    "squash,once,to_delete",
+    product([True, False], [True, False],
+            [["eight"], ["zero"], ["eight", "zero"], ["seven"], ["foobar"]]))
+def test_delete(repo, squash, once, to_delete):
+    if once:
+        repo.create_collection(SCHEMA, *LABELS)
+    else:
+        for label in LABELS:
+            repo.create_collection(SCHEMA, label)
+    expected = sorted(LABELS)
     assert list(repo) == expected
 
-    # Remove one label and check result
-    sleep(0.01)
-    repo.delete("seven")
-    if merge:
-        repo.merge()
-    expected = [l for l in expected if l != "seven"]
+    # Remove one or more label and check result
+    repo.delete(*to_delete)
+    if squash:
+        repo.registry.squash()
+    expected = [l for l in expected if l not in to_delete]
     assert list(repo) == expected
-
-    # Remove two labels and check result
-    repo.delete("nine", "zero")
-    if merge:
-        repo.merge()
-    expected = [l for l in expected if l not in ("nine", "zero", "seven")]
-    assert list(repo) == expected
-
-    # Same after sqash
-    repo.merge()
+    if squash:
+        repo.registry.squash()
     assert list(repo) == expected
 
 
 @pytest.mark.parametrize("merge", [True, False])
-def test_delete_and_recreate(pod, merge):
-    repo = Repo(pod=pod)
-    clct = repo.create_collection(schema, "test_coll")
+def test_delete_and_recreate(repo, merge):
+    clct = repo.create_collection(SCHEMA, "test_coll")
     series = clct / "test_series"
     series.write(
         {
@@ -102,7 +116,7 @@ def test_delete_and_recreate(pod, merge):
     repo.delete("test_coll")
     if merge:
         repo.merge()
-    clct = repo.create_collection(schema, "test_coll")
+    clct = repo.create_collection(SCHEMA, "test_coll")
     assert list(clct) == []
 
 
@@ -110,20 +124,19 @@ def test_label_regexp():
     repo = Repo()
     ok = ["abc", "abc-abc-123", "abc_abc-123.45", "abc+abc", "$", "é"]
     for label in ok:
-        repo.create_collection(schema, label)
-        repo.create_collection(schema, label.upper())
+        repo.create_collection(SCHEMA, label)
+        repo.create_collection(SCHEMA, label.upper())
 
     not_ok = ["", "\t", "\n"]
     for label in not_ok:
         with pytest.raises(ValueError):
-            repo.create_collection(schema, label)
+            repo.create_collection(SCHEMA, label)
         with pytest.raises(ValueError):
-            repo.create_collection(schema, label + " ")
+            repo.create_collection(SCHEMA, label + " ")
 
 
-def test_gc(pod):
-    repo = Repo(pod=pod)
-    coll = repo.create_collection(schema, "a_collection")
+def test_gc(repo):
+    coll = repo.create_collection(SCHEMA, "a_collection")
     for offset, label in enumerate(("label_a", "label_b")):
         series = coll / label
         for i in range(offset, offset + 10):

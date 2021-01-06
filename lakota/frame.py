@@ -59,12 +59,11 @@ class Frame:
                 if stop is not None:
                     stop = max(stop - len(sgm), 0)
                 continue
-            arr = sgm.read(name, start=start, stop=stop)
+            arr = sgm.read(name, start_pos=start, stop_pos=stop)
             start = max(start - len(sgm), 0)
             if stop is not None:
                 stop = max(stop - len(sgm), 0)
             arrays.append(arr)
-
         return name, concatenate(arrays) if arrays else []
 
     def df(self, *columns):
@@ -122,7 +121,6 @@ class Frame:
         return Frame(self.schema, cols)
 
     def eval(self, expr):
-        # See also https://github.com/mapbox/snuggs
         ast = AST.parse(expr)
         env = self.eval_env()
         res = ast.eval(env)
@@ -149,17 +147,18 @@ class Frame:
             values = self.schema.row(pos)
             yield dict(zip(self.schema.columns, values))
 
-    def index_slice(self, start=None, stop=None, closed="left"):
+    def index_slice(self, start=None, stop=None, closed="l"):
+        """Slice between two index value. `closed` can be "l" (left, the
+        default), "r" (right) "n" (none) or "b" (both).
+
         """
-        Slice between two index value. `closed` can be "left" (default),
-        "right" or "both".
-        """
+        assert closed in ('l', 'r', 'b', 'n')
         idx_start = idx_stop = None
         if start:
-            right = closed in ("right", None)
+            right = closed in ("r", "n")
             idx_start = self.index(start, right=right)
         if stop:
-            right = closed in ("both", "right")
+            right = closed in ("b", "r")
             idx_stop = self.index(stop, right=right)
         return idx_start, idx_stop
 

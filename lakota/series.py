@@ -39,7 +39,7 @@ class Series:
         start=None,
         stop=None,
         before=None,
-        closed="left",
+        closed="l",
     ):
         """
         Find matching segments
@@ -177,14 +177,14 @@ class Query:
     def __init__(self, series, **kw):
         self.series = series
         self.params = {
-            "closed": "left",
+            "closed": "l",
         }
         for k, v in kw.items():
             self.set_param(k, v)
 
     def set_param(self, key, value):
         if key == "closed":
-            if not value in ("left", "right", "both", None):
+            if not value in ("l", "r", "b", "n"):
                 raise ValueError(f"Unsupported value {value} for closed")
             self.params["closed"] = value
         elif key in ("start", "stop"):
@@ -267,7 +267,7 @@ class KVSeries(Series):
 
         start = self.schema.row(frame, pos=0, full=False)
         stop = self.schema.row(frame, pos=-1, full=False)
-        segments = self.segments(start, stop, closed="both")
+        segments = self.segments(start, stop, closed="b")
         db_frm = Frame.from_segments(
             self.schema, segments
         )  # Maybe paginate on large results
@@ -298,7 +298,7 @@ class KVSeries(Series):
 
         # XXX use changelog pack ?
         start, stop = min(keys), max(keys)
-        frm = self[start:stop].frame(closed="both")
+        frm = self[start:stop].frame(closed="b")
         # Keep only keys not given as argument
         # FIXME use frame.mask to filter it
         items = [(k, s) for k, s in zip(frm["label"], frm["meta"]) if k not in keys]
@@ -312,3 +312,13 @@ class KVSeries(Series):
             }
         # Write result to db
         self.write(new_frm, start=start, stop=stop)
+
+    # def delete(self, *keys):
+    #     if not keys:
+    #         return
+    #     frm = self.frame()
+    #     mask = '(logical_not (isin self.label {}))'.format(
+    #         ' '.join(f'"{k}"' for k in keys)
+    #     )
+    #     new_frm = frm.mask(mask)
+    #     self.write(new_frm, start=frm.start(), stop=frm.stop())

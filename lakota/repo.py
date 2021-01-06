@@ -126,7 +126,7 @@ class Repo:
             series = self.registry.series("archive")
         else:
             series = self.collection_series
-        qr = series[start:stop] @ {"closed": "both"}
+        qr = series[start:stop] @ {"closed": "b"}
 
         frm = qr.frame()
         for l in frm["label"]:
@@ -146,7 +146,7 @@ class Repo:
 
         if not from_frm:
             from_frm = series.frame()
-        frm = from_frm.slice(*from_frm.index_slice([label], [label], closed="both"))
+        frm = from_frm.slice(*from_frm.index_slice([label], [label], closed="b"))
 
         if frm.empty:
             return None

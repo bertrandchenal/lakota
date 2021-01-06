@@ -23,16 +23,15 @@ FLAGS = {}
 fmt = "%(levelname)s:%(asctime).19s: %(message)s"
 logging.basicConfig(format=fmt)
 logger = logging.getLogger("lakota")
-DEBUG = False
 
 
 # Global settings
 @dataclass
 class Settings:
     threaded: bool
+    debug: bool
 
-
-settings = Settings(threaded=True)
+settings = Settings(threaded=True, debug=False)
 
 
 def chunky(collection, size=100):

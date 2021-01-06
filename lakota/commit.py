@@ -153,16 +153,27 @@ class Commit:
         self.stop = stop  # Dict of arrays
         self.digest = digest  # Dict of arrays
         self.length = length  # Array of int
-        self.closed = closed  # Array of ("l", "r", "b", None)
+        self.closed = closed  # Array of ("l", "r", "b", "n")
 
     @classmethod
-    def one(cls, schema, label, start, stop, digest, length, closed="both"):
+    def one(cls, schema, label, start, stop, digest, length, closed="b"):
+        assert closed in ('l', 'r', 'n', 'b')
         label = asarray([label])
         start = dict(zip(schema.idx, (asarray([s]) for s in start)))
         stop = dict(zip(schema.idx, (asarray([s]) for s in stop)))
         digest = dict(zip(schema, (asarray([d], dtype="U") for d in digest)))
         length = [length]
         closed = [closed]
+        return Commit(schema, label, start, stop, digest, length, closed)
+
+    @classmethod
+    def empty(cls, schema):
+        label = asarray([])
+        start = dict(zip(schema.idx, (asarray([]) for _ in schema.idx)))
+        stop = dict(zip(schema.idx, (asarray([]) for _ in schema.idx)))
+        digest = dict(zip(schema, (asarray([]) for _ in schema)))
+        length = []
+        closed = []
         return Commit(schema, label, start, stop, digest, length, closed)
 
     @classmethod
@@ -237,7 +248,7 @@ class Commit:
             res[key] = getattr(self, key)[pos]
         return res
 
-    def update(self, label, start, stop, digest, length, closed="both"):
+    def update(self, label, start, stop, digest, length, closed="b"):
         if not start <= stop:
             raise ValueError(f"Invalid range {start} -> {stop}")
         inner = Commit.one(self.schema, label, start, stop, digest, length, closed)
@@ -250,65 +261,74 @@ class Commit:
             return inner
 
         start_pos, stop_pos = self.split(label, start, stop)
-        # Corner case: we hit right in the middle of an existing row
-        if start_pos + 1 == stop_pos:
-            row = self.at(start_pos)
-            if label == row["start"] and row["start"] < start and stop < row["stop"]:
-                start_row = row
-                start_row["stop"] = start
-                start_row["closed"] = (
-                    "left" if start_row["closed"] in ("left", "both") else None
-                )
-                stop_row = self.at(start_pos)
-                stop_row["start"] = stop
-                stop_row["closed"] = (
-                    "right" if stop_row["closed"] in ("right", "both") else None
-                )
-                ci = Commit.concat(
-                    self.head(start_pos),
-                    Commit.one(schema=self.schema, **start_row),
-                    inner,
-                    Commit.one(schema=self.schema, **stop_row),
-                    self.tail(stop_pos),
-                )
-                return ci
 
         # Truncate start_pos row
         head = None
-        if start_pos < len(self):
-            start_row = self.at(start_pos)
-            if (
-                label == start_row["label"]
-                and start_row["start"] < start <= start_row["stop"]
-            ):
-                # We hit the right of an existing row
-                start_row["stop"] = start
-                # XXX adapt behaviour if current update is not closed==both
-                start_row["closed"] = (
-                    "left" if start_row["closed"] in ("left", "both") else None
+        # start_pos is the result of a bisect_right, so we have to
+        # check the slot on the left that may be perfect match
+        start_row = None
+        if start_pos > 0:
+            prev_row =  self.at(start_pos-1)
+            if prev_row['stop'] == start:
+                start_pos -= 1
+                start_row = prev_row
+        if start_row is None:
+            start_row = self.at(min(start_pos, len(self) -1))
+
+        if (
+            label == start_row["label"]
+            and start_row["start"] <= start <= start_row["stop"]
+        ):
+            # We hit the right of an existing row
+            start_row["stop"] = start
+            # XXX adapt behaviour if current update is not closed==both
+            start_row["closed"] = (
+                "l" if start_row["closed"] in ("l", "b") else 'n'
+            )
+
+            if start_row["start"] == start_row["stop"]:
+                # Ignore star_row
+                head = self.head(start_pos)
+            elif start_pos == len(self):
+                head = Commit.one(schema=self.schema, **start_row)
+            else:
+                head = Commit.concat(
+                    self.head(start_pos),
+                    Commit.one(schema=self.schema, **start_row),
                 )
-                if start_row["start"] < start_row["stop"]:
-                    head = Commit.concat(
-                        self.head(start_pos),
-                        Commit.one(schema=self.schema, **start_row),
-                    )
-                # when start_row["start"] == start_row["stop"],
-                # start_row stop and start are both "overshadowed" by
-                # new commit
+            # when start_row["start"] == start_row["stop"],
+            # start_row stop and start are both "overshadowed" by
+            # new commit
         if head is None:
             head = self.head(start_pos)
 
         # Truncate stop_pos row
         tail = None
-        stop_row = self.at(stop_pos - 1)
-        if label == stop_row["label"] and stop_row["start"] <= stop < stop_row["stop"]:
+        # stop_pos is the result of a bisect_left, so we have to
+        # check the slot on the right that may be perfect match
+        stop_row = None
+        if stop_pos < len(self):
+            next_row = self.at(stop_pos)
+            if next_row['start'] == stop:
+                stop_row = next_row
+                stop_pos += 1
+        if stop_row is None:
+            stop_row = self.at(max(0, stop_pos - 1))
+
+        if label == stop_row["label"] and stop_row["start"] <= stop <= stop_row["stop"]:
             # We hit the left of an existing row
             stop_row["start"] = stop
-            # XXX adapt behavior if current update is not closed==both
+            # XXX adapt behavior if current update is not closed==b
             stop_row["closed"] = (
-                "right" if stop_row["closed"] in ("right", "both") else None
+                "r" if stop_row["closed"] in ("r", "b") else 'n'
             )
-            if stop_row["start"] < stop_row["stop"]:
+
+            if stop_row["start"] == stop_row["stop"]:
+                # Ignore stop_row
+                tail = self.tail(stop_pos)
+            elif stop_pos == 0:
+                tail = Commit.one(schema=self.schema, **stop_row)
+            else:
                 tail = Commit.concat(
                     Commit.one(schema=self.schema, **stop_row),
                     self.tail(stop_pos),
@@ -318,7 +338,6 @@ class Commit:
             # new commit
         if tail is None:
             tail = self.tail(stop_pos)
-
         return Commit.concat(head, inner, tail)
 
     def slice(self, *pos):
@@ -373,7 +392,8 @@ class Commit:
         starts = list(map(fmt, zip(*self.start.values())))
         stops = list(map(fmt, zip(*self.stop.values())))
         items = "\n        ".join(
-            f"{l}[{a} -> {b}]" for l, a, b in zip(self.label, starts, stops)
+            f"{l}[{a} -> {b} ({c})]"
+            for l, a, b, c in zip(self.label, starts, stops, self.closed)
         )
         return f"<Commit {items}>"
 
@@ -385,14 +405,14 @@ class Commit:
             arr_stop = tuple(arr[pos] for arr in self.stop.values())
             closed = self.closed[pos]
             if start:
-                if closed in ("both", "right") and start > arr_stop:
+                if closed in ("b", "r") and start > arr_stop:
                     continue
-                if closed in ("None", "left") and start >= arr_stop:
+                if closed in ("n", "l") and start >= arr_stop:
                     continue
             if stop:
-                if closed in ("both", "left") and stop < arr_start:
+                if closed in ("b", "l") and stop < arr_start:
                     continue
-                if closed in (None, "right") and stop <= arr_start:
+                if closed in ("n", "r") and stop <= arr_start:
                     continue
 
             digest = [arr[pos] for arr in self.digest.values()]
@@ -448,10 +468,11 @@ class Segment:
     def __len__(self):
         return len(self.frame)
 
-    def read(self, name, start=None, stop=None):
+    def read(self, name, start_pos=None, stop_pos=None):
+        # Prime cache
         if not name in self.frame:
             self.frame[name] = self._read(name)
-        return self.frame[name][start:stop]
+        return self.frame[name][start_pos:stop_pos]
 
     def _read(self, name):
         folder, filename = hashed_path(self.digest[name])
@@ -475,4 +496,4 @@ class Segment:
                 self.start, self.stop, closed=self.closed
             )
             self._frm = frm.slice(self.start_pos, self.stop_pos)
-            return frm
+            return self._frm

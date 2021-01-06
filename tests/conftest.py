@@ -1,5 +1,4 @@
 import time
-#import conquer
 from subprocess import DEVNULL, Popen
 from tempfile import TemporaryDirectory
 from uuid import uuid4
