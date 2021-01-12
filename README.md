@@ -365,7 +365,8 @@ different machines with incorrect clock the "last write" would be the
 one from the machine with a clock running ahead.
 
 
-# Roadmap
+# Roadmap / Ideas
 
+- Selective suppression of past revisions
 - Shallow clone
 - Improve groupby/aggregate from the cli
