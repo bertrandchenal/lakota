@@ -1,3 +1,5 @@
+from time import sleep
+
 import pytest
 from numpy import arange
 
@@ -114,6 +116,7 @@ def test_merge():
     # Create separate instances of the same series
     bxl = temperature / "Brussels"
     bxl.write(mk_frm(0))
+    sleep(0.1)
     bxl.write(mk_frm(10), root=True)
     leafs = bxl.changelog.leafs()
     assert len(leafs) == 2

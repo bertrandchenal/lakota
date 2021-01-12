@@ -144,9 +144,10 @@ class Repo:
         else:
             raise ValueError(f'Unexpected mode: "{mode}"')
 
-        if not from_frm:
-            from_frm = series.frame()
-        frm = from_frm.slice(*from_frm.index_slice([label], [label], closed="b"))
+        if from_frm:
+            frm = from_frm.slice(*from_frm.index_slice([label], [label], closed="b"))
+        else:
+            frm = series.frame(start=label, stop=label, closed="b")
 
         if frm.empty:
             return None
@@ -262,7 +263,6 @@ class Repo:
         remote_cache = {r.label: r for r in remote.search()}
         if not labels:
             labels = remote_cache.keys()
-
         with Pool() as pool:
             for label in labels:
                 logger.info("Sync collection: %s", label)

@@ -1,8 +1,12 @@
+import io
+import os
 import shutil
 from pathlib import Path, PurePosixPath
+from urllib.parse import urlsplit
 from uuid import uuid4
 
 import s3fs
+from requests import Session
 
 from .utils import logger
 
@@ -35,26 +39,38 @@ class POD:
             return POD.from_uri(uri.split("+"), **fs_kwargs)
 
         # Define protocal and path
-        if not uri:
-            protocol = "memory"
-            path = "."
-        elif not "://" in uri:
-            protocol = "file"
-            path = uri
-        else:
-            protocol, path = uri.split("://", 1)
+        parts = urlsplit(uri)
+        scheme, path = parts.scheme, parts.path
+        if not scheme:
+            if not path or path == ":memory:":
+                scheme = "memory"
+                path = "."
+            else:
+                scheme = "file"
+
+        # Massage path
+        if scheme == "file":
+            path = Path(path).expanduser()
+        elif scheme in ("s3", "http") and path.startswith("/"):
+            # urlsplit keep the separator in the path
+            path = path[1:]
 
         # Instatiate pod object
         path = PurePosixPath(path)
-        if protocol == "file":
-            path = Path(path).expanduser()
+        if scheme == "file":
+            assert not parts.netloc, "Malformed repo uri, should start with 'file:///'"
             return FilePOD(path)
-        elif protocol == "s3":
-            return S3POD(path, **fs_kwargs)
-        elif protocol == "memory":
+        elif scheme == "s3":
+            return S3POD(path, netloc=parts.netloc)
+        elif scheme == "ssh":
+            raise NotImplementedError("SSH support not implemented yet")
+        elif scheme == "http":
+            base_uri = f"{parts.scheme}://{parts.netloc}/"
+            return HttpPOD(base_uri, path)
+        elif scheme == "memory":
             return MemPOD(path)
         else:
-            raise ValueError(f'Protocol "{protocol}" not supported')
+            raise ValueError(f'Protocol "{scheme}" not supported')
 
     def __truediv__(self, relpath):
         return self.cd(relpath)
@@ -110,6 +126,7 @@ class FilePOD(POD):
     def read(self, relpath, mode="rb"):
         logger.debug("READ %s %s", self.path, relpath)
         path = self.path / relpath
+        # XXX make sure path is subpath of self.path
         return path.open(mode).read()
 
     def write(self, relpath, data, mode="wb"):
@@ -283,13 +300,18 @@ class S3POD(POD):
 
     protocol = "s3"
 
-    def __init__(self, path, fs=None, **kw):
+    def __init__(self, path, netloc=None, fs=None):
         # TODO document use of param: endpoint_url='http://127.0.0.1:5300'
         self.path = path
-        self.fs = fs or s3fs.S3FileSystem(
-            anon=False,
-            client_kwargs=kw,
-        )
+        if fs:
+            self.fs = fs
+        else:
+            kw = {}
+            if netloc:
+                # TODO support for https
+                kw["endpoint_url"] = f"http://{netloc}"
+            self.fs = s3fs.S3FileSystem(anon=False, client_kwargs=kw)
+
         super().__init__()
 
     def cd(self, *others):
@@ -381,3 +403,116 @@ class CachePOD(POD):
             self.local.rm(relpath, recursive=recursive, missing_ok=missing_ok)
         except FileNotFoundError:
             pass
+
+
+class SSHPOD(POD):
+
+    protocol = "ssh"
+
+    def __init__(self, client, path):
+        self.client = client
+        super().__init__()
+
+    @classmethod
+    def from_uri(cls, uri):
+        user, tail = uri.split("@")
+        host, path = tail.split("/", 1)
+
+        # path = Path(path)
+
+        key = os.environ["SSH_KEY"]
+        file_obj = io.StringIO(key)
+
+        k = paramiko.RSAKey(file_obj=file_obj)
+        client = paramiko.SSHClient()
+        client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+        client.connect(hostname=host, username="username", pkey=k)
+
+        return SSHPOD(client, path)
+
+    def cd(self, *others):
+        path = self.path.joinpath(*others)
+        return SSHPOD(self.client, path)
+
+    def ls(self, relpath=".", missing_ok=False):
+        logger.debug("LIST %s %s", self.path, relpath)
+        path = self.path / relpath
+        try:
+            return self.client.listdir(path)
+        except FileNotFoundError:
+            if missing_ok:
+                return []
+            raise
+
+    def read(self, relpath, mode="rb"):
+        logger.debug("READ %s %s", self.path, relpath)
+        path = self.path / relpath
+        return self.client.open(path, mode).read()
+
+
+class HttpPOD(POD):
+
+    protocol = "http"
+
+    def __init__(self, base_uri, path=None, session=None):
+        self.base_uri = base_uri
+        self.path = path
+        self.session = session or Session()
+        super().__init__()
+
+    def cd(self, *others):
+        path = self.path.joinpath(*others)
+        return HttpPOD(self.base_uri, path, session=self.session)
+
+    def ls(self, relpath=".", missing_ok=False):
+        logger.debug("LIST %s://%s %s", self.protocol, self.path, relpath)
+        path = self.path / relpath
+        resp = self.session.get(self.base_uri + "ls/" + str(path))
+
+        if resp.status_code == 404:
+            if missing_ok:
+                return []
+            raise FileNotFoundError(f"{relpath} not found")
+        else:
+            resp.raise_for_status()
+
+        return resp.text.splitlines()
+
+    def read(self, relpath, mode="rb"):
+        logger.debug("READ %s://%s %s", self.protocol, self.path, relpath)
+        path = self.path / relpath
+        resp = self.session.get(self.base_uri + "read/" + str(path))
+
+        if resp.status_code == 404:
+            raise FileNotFoundError(f"{relpath} not found")
+        else:
+            resp.raise_for_status()
+        return resp.content
+
+    def write(self, relpath, data, mode="wb"):
+        logger.debug("WRITE %s://%s %s", self.protocol, self.path, relpath)
+        path = str(self.path / relpath)
+        resp = self.session.post(self.base_uri + "write/" + str(path), data=data)
+        resp.raise_for_status()
+        return int(resp.content) if resp.content else None
+
+    def rm(self, relpath=".", recursive=False, missing_ok=False):
+        logger.debug("REMOVE %s://%s %s", self.protocol, self.path, relpath)
+        path = str(self.path / relpath)
+        params = {
+            "recursive": "true" if recursive else "",
+            "missing_ok": "true" if missing_ok else "",
+        }
+        resp = self.session.post(self.base_uri + "rm/" + path, params=params)
+        resp.raise_for_status()
+
+    def walk(self, max_depth=None):
+        if max_depth == 0:
+            return []
+        params = {}
+        if max_depth is not None:
+            params["max_depth"] = str(max_depth)
+
+        resp = self.session.get(self.base_uri + "walk/" + str(self.path), params=params)
+        resp.raise_for_status()
+        return resp.text.splitlines()

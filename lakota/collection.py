@@ -107,21 +107,18 @@ class Collection:
         """
         assert isinstance(remote, Collection), "A Collection instance is required"
 
-        local_digs = set()
-        local_digs.update(self.digests())
-        # TODO call changelog.pull _after_ the sync loop hereunder, the preserve consistency for concurrent reads
-
-        self.changelog.pull(remote.changelog)
-        self.refresh()
-
+        local_digs = set(self.digests())
+        remote_digs = set(remote.digests())
         sync = lambda path: self.pod.write(path, remote.pod.read(path))
         with Pool() as pool:
-            for dig in self.digests():
+            for dig in remote_digs:
                 if dig in local_digs:
                     continue
                 folder, filename = hashed_path(dig)
                 path = folder / filename
                 pool.submit(sync, path)
+
+        self.changelog.pull(remote.changelog)
 
     def merge(self, *heads):
         revisions = self.changelog.log()
@@ -191,22 +188,14 @@ class Collection:
                 for frm in series.paginate(step):
                     series.write(frm, batch=batch)
 
-        if not batch.revs:
-            return
-
-        # if archive:
-        #     # TODO prefix/suffix schema with an _wtime column to keep
-        #     # trace of revisions (to be able to write larger segments
-        #     # and squash changelog)
-        #     archive_pod = self.repo.archive(self).changelog.pod
-        #     for path in self.changelog:
-        #         if path == batch.commit.path:
-        #             continue
-        #         data = self.changelog.pod.read(path)
-        #         archive_pod.write(path, data)
-
-        skip = (r.path for r in batch.revs)
+        if batch.revs:
+            revs = batch.revs
+        else:
+            leaf = self.changelog.leaf()
+            revs = [leaf] if leaf is not None else []
+        skip = [r.path for r in revs]
         self.changelog.pod.clear(*skip)
+        self.changelog.refresh()
         return batch.revs
 
     def digests(self):

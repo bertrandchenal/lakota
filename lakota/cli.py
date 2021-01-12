@@ -246,6 +246,14 @@ from datetime import datetime
 from tabulate import tabulate
 
 from . import __version__
+
+try:
+    import flask
+except ImportError:
+    flask = None
+else:
+    from lakota import server
+
 from .repo import Repo
 from .schema import Schema
 from .utils import hextime, logger, strpt, timeit
@@ -273,7 +281,7 @@ def get_series(args):
     c_label, s_label = args.label.split("/", 1)
     collection = get_collection(repo, c_label)
     series = collection / s_label
-    if series:
+    if series is not None:
         return series
     match = [s for s in collection if s.startswith(s_label)]
     if len(match) == 1:
@@ -488,13 +496,14 @@ def squash(args):
     repo changelog.
     """
     repo = get_repo(args)
-    if args.labels:
-        for label in args.labels:
+    labels = repo.ls() if args.all else args.labels
+    if labels:
+        for label in labels:
             collection = repo / label
             if not collection:
                 exit(f'Collection "{label}" not found')
             collection.squash()
-    else:
+    if args.all or not args.labels:
         repo.registry.squash()
 
 
@@ -555,6 +564,14 @@ def gc(args):
     repo = get_repo(args)
     cnt = repo.gc()
     print(f"{cnt} segments deleted")
+
+
+def serve(args):
+    if flask is None:
+        exit("Please install flask to run server")
+
+    repo = get_repo(args)
+    server.run(repo, args.netloc, debug=args.verbose)
 
 
 def print_help(parser, args):
@@ -631,6 +648,9 @@ def run():
     # Add squash command
     parser_squash = subparsers.add_parser("squash")
     parser_squash.add_argument("labels", nargs="*")
+    parser_squash.add_argument(
+        "-a", "--all", action="store_true", help="Squash everything"
+    )
     parser_squash.set_defaults(func=squash)
 
     # Add push command
@@ -678,6 +698,11 @@ def run():
     # Add version command
     parser_len = subparsers.add_parser("version")
     parser_len.set_defaults(func=lambda *a: print(__version__))
+
+    # Add serve command
+    parser_serve = subparsers.add_parser("serve")
+    parser_serve.add_argument("netloc", nargs="?", default="127.0.0.1:8080")
+    parser_serve.set_defaults(func=serve)
 
     # Parse args
     args = parser.parse_args()

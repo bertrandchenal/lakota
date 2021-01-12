@@ -10,7 +10,7 @@ def test_cd(pod):
 
 
 def test_empty_ls():
-    pod = POD.from_uri("file://i-do-not-exists")
+    pod = POD.from_uri("file:///i-do-not-exists")
     with pytest.raises(FileNotFoundError):
         pod.ls()
 
@@ -72,9 +72,12 @@ def test_write_clear(pod):
     assert len(pod.ls("ham")) == 2
     assert len(pod.ls("ham/spam")) == 1
     pod.clear()
-    assert pod.ls(
-        missing_ok=True # moto_server delete the bucket when all keys are removed
-    ) == []
+    assert (
+        pod.ls(
+            missing_ok=True  # moto_server delete the bucket when all keys are removed
+        )
+        == []
+    )
 
 
 def test_walk(pod):
