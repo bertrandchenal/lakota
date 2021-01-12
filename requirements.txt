@@ -11,4 +11,5 @@ pdoc3
 pytest
 requests
 s3fs
+boto3
 tabulate

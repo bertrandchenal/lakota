@@ -246,14 +246,6 @@ from datetime import datetime
 from tabulate import tabulate
 
 from . import __version__
-
-try:
-    import flask
-except ImportError:
-    flask = None
-else:
-    from lakota import server
-
 from .repo import Repo
 from .schema import Schema
 from .utils import hextime, logger, strpt, timeit
@@ -567,11 +559,22 @@ def gc(args):
 
 
 def serve(args):
-    if flask is None:
+    try:
+        from lakota import server
+    except ImportError:
+        raise
         exit("Please install flask to run server")
 
     repo = get_repo(args)
     server.run(repo, args.netloc, debug=args.verbose)
+
+
+def deploy(args):
+    try:
+        from lakota.aws_utils import deploy_lambda
+    except ImportError:
+        exit("Please install boto3 and aws-wsgi to deploy lambda")
+    deploy_lambda(args.name, args.arn, args.lakota_package)
 
 
 def print_help(parser, args):
@@ -703,6 +706,17 @@ def run():
     parser_serve = subparsers.add_parser("serve")
     parser_serve.add_argument("netloc", nargs="?", default="127.0.0.1:8080")
     parser_serve.set_defaults(func=serve)
+
+    # Add deploy command
+    parser_deploy = subparsers.add_parser("deploy")
+    parser_deploy.add_argument("name", help="Lambda function name")
+    parser_deploy.add_argument("--arn", help="ARN of the role")
+    parser_deploy.add_argument(
+        "--lakota-package",
+        help="Full path to clone (if not set use the offical package",
+        default="lakota",
+    )
+    parser_deploy.set_defaults(func=deploy)
 
     # Parse args
     args = parser.parse_args()
