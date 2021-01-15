@@ -539,11 +539,11 @@ def delete(args):
     """
     repo = get_repo(args)
     if "/" in args.label:
-        collection, series = args.label.split("/", 1)
-        clct = repo / collection
-        clct.delete(series)
+        srs = get_series(args)
+        srs.collection.delete(srs.label)
     else:
-        repo.delete(args.label)
+        clc = get_collection(repo, args.label)
+        repo.delete(clc.label)
 
 
 def gc(args):
@@ -587,7 +587,7 @@ def print_help(parser, args):
 def run():
 
     # Take default repo from env variable, fallback to .lakota in current dir
-    default_repo = os.environ.get("LAKOTA_REPO", "file://.lakota")
+    default_repo = os.environ.get("LAKOTA_REPO", "file:///.lakota")
 
     # top-level parser
     parser = argparse.ArgumentParser(
