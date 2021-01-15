@@ -49,11 +49,11 @@ class POD:
                 scheme = "file"
 
         # Massage path
-        if scheme == "file":
-            path = Path(path).expanduser()
-        elif scheme in ("s3", "http") and path.startswith("/"):
+        if parts.scheme and path.startswith("/"):
             # urlsplit keep the separator in the path
             path = path[1:]
+        if scheme == "file":
+            path = Path(path).expanduser()
 
         # Instatiate pod object
         path = PurePosixPath(path)
@@ -167,7 +167,7 @@ class MemPOD(POD):
 
     protocol = "memory"
 
-    def __init__(self, path, parent=None):
+    def __init__(self, path=".", parent=None):
         self.path = PurePosixPath(path)
         self.parent = parent
         # store keys are path, values are either bytes (aka a file)

@@ -131,3 +131,20 @@ def test_merge():
     # Check no data is lost
     fr = bxl.frame()
     assert all(fr["value"] == arange(20))
+
+
+def test_delete():
+    frame = {"timestamp": [1, 2, 3], "value": [11, 12, 13]}
+    # Create repo / collection / series
+    repo = Repo()
+    temperature = repo.create_collection(schema, "temperature")
+    temp_bru = temperature / "Brussels"
+    temp_bru.write(frame)
+
+    assert temperature.ls() == ["Brussels"]
+
+    temperature.delete("Brussels")
+    assert temperature.ls() == []
+
+    srs = temperature / "Brussels"
+    assert len(srs.frame()) == 0

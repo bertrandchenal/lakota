@@ -232,7 +232,7 @@ class Repo:
                 continue
 
     def refresh(self):
-        self.collection_series.refresh()
+        self.registry.refresh()
 
     def push(self, remote, *labels):
         """

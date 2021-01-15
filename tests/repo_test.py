@@ -1,5 +1,4 @@
 from itertools import product
-from time import sleep
 
 import pytest
 
@@ -15,9 +14,10 @@ value float
 """
 )
 
+
 @pytest.fixture
 def repo():
-    return Repo(pod=MemPOD('.'))
+    return Repo(pod=MemPOD("."))
 
 
 @pytest.mark.parametrize("squash", [True, False])
@@ -26,7 +26,7 @@ def test_create_collections(repo, squash):
     Create all labels in one go
     """
 
-    base_labels = ['b', 'c', 'e']
+    base_labels = ["b", "c", "e"]
     repo.create_collection(SCHEMA, *base_labels)
 
     # Test that we can get back those series
@@ -38,21 +38,20 @@ def test_create_collections(repo, squash):
     repo.create_collection(SCHEMA, *base_labels)
     assert sorted(repo.ls()) == sorted(base_labels)
 
-
     # Add 'a' (first), 'f' (last) and 'd' (middle)
-    repo.create_collection(SCHEMA, 'a')
-    expected = list('abce')
+    repo.create_collection(SCHEMA, "a")
+    expected = list("abce")
     assert list(repo) == expected
 
-    repo.create_collection(SCHEMA, 'f')
-    expected = list('abcef')
+    repo.create_collection(SCHEMA, "f")
+    expected = list("abcef")
     assert list(repo) == expected
 
     if squash:
         repo.registry.squash()
 
-    repo.create_collection(SCHEMA, 'd')
-    expected = list('abcdef')
+    repo.create_collection(SCHEMA, "d")
+    expected = list("abcdef")
     assert list(repo) == expected
 
 
@@ -79,8 +78,12 @@ def test_create_labels_chunks(repo, merge):
 
 @pytest.mark.parametrize(
     "squash,once,to_delete",
-    product([True, False], [True, False],
-            [["eight"], ["zero"], ["eight", "zero"], ["seven"], ["foobar"]]))
+    product(
+        [True, False],
+        [True, False],
+        [["eight"], ["zero"], ["eight", "zero"], ["seven"], ["foobar"]],
+    ),
+)
 def test_delete(repo, squash, once, to_delete):
     if once:
         repo.create_collection(SCHEMA, *LABELS)
@@ -159,3 +162,18 @@ def test_gc(repo):
     # Read back data
     coll = repo / "a_collection"
     assert list(coll.ls()) == ["label_a", "label_b"]
+
+
+def test_refresh():
+    pod = MemPOD(".")
+    repo = Repo(pod=pod)
+
+    repo.create_collection(SCHEMA, "collection")
+    assert repo.ls() == ["collection"]
+    repo2 = Repo(pod=pod)
+    repo2.delete("collection")
+    # repo is out of sync
+    assert repo.ls() == ["collection"]
+    # refresh slove ths
+    repo.refresh()
+    assert repo.ls() == []

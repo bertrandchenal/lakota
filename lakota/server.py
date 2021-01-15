@@ -6,6 +6,24 @@ app = Flask("Lakota Repository")
 @app.route("/<action>/")
 @app.route("/<action>/<path:relpath>", methods=["GET", "POST"])
 def pod(action, relpath=None):
+    """
+    summary: Interact with low-level POD object (GET)
+    ---
+    parameters:
+      - in: path
+        name: action
+        schema:
+          type: string
+        required: true
+        description: Action to perform (ls, read, rm or walk)
+      - in: path
+        name: relpath
+        schema:
+          type: string
+        required: false
+        description: Relative path
+    """
+
     repo = app.config["lakota_repo"]
     if action == "ls":
         try:
