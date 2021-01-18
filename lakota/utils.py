@@ -6,9 +6,10 @@ from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime
+from enum import Flag
 from hashlib import sha1
 from itertools import islice
-from pathlib import PosixPath
+from pathlib import PurePosixPath
 from time import perf_counter, time
 
 from numpy import arange
@@ -30,6 +31,7 @@ logger = logging.getLogger("lakota")
 class Settings:
     threaded: bool
     debug: bool
+
 
 settings = Settings(threaded=True, debug=False)
 
@@ -84,7 +86,7 @@ def hashed_path(digest, depth=2):
     12345678 -> (Path(12/34), "5678") (with depth = 2)
     """
     assert len(digest) > 2 * depth
-    folder = PosixPath(".")
+    folder = PurePosixPath(".")
     for _ in range(depth):
         prefix, digest = digest[:2], digest[2:]
         folder = folder / prefix
@@ -227,3 +229,22 @@ class Interval:
         idx = bisect.bisect_right(cls.durations, nb_seconds)
         label = cls.labels[idx]
         return label
+
+
+class Closed(Flag):
+    n = none = NONE = 0
+    r = right = RIGHT = 1
+    l = left = LEFT = 2
+    b = both = BOTH = 3
+
+    def left_closed(self):
+        return self & Closed.LEFT
+
+    def right_closed(self):
+        return self & Closed.RIGHT
+
+    def set_left(self, other):
+        return (self & Closed.RIGHT) | (other & Closed.LEFT)
+
+    def set_right(self, other):
+        return (self & Closed.LEFT) | (other & Closed.RIGHT)
