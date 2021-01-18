@@ -266,19 +266,17 @@ def get_collection(repo, label):
     exit(f'Collection "{label}" not found')
 
 
-def get_series(args):
-    repo = get_repo(args)
-    if not "/" in args.label:
+def get_series(repo, label):
+    if not "/" in label:
         exit(f'Label argument should have the form "collection/series"')
-    c_label, s_label = args.label.split("/", 1)
+    c_label, s_label = label.split("/", 1)
     collection = get_collection(repo, c_label)
-    series = collection / s_label
-    if series is not None:
-        return series
+    if label in collection:
+        return collection / s_label
     match = [s for s in collection if s.startswith(s_label)]
     if len(match) == 1:
         return collection / match[0]
-    exit(f"Series '{args.label}' not found")
+    exit(f"Series '{label}' not found")
 
 
 def read(args):
@@ -305,7 +303,8 @@ def read(args):
     lakota read my_collection/my_series --mask "(< self.some_field 42)
     ```
     """
-    series = get_series(args)
+    repo = get_repo(args)
+    series = get_series(repo, args.label)
     reduce = False
     if not args.columns:
         columns = list(series.schema.columns)
@@ -362,13 +361,15 @@ def length(args):
     $ lakota len my_collection/my_series
     ```
     """
+    repo = get_repo(args)
+    label = args.label
     if "/" in args.label:
-        series = [get_series(args)]
+        series = [get_series(repo, label)]
     else:
         repo = get_repo(args)
-        clc = repo / args.label
+        clc = get_collection(repo, label)
         if clc is None:
-            exit(f'Collection "{args.label}" not found')
+            exit(f'Collection "{label}" not found')
         series = [clc / name for name in clc]
     print(sum(len(s) for s in series))
 
@@ -383,7 +384,7 @@ def rev(args):
     """
     repo = get_repo(args)
     if args.label:
-        collection = repo / args.label
+        collection = get_collection(repo, args.label)
         if collection is None:
             exit(f"Collection '{args.label}' not found")
     else:
@@ -460,7 +461,8 @@ def write(args):
     $ cat some_file.csv | lakota write my_collection/my_series
     ```
     """
-    series = get_series(args)
+    repo = get_repo(args)
+    series = get_series(repo, args.label)
     reader = csv.reader(sys.stdin)
     columns = zip(*reader)
     schema = series.schema
@@ -491,7 +493,7 @@ def squash(args):
     labels = repo.ls() if args.all else args.labels
     if labels:
         for label in labels:
-            collection = repo / label
+            collection = get_collection(repo, args.label)
             if not collection:
                 exit(f'Collection "{label}" not found')
             collection.squash()
@@ -539,7 +541,7 @@ def delete(args):
     """
     repo = get_repo(args)
     if "/" in args.label:
-        srs = get_series(args)
+        srs = get_series(args.label)
         srs.collection.delete(srs.label)
     else:
         clc = get_collection(repo, args.label)
