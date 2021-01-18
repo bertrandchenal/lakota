@@ -19,7 +19,7 @@ params = [
 ]  # "ssh"
 
 
-@pytest.yield_fixture(scope="function", params=params)
+@pytest.fixture(scope="function", params=params)
 def pod(request):
     if request.param == "memory":
         yield POD.from_uri("memory://")
@@ -35,10 +35,10 @@ def pod(request):
         netloc = f"127.0.0.1:{port}"
         with TemporaryDirectory() as tdir:
             proc = Popen(
-                ["lakota", "-vv", "-r", tdir, "serve", netloc],
+                ["lakota", "-r", tdir, "serve", netloc],
                 stderr=DEVNULL,
                 stdout=DEVNULL,
-            )
+            )  # TODO launch only one process and clear repo between tests (same with moto)
             time.sleep(1)
             with proc:
                 pod = POD.from_uri(f"http://{netloc}")
