@@ -13,7 +13,7 @@ ALIASES = {
     "str": "U",
 }
 
-__all__ = ['Schema']
+__all__ = ["Schema"]
 
 
 class Codec:
@@ -33,9 +33,7 @@ class Codec:
         else:
             # Adapt dtypes and codec_names
             default_codec_names = ["blosc"]
-            if dt == dtype("<U"):
-                default_codec_names = ["vlen-utf8", "zstd"]  # TODO use msgpck too
-            elif dt == dtype("O"):
+            if dt in (dtype("O"), dtype("U")):
                 default_codec_names = ["msgpack2", "zstd"]
             self.codec_names = default_codec_names
 
@@ -114,7 +112,8 @@ class SchemaColumn:
             self.name == other.name
             and self.idx == other.idx
             and self.codec == other.codec
-            )
+        )
+
 
 class Schema:
     def __init__(self, from_ui=None, from_columns=None, kind=None):
