@@ -30,6 +30,7 @@ def deploy_lambda(name, role_arn, lakota_package="lakota"):
         )
         logger.info("Function %s deleted", name)
     except lambda_client.exceptions.ResourceNotFoundException:
+        print("NOT FOUND")
         pass
 
     # Create function

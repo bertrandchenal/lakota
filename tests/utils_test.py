@@ -50,20 +50,20 @@ def test_drange():
 
 def test_closed():
 
-    left = Closed.left
-    right = Closed.right
-    none = Closed.none
-    both = Closed.both
+    left = Closed.LEFT
+    right = Closed.RIGHT
+    none = Closed.NONE
+    both = Closed.BOTH
 
-    assert Closed["l"] is Closed.left
+    assert Closed["l"] is Closed.LEFT
     assert Closed.r is Closed["RIGHT"]
     assert Closed.n is Closed.NONE
-    assert Closed.both is Closed["b"]
+    assert Closed.BOTH is Closed["b"]
 
-    assert left.left_closed() and both.left_closed()
-    assert not none.left_closed() and not right.left_closed()
-    assert not left.right_closed() and both.right_closed()
-    assert not none.right_closed() and right.right_closed()
+    assert left.left and both.left
+    assert not none.left and not right.left
+    assert not left.right and both.right
+    assert not none.right and right.right
 
     # Test set_left
     assert left.set_left(left) == left

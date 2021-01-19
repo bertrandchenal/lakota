@@ -49,8 +49,7 @@ class Series:
             return
 
         leaf_ci = leaf_rev.commit(self.collection)
-        # TODO pass closed to call hereunder
-        return leaf_ci.segments(self.label, self.pod, start, stop)
+        return leaf_ci.segments(self.label, self.pod, start, stop, closed=closed)
 
     def period(self, rev):
         """

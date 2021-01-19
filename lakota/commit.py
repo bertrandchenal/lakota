@@ -133,7 +133,7 @@ from numpy import asarray, concatenate, isin, where
 
 from .frame import Frame
 from .schema import Codec, Schema
-from .utils import hashed_path
+from .utils import Closed, hashed_path
 
 __all__ = ["Commit", "Segment"]
 
@@ -249,6 +249,7 @@ class Commit:
         return res
 
     def update(self, label, start, stop, digest, length, closed="b"):
+        assert closed == "b", "Non-closed updates not supported"
         if not start <= stop:
             raise ValueError(f"Invalid range {start} -> {stop}")
         inner = Commit.one(self.schema, label, start, stop, digest, length, closed)
@@ -393,35 +394,42 @@ class Commit:
         )
         return f"<Commit {items}>"
 
-    def segments(self, label, pod, start=None, stop=None):
+    def segments(self, label, pod, start=None, stop=None, closed="b"):
+        closed = Closed[closed]
+        # If start (or stop) is not set, and the left (right) side is
+        # not closed, we ignore the very first (last) item, which
+        # makes no sense
+        if start is None:
+            closed = closed.set_left(Closed.LEFT)
+        if stop is None:
+            closed = closed.set_right(Closed.RIGHT)
         res = []
         (matches,) = where(self.label == label)
         for pos in matches:
             arr_start = tuple(arr[pos] for arr in self.start.values())
             arr_stop = tuple(arr[pos] for arr in self.stop.values())
-            closed = self.closed[pos]
+            arr_closed = Closed[self.closed[pos]]
             if start:
-                if closed in ("b", "r") and start > arr_stop:
+                if start > arr_stop:
+                    # start is on the right of the array
                     continue
-                if closed in ("n", "l") and start >= arr_stop:
+                elif not arr_closed.right and start == arr_stop:
+                    # Same
                     continue
-                if start > arr_start:
+                elif start > arr_start:
+                    # closed "win" over arr_closed on the left
+                    arr_closed = arr_closed.set_left(closed)
                     arr_start = start
-                    if closed == "r":
-                        closed = "b"
-                    if closed == "n":
-                        closed = "l"
+
             if stop:
-                if closed in ("b", "l") and stop < arr_start:
+                if stop < arr_start:
                     continue
-                if closed in ("n", "r") and stop <= arr_start:
+                elif not arr_closed.left and stop == arr_start:
                     continue
-                if stop < arr_stop:
+                elif stop < arr_stop:
+                    # closed "win" over arr_closed on the right
+                    arr_closed = arr_closed.set_right(closed)
                     arr_stop = stop
-                    if closed == "l":
-                        closed = "b"
-                    if closed == "n":
-                        closed = "r"
 
             digest = [arr[pos] for arr in self.digest.values()]
             sgm = Segment(
@@ -430,7 +438,7 @@ class Commit:
                 digest,
                 start=arr_start,
                 stop=arr_stop,
-                closed=closed,
+                closed=arr_closed,
             )
             res.append(sgm)
         return res

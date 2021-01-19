@@ -232,19 +232,28 @@ class Interval:
 
 
 class Closed(Flag):
-    n = none = NONE = 0
-    r = right = RIGHT = 1
-    l = left = LEFT = 2
-    b = both = BOTH = 3
+    NONE = n = 0
+    RIGHT = r = 1
+    LEFT = l = 2
+    BOTH = b = 3
 
-    def left_closed(self):
-        return self & Closed.LEFT
+    @property
+    def left(self):
+        return bool(self & Closed.LEFT)
 
-    def right_closed(self):
-        return self & Closed.RIGHT
+    @property
+    def right(self):
+        return bool(self & Closed.RIGHT)
 
     def set_left(self, other):
         return (self & Closed.RIGHT) | (other & Closed.LEFT)
 
     def set_right(self, other):
+        return (self & Closed.LEFT) | (other & Closed.RIGHT)
+
+    def close_left(self, other):
+        return
+        return self.set_left(Closed.LEFT)
+
+    def close_right(self, other):
         return (self & Closed.LEFT) | (other & Closed.RIGHT)

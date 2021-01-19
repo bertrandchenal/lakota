@@ -1,12 +1,11 @@
 from bisect import bisect_left, bisect_right
 from collections import defaultdict
-from functools import lru_cache
 
 from numpy import argsort, array_equal, asarray, concatenate, ndarray, rec, unique
 
 from .schema import Schema
 from .sexpr import AST
-from .utils import Pool, floor, hashed_path, pretty_nb
+from .utils import Closed, Pool, floor, pretty_nb
 
 try:
     from pandas import DataFrame
@@ -152,14 +151,12 @@ class Frame:
         default), "r" (right) "n" (none) or "b" (both).
 
         """
-        assert closed in ('l', 'r', 'b', 'n')
+        closed = closed if isinstance(closed, Closed) else Closed[closed]
         idx_start = idx_stop = None
         if start:
-            right = closed in ("r", "n")
-            idx_start = self.index(start, right=right)
+            idx_start = self.index(start, right=not closed.left)
         if stop:
-            right = closed in ("b", "r")
-            idx_stop = self.index(stop, right=right)
+            idx_stop = self.index(stop, right=closed.right)
         return idx_start, idx_stop
 
     def index(self, values, right=False):
