@@ -137,6 +137,7 @@ class Revision:
         self.parent = parent
         self.child = child
         self.is_leaf = False
+        self._payload = None
 
     @classmethod
     def from_path(cls, changelog, path):
@@ -160,12 +161,15 @@ class Revision:
         return f"<Revision {self.path} {'*' if self.is_leaf else ''}>"
 
     def read(self):
+        if self._payload is not None:
+            return self._payload
         for i in range(1, 5):
             payload = self.changelog.pod.read(self.path)
             key = hexdigest(payload)
             _, child_digest = self.digests
             # Incorrect checksum is usualy because file is being written concurrently
             if key == child_digest:
+                self._payload = payload
                 return payload
             else:
                 sleep(i / 10)
