@@ -10,8 +10,8 @@ Documentation: https://bertrandchenal.github.io/lakota/
 
 # Quickstart
 
-The following script will create a timeseries on a registry backed by
-a local folder and read it back.
+The following script will create a timeseries on a repository backed
+by a local folder and read it back.
 
 ``` python
 from lakota import Repo, Schema
@@ -369,4 +369,3 @@ one from the machine with a clock running ahead.
 
 - Selective suppression of past revisions
 - Shallow clone
-- Improve groupby/aggregate from the cli
