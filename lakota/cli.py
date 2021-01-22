@@ -493,7 +493,7 @@ def squash(args):
     labels = repo.ls() if args.all else args.labels
     if labels:
         for label in labels:
-            collection = get_collection(repo, args.label)
+            collection = get_collection(repo, label)
             if not collection:
                 exit(f'Collection "{label}" not found')
             collection.squash()

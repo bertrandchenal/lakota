@@ -172,11 +172,20 @@ class Collection:
             queue.extend(parents)
             yield rev
 
-    def squash(self, archive=True):
+    def squash(self, fast=False):
         """
         Remove all past revisions, collapse history into one or few large
-        frames.
+        frames. Returns newly created revisions.
         """
+        if fast:
+            # Simply remove older commit
+            leaf = self.changelog.leaf()
+            if leaf:
+                self.changelog.pod.clear(leaf.path)
+                self.changelog.refresh()
+            return
+
+        # Rewrite each series, based on `step` size arrays
         step = 500_000
         all_labels = self.ls()
         # TODO run in parallel

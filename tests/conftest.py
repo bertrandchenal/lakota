@@ -39,7 +39,7 @@ def pod(request):
                 stderr=DEVNULL,
                 stdout=DEVNULL,
             )  # TODO launch only one process and clear repo between tests (same with moto)
-            time.sleep(1)
+            time.sleep(2)
             with proc:
                 pod = POD.from_uri(f"http://{netloc}")
                 yield pod

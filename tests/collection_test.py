@@ -55,19 +55,20 @@ def test_multi():
 
 
 @pytest.mark.parametrize(
-    "archive",
+    "fast",
     [
+        True,
         False,
     ],
-)  # True -> TODO
-def test_squash(archive):
+)
+def test_squash(fast):
     repo = Repo()
     other_frame = {
         "timestamp": [4, 5, 6],
         "value": [4, 5, 6],
     }
     temperature = repo.create_collection(schema, "temperature")
-    assert temperature.squash(archive=archive) is None
+    assert temperature.squash(fast=fast) is None
 
     # We need two writes in order to have something to squash
     temp_bru = temperature / "Brussels"
@@ -79,11 +80,14 @@ def test_squash(archive):
     assert len(prev_commits) == 2
 
     # Squash
-    (new_commit,) = temperature.squash(archive=archive)
-    # New commit should have the same digests
-    old_ci = Revision.from_path(temperature.changelog, prev_commits[1])
+    if fast:
+        temperature.squash(fast=True)
+    else:
+        (new_commit,) = temperature.squash(fast=False)
+        # New commit should have the same digests
+        old_ci = Revision.from_path(temperature.changelog, prev_commits[1])
+        assert old_ci.child == new_commit.parent
 
-    assert old_ci.child == new_commit.parent
     assert len(list(temperature.changelog)) == 1
 
     temp_bru.write(frame)
@@ -92,10 +96,8 @@ def test_squash(archive):
     temp_ory.write(other_frame)
 
     # Squash collection
-    temperature.squash(archive=archive)
+    temperature.squash(fast=fast)
     assert len(list(temperature.changelog)) == 1
-    if archive:
-        assert len(list(temperature.changelog)) > 1
 
     # Read data back
     assert list(temperature) == ["Brussels", "Paris"]
