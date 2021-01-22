@@ -2,7 +2,7 @@ import io
 import os
 import shutil
 from pathlib import Path, PurePosixPath
-from urllib.parse import urlsplit
+from urllib.parse import parse_qs, urlsplit
 from uuid import uuid4
 
 import s3fs
@@ -41,6 +41,7 @@ class POD:
         # Define protocal and path
         parts = urlsplit(uri)
         scheme, path = parts.scheme, parts.path
+        kwargs = parse_qs(parts.query)
         if not scheme:
             if not path or path == ":memory:":
                 scheme = "memory"
@@ -61,7 +62,8 @@ class POD:
             assert not parts.netloc, "Malformed repo uri, should start with 'file:///'"
             return FilePOD(path)
         elif scheme == "s3":
-            return S3POD(path, netloc=parts.netloc)
+            profile = kwargs.get("profile", [None])[0]
+            return S3POD(path, netloc=parts.netloc, profile=profile)
         elif scheme == "ssh":
             raise NotImplementedError("SSH support not implemented yet")
         elif scheme == "http":
@@ -300,17 +302,19 @@ class S3POD(POD):
 
     protocol = "s3"
 
-    def __init__(self, path, netloc=None, fs=None):
+    def __init__(self, path, netloc=None, profile=None, fs=None):
         # TODO document use of param: endpoint_url='http://127.0.0.1:5300'
         self.path = path
         if fs:
             self.fs = fs
         else:
-            kw = {}
+            client_kwargs = {}
             if netloc:
                 # TODO support for https
-                kw["endpoint_url"] = f"http://{netloc}"
-            self.fs = s3fs.S3FileSystem(anon=False, client_kwargs=kw)
+                client_kwargs["endpoint_url"] = f"http://{netloc}"
+            self.fs = s3fs.S3FileSystem(
+                anon=False, client_kwargs=client_kwargs, profile=profile
+            )
 
         super().__init__()
 
