@@ -5,8 +5,15 @@ from pathlib import Path, PurePosixPath
 from urllib.parse import parse_qs, urlsplit
 from uuid import uuid4
 
-import s3fs
-from requests import Session
+try:
+    import s3fs
+except ImportError:
+    s3fs = None
+
+try:
+    import requests
+except ImportError:
+    requests = None
 
 from .utils import logger
 
@@ -62,11 +69,19 @@ class POD:
             assert not parts.netloc, "Malformed repo uri, should start with 'file:///'"
             return FilePOD(path)
         elif scheme == "s3":
+            if s3fs is None:
+                raise ValueError(
+                    f'Please install the "s3fs" module in order to access {uri}'
+                )
             profile = kwargs.get("profile", [None])[0]
             return S3POD(path, netloc=parts.netloc, profile=profile)
         elif scheme == "ssh":
             raise NotImplementedError("SSH support not implemented yet")
         elif scheme == "http":
+            if requests is None:
+                raise ImportError(
+                    f'Please install the "requests" module in order to access "{uri}"'
+                )
             base_uri = f"{parts.scheme}://{parts.netloc}/"
             return HttpPOD(base_uri, path)
         elif scheme == "memory":
@@ -298,70 +313,6 @@ class MemPOD(POD):
             del pod.store[leaf]
 
 
-class S3POD(POD):
-
-    protocol = "s3"
-
-    def __init__(self, path, netloc=None, profile=None, fs=None):
-        # TODO document use of param: endpoint_url='http://127.0.0.1:5300'
-        self.path = path
-        if fs:
-            self.fs = fs
-        else:
-            client_kwargs = {}
-            if netloc:
-                # TODO support for https
-                client_kwargs["endpoint_url"] = f"http://{netloc}"
-            self.fs = s3fs.S3FileSystem(
-                anon=False, client_kwargs=client_kwargs, profile=profile
-            )
-
-        super().__init__()
-
-    def cd(self, *others):
-        path = self.path.joinpath(*others)
-        return S3POD(path, fs=self.fs)
-
-    def ls(self, relpath=".", missing_ok=False):
-        logger.debug("LIST s3://%s %s", self.path, relpath)
-        path = self.path / relpath
-        try:
-            return [Path(p).name for p in self.fs.ls(path)]
-        except FileNotFoundError:
-            if missing_ok:
-                return []
-            raise
-
-    def read(self, relpath, mode="rb"):
-        logger.debug("READ s3://%s %s", self.path, relpath)
-        path = str(self.path / relpath)
-        return self.fs.open(path, mode).read()
-
-    def write(self, relpath, data, mode="wb"):
-        if self.isfile(relpath):
-            logger.debug("SKIP-WRITE s3://%s %s", self.path, relpath)
-            return
-        logger.debug("WRITE s3://%s %s", self.path, relpath)
-        path = str(self.path / relpath)
-        return self.fs.open(path, mode).write(data)
-
-    def isdir(self, relpath):
-        return self.fs.isdir(self.path / relpath)
-
-    def isfile(self, relpath):
-        return self.fs.isfile(self.path / relpath)
-
-    def rm(self, relpath=".", recursive=False, missing_ok=False):
-        logger.debug("REMOVE s3://%s %s", self.path, relpath)
-        path = str(self.path / relpath)
-        try:
-            return self.fs.rm(path, recursive=recursive)
-        except FileNotFoundError:
-            if missing_ok:
-                return
-            raise
-
-
 class CachePOD(POD):
     def __init__(self, local, remote):
         self.local = local
@@ -454,69 +405,8 @@ class SSHPOD(POD):
         return self.client.open(path, mode).read()
 
 
-class HttpPOD(POD):
-
-    protocol = "http"
-
-    def __init__(self, base_uri, path=None, session=None):
-        self.base_uri = base_uri
-        self.path = path
-        self.session = session or Session()
-        super().__init__()
-
-    def cd(self, *others):
-        path = self.path.joinpath(*others)
-        return HttpPOD(self.base_uri, path, session=self.session)
-
-    def ls(self, relpath=".", missing_ok=False):
-        logger.debug("LIST %s://%s %s", self.protocol, self.path, relpath)
-        path = self.path / relpath
-        resp = self.session.get(self.base_uri + "ls/" + str(path))
-
-        if resp.status_code == 404:
-            if missing_ok:
-                return []
-            raise FileNotFoundError(f"{relpath} not found")
-        else:
-            resp.raise_for_status()
-
-        return resp.text.splitlines()
-
-    def read(self, relpath, mode="rb"):
-        logger.debug("READ %s://%s %s", self.protocol, self.path, relpath)
-        path = self.path / relpath
-        resp = self.session.get(self.base_uri + "read/" + str(path))
-
-        if resp.status_code == 404:
-            raise FileNotFoundError(f"{relpath} not found")
-        else:
-            resp.raise_for_status()
-        return resp.content
-
-    def write(self, relpath, data, mode="wb"):
-        logger.debug("WRITE %s://%s %s", self.protocol, self.path, relpath)
-        path = str(self.path / relpath)
-        resp = self.session.post(self.base_uri + "write/" + str(path), data=data)
-        resp.raise_for_status()
-        return int(resp.content) if resp.content else None
-
-    def rm(self, relpath=".", recursive=False, missing_ok=False):
-        logger.debug("REMOVE %s://%s %s", self.protocol, self.path, relpath)
-        path = str(self.path / relpath)
-        params = {
-            "recursive": "true" if recursive else "",
-            "missing_ok": "true" if missing_ok else "",
-        }
-        resp = self.session.post(self.base_uri + "rm/" + path, params=params)
-        resp.raise_for_status()
-
-    def walk(self, max_depth=None):
-        if max_depth == 0:
-            return []
-        params = {}
-        if max_depth is not None:
-            params["max_depth"] = str(max_depth)
-
-        resp = self.session.get(self.base_uri + "walk/" + str(self.path), params=params)
-        resp.raise_for_status()
-        return resp.text.splitlines()
+# Tigger imports if related dependencies are present
+if requests is not None:
+    from .http_pod import HttpPOD
+if s3fs is not None:
+    from .s3_pod import S3POD
