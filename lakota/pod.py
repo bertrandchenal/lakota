@@ -1,3 +1,20 @@
+"""
+The `POD` class implement low-level access to different
+storage. The `from_uri` method allow to instanciate a POD object based
+on a uri. The supported schemes are `file://`, `s3://`, `http://` and
+`memory://`. if no scheme is given, the uri is interpreted as a local
+path.
+
+
+``` python-console
+>>> from lakota import POD
+>>> pod = POD.from_uri('.lakota')
+>>> pod.ls()
+['00', '01', '02', '03', ... 'fb', 'fc', 'fd', 'fe', 'ff']
+```
+
+It is mainly used through the `lakota.Repo` class.
+"""
 import io
 import os
 import shutil

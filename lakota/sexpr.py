@@ -1,3 +1,50 @@
+"""
+The `AST` (abstract syntax tree) implement parsing and evaluation
+of [s-expressions](https://en.wikipedia.org/wiki/S-expression).
+
+Example:
+
+``` python-console
+>>> from lakota.sexpr import AST
+>>> AST.parse('(+ 1 1)')
+<lakota.sexpr.AST object at 0x7f1bcc5b2fd0>
+>>> ast = AST.parse('(+ 1 1)')
+>>> ast.eval()
+2
+```
+
+The `eval` method accepts an `env` parameter, a dictionary used to
+evaluate non-litteral tokens:
+
+``` python-console
+>>> ast = AST.parse('(+ 1 x)')
+>>> ast.eval()
+Traceback (most recent call last):
+   ...
+ValueError: Unexpected token: "x"
+>>> ast.eval({'x': 2})
+3
+```
+
+The `reduce` method on `lakota.frame.Frame` use AST with `self` already
+setup in the evaluation environment as the frame itself.
+
+``` python-console
+>>> frm = series.frame()
+>>> frm.slice(0,10)
+date_reported-> ['2020-01-03T00:00:00' '2020-01-04T00:00:00'
+ '2020-01-05T00:00:00' '2020-01-06T00:00:00' '2020-01-07T00:00:00'
+ '2020-01-08T00:00:00' '2020-01-09T00:00:00' '2020-01-10T00:00:00'
+ '2020-01-11T00:00:00' '2020-01-12T00:00:00']
+new_cases-> [0 0 0 0 0 0 0 0 0 0]
+>>> frm.reduce('(max self.new_cases)')
+(max self.new_cases)-> [22210]
+ # Use the 'as' operator to specify an alias:
+>>> frm.reduce('(as (max self.new_cases) "max_new_cases")')
+max_new_cases-> [22210]
+```
+"""
+
 import operator
 import shlex
 from functools import reduce

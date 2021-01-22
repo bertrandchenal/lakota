@@ -1,3 +1,44 @@
+"""
+The server sub-module implement a flask application that expose
+the main methods of `lakota.pod.POD`.  It can be launched from the cli
+like this:
+
+``` shell
+$ lakota serve
+ * Serving Flask app "Lakota Repository" (lazy loading)
+ * Environment: production
+   WARNING: This is a development server. Do not use it
+   in a production deployment.
+   Use a production WSGI server instead.
+ * Debug mode: off
+INFO:2021-01-22 16:04:08:  * Running on http://127.0.0.1:8080/ (Press CTRL+C to quit)
+```
+
+In the above example the repository exposed is the usual default
+repository of the cli (so the folder `".lakota"` or the one defined in
+the environment variable `LAKOTA_REPO` if this one is set up).
+
+Once the server is started you can query it, for example you can do
+(while the server is running in another shell):
+
+``` shell
+$ lakota -r http://localhost:8080 ls
+...
+```
+
+It can also be used as a local proxy to speed-up access to remote locations:
+
+``` shell
+$ lakota -r memory://+s3:///bucket_name serve
+```
+
+You can also use `file:////tmp/local-cache` instead of `memory://` to
+provide persistant caching.
+
+**Beware**: no authentication nor encryption is provided, and the server
+expose full read and write access to the underlying repository.
+"""
+
 from flask import Flask, Response, abort, request
 
 app = Flask("Lakota Repository")
