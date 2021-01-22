@@ -242,6 +242,7 @@ import csv
 import os
 import sys
 from datetime import datetime
+from itertools import chain
 
 from tabulate import tabulate
 
@@ -327,8 +328,11 @@ def read(args):
 
     if reduce:
         kw = {c: c for c in args.columns}
-        columns = args.columns
         frames = (f.reduce(**kw) for f in frames)
+        # Peek at first frame to get the colums
+        first = next(frames)
+        columns = list(first)
+        frames = chain([first], frames)
 
     if args.pretty:
         for frm in frames:

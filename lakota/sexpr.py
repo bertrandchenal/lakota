@@ -162,6 +162,16 @@ class Agg:
         raise ValueError(f'Aggregation "{self.op}" is not supported')
 
 
+class Alias:
+    """
+    Simple wrapper that combine an value and an alias name
+    """
+
+    def __init__(self, value, name):
+        self.value = value
+        self.name = name
+
+
 def tokenize(expr):
     lexer = shlex.shlex(expr)
     lexer.wordchars += ".!=<>:{}-"
@@ -205,6 +215,7 @@ class AST:
         "~": lambda *xs: all(not x for x in xs),
         "in": lambda *x: x[0] in x[1:],
         "list": lambda *x: list(x),
+        "as": lambda *x: Alias(x[0], x[1]),
         "dict": list_to_dict,
         "kw": KWargs,
     }

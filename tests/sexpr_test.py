@@ -15,6 +15,16 @@ trueish_expr = [
     "(~ (and false true false))",
     '(in "foo" "ham" "foo" "bar")',
 ]
+schema = Schema(
+    """
+    timestamp timestamp*
+    value int
+    """
+)
+values = {
+    "timestamp": ["2020-01-01T11:30", "2020-01-02T12:30", "2020-01-03T13:30"],
+    "value": [1, 2, 3],
+}
 
 
 def test_trueish_expr():
@@ -53,16 +63,6 @@ def test_numpy_fun():
 
 
 def test_with_frame():
-    schema = Schema(
-        """
-        timestamp timestamp*
-        value int
-        """
-    )
-    values = {
-        "timestamp": ["2020-01-01T11:30", "2020-01-02T12:30", "2020-01-03T13:30"],
-        "value": [1, 2, 3],
-    }
     frm = Frame(schema, values)
     env = {"frm": frm, "floor": floor}
     res = AST.parse("(floor frm.timestamp 'Y')").eval(env)
@@ -123,3 +123,15 @@ def test_pathologic_inputs():
     for expr in exprs:
         with pytest.raises(Exception):
             AST.parse(expr).eval()
+
+
+def test_alias():
+    res = AST.parse("(as (asarray (list 1 2 3)) 'new_name')").eval()
+    arr = res.value
+    alias = res.name
+    assert all(arr == asarray([1, 2, 3]))
+    assert alias == "new_name"
+
+    frm = Frame(schema, values)
+    frm = frm.reduce("(as self.timestamp 'ts')")
+    assert all(frm["ts"] == values["timestamp"])

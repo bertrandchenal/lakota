@@ -4,7 +4,7 @@ from collections import defaultdict
 from numpy import argsort, array_equal, asarray, concatenate, ndarray, rec, unique
 
 from .schema import Schema
-from .sexpr import AST
+from .sexpr import AST, Alias
 from .utils import Closed, Pool, floor, pretty_nb
 
 try:
@@ -248,6 +248,10 @@ class Frame:
                 arr = ast.eval(env=env)
             else:
                 arr = self.columns[expr]
+
+            if isinstance(arr, Alias):
+                # un-pack alias
+                arr, alias = arr.value, arr.name
             non_agg[alias] = arr
 
         # Early exit if we don't need to compute aggregates
@@ -262,12 +266,19 @@ class Frame:
             keys, bins = unique(records, return_inverse=True)
             # Build resulting columns
             for alias in non_agg:
-                res[alias] = keys[alias]
+                arr = keys[alias]
+                if isinstance(arr, Alias):
+                    # un-pack alias
+                    arr, alias = arr.value, arr.name
+                res[alias] = arr
             env.update({"_keys": keys, "_bins": bins})
 
         # Compute aggregates
         for alias, expr in agg_ast.items():
             arr = expr.eval(env)
+            if isinstance(arr, Alias):
+                # un-pack alias
+                arr, alias = arr.value, arr.name
             # Without bins, eval will return a scalar value
             res[alias] = arr if non_agg else asarray([arr])
         schema = Schema.from_frame(res, idx_columns=list(non_agg))
