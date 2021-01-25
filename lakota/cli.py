@@ -242,11 +242,13 @@ import csv
 import os
 import sys
 from datetime import datetime
+from io import StringIO
 from itertools import chain
 
 from tabulate import tabulate
 
 from . import __version__
+from .pod import POD
 from .repo import Repo
 from .schema import Schema
 from .utils import hextime, logger, strpt, timeit
@@ -355,6 +357,28 @@ def read(args):
                     continue
             rows = zip(*(frm[col] for col in columns))
             writer.writerows(rows)
+
+
+def export(args):
+    repo = get_repo(args)
+    export_pod = POD.from_uri(args.uri)
+    for clc_name in repo.ls():
+        clc = repo / clc_name
+        pod = export_pod.cd(clc_name)
+        for srs_name in clc.ls():
+            # Read series
+            srs = clc / srs_name
+            frm = srs.frame()
+            columns = list(frm)
+            # Save series as csv in buff
+            buff = StringIO()
+            writer = csv.writer(buff)
+            writer.writerow(columns)
+            rows = zip(*(frm[c] for c in columns))
+            writer.writerows(rows)
+            # Write generated content in pod
+            buff.seek(0)
+            pod.write(f"{srs_name}.csv", buff.read().encode())
 
 
 def length(args):
@@ -635,6 +659,11 @@ def run():
         help="Keep rows where index is less than given value",
     )
     parser_read.set_defaults(func=read)
+
+    # Add export command
+    parser_len = subparsers.add_parser("export")
+    parser_len.add_argument("uri")
+    parser_len.set_defaults(func=export)
 
     # Add len command
     parser_len = subparsers.add_parser("length", aliases=["len"])
