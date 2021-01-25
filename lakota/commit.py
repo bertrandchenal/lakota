@@ -197,8 +197,8 @@ class Commit:
         values["label"] = cls.label_codec.decode(data["label"])
         values["closed"] = cls.closed_codec.decode(data["closed"])
 
-        # Embedded data is already encoded
-        values["embedded"] = data["embedded"]
+        # Embedded data will be decoded on demand
+        values["embedded"] = data.get("embedded")
         return Commit(schema, **values)
 
     def encode(self):
