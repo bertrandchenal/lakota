@@ -134,20 +134,18 @@ class Pool:
     Threadpoolexecutor wrapper to simplify it's usage
     """
 
-    def __init__(self, nb_threads=2):
-        self.nb_threads = nb_threads
+    _pool = ThreadPoolExecutor(4)
+
+    def __init__(self):
         self.futures = []
         self.results = []
-        self.pool = None
 
     def __enter__(self):
-        if settings.threaded:
-            self.pool = ThreadPoolExecutor(self.nb_threads)
         return self
 
     def submit(self, fn, *a, **kw):
         if settings.threaded:
-            self.futures.append(self.pool.submit(fn, *a, **kw))
+            self.futures.append(self._pool.submit(fn, *a, **kw))
         else:
             self.results.append(fn(*a, **kw))
 

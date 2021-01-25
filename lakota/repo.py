@@ -300,7 +300,7 @@ class Repo:
                 active_digests.update(clct.digests())
 
         base_folders = self.pod.ls()
-        with Pool(8) as pool:
+        with Pool() as pool:
             for folder in base_folders:
                 pool.submit(self._gc_folder, folder, active_digests)
         count = sum(pool.results)
