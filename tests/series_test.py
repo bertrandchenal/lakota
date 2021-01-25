@@ -1,3 +1,5 @@
+from time import sleep
+
 import pytest
 from numpy import asarray
 from pandas import DataFrame
@@ -198,6 +200,7 @@ def test_rev_filter(series):
         "timestamp": [1589455904, 1589455905],
         "value": [44, 55],
     }
+    sleep(0.1)  # Make sure we don't have a race condition
     series.write(second_frm)
     last_rev = series.changelog.leaf()
 

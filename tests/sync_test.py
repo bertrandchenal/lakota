@@ -15,19 +15,32 @@ value float
 )
 
 
-def test_pull(threaded):
+@pytest.mark.parametrize("large", [True, False])
+def test_pull(threaded, large):
     c_label = "a_collection"
     s_label = "a_series"
     remote_repo = Repo()
     remote_coll = remote_repo.create_collection(schema, c_label)
     rseries = remote_coll / s_label
+
+    # Test support of noth small dataset (where data is embedded in
+    # commits) and large one (arrays are save on their own)
+    N = 100_000 if large else 10
     for i in range(10):
+        # Create 10 series of size N
         rseries.write(
             {
-                "timestamp": range(i, i + 10),
-                "value": range(i + 100, i + 110),
+                "timestamp": range(i, i + N),
+                "value": range(i + 100, i + 100 + N),
             }
         )
+    nb_items = len(remote_repo.pod.ls())
+    if large:
+        assert nb_items > 2
+    else:
+        # for small arrays we have only two folder (one for the repo
+        # registry one for the collection)
+        assert nb_items == 2
     expected = rseries.frame()
 
     # Test pull

@@ -5,7 +5,7 @@ from numpy import arange, issubdtype
 from .changelog import phi
 from .commit import Commit
 from .frame import Frame
-from .utils import Interval, Pool, encoder, hashed_path, hexdigest
+from .utils import Interval, Pool, encoder, hashed_path, hexdigest, settings
 
 __all__ = ["Series", "KVSeries"]
 
@@ -109,6 +109,7 @@ class Series:
         # Save segments
         all_dig = []
         arr_length = None
+        embedded = {}
         with Pool() as pool:
             for name in self.schema:
                 arr = self.schema[name].cast(frame[name])
@@ -119,7 +120,15 @@ class Series:
                 data = self.schema[name].codec.encode(arr)
                 digest = hexdigest(data)
                 all_dig.append(digest)
+                if (
+                    len(data) < settings.embed_threshold
+                ):  # every small array gets embedded
+                    # Put small arrays aside
+                    embedded[digest] = data
+                    continue
                 folder, filename = hashed_path(digest)
+                # XXX move writing in Series.commit and handle situation where the commit gets to large?
+                # XXX keep it here for when a batch gets too large ?
                 pool.submit(self.pod.cd(folder).write, filename, data)
 
         # Build commit info
@@ -132,22 +141,26 @@ class Series:
 
         # Create new digest
         if batch:
-            ci_info = (self.label, start, stop, all_dig, len(frame))
-            batch.append(ci_info)
+            ci_info = (self.label, start, stop, all_dig, len(frame), embedded)
+            batch.append(*ci_info)
             return
-        self.commit(start, stop, all_dig, len(frame), root=root)
+        self.commit(start, stop, all_dig, len(frame), root=root, embedded=embedded)
 
-    def commit(self, start, stop, all_dig, length, root=False):
+    def commit(self, start, stop, all_dig, length, root=False, embedded=None):
         # root force commit on phi
         leaf_rev = None if root else self.changelog.leaf()
 
         # Combine with last commit
         if leaf_rev:
             leaf_ci = leaf_rev.commit(self.collection)
-            new_ci = leaf_ci.update(self.label, start, stop, all_dig, length)
+            new_ci = leaf_ci.update(
+                self.label, start, stop, all_dig, length, embedded=embedded
+            )
             # TODO early return if new_ci == leaf_ci
         else:
-            new_ci = Commit.one(self.schema, self.label, start, stop, all_dig, length)
+            new_ci = Commit.one(
+                self.schema, self.label, start, stop, all_dig, length, embedded=embedded
+            )
 
         payload = new_ci.encode()
         parent = leaf_rev.child if leaf_rev else phi

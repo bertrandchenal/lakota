@@ -126,6 +126,7 @@ timestamp,value
 ```
 """
 
+from itertools import chain
 from threading import Lock
 
 from numcodecs import registry
@@ -145,7 +146,7 @@ class Commit:
     label_codec = Codec("str")
     closed_codec = Codec("str")  # Could be i1
 
-    def __init__(self, schema, label, start, stop, digest, length, closed):
+    def __init__(self, schema, label, start, stop, digest, length, closed, embedded):
         assert list(digest) == list(schema)
         self.schema = schema
         self.label = label  # Array of str
@@ -154,9 +155,10 @@ class Commit:
         self.digest = digest  # Dict of arrays
         self.length = length  # Array of int
         self.closed = closed  # Array of ("l", "r", "b", "n")
+        self.embedded = embedded or {}
 
     @classmethod
-    def one(cls, schema, label, start, stop, digest, length, closed="b"):
+    def one(cls, schema, label, start, stop, digest, length, closed="b", embedded=None):
         assert closed in ("l", "r", "n", "b")
         label = asarray([label])
         start = dict(zip(schema.idx, (asarray([s]) for s in start)))
@@ -164,7 +166,7 @@ class Commit:
         digest = dict(zip(schema, (asarray([d], dtype="U") for d in digest)))
         length = [length]
         closed = [closed]
-        return Commit(schema, label, start, stop, digest, length, closed)
+        return Commit(schema, label, start, stop, digest, length, closed, embedded)
 
     @classmethod
     def empty(cls, schema):
@@ -194,6 +196,9 @@ class Commit:
         values["length"] = cls.len_codec.decode(data["length"])
         values["label"] = cls.label_codec.decode(data["label"])
         values["closed"] = cls.closed_codec.decode(data["closed"])
+
+        # Embedded data is already encoded
+        values["embedded"] = data["embedded"]
         return Commit(schema, **values)
 
     def encode(self):
@@ -219,6 +224,12 @@ class Commit:
         data["length"] = self.len_codec.encode(self.length)
         data["closed"] = self.closed_codec.encode(self.closed)
         data["label"] = self.label_codec.encode(self.label)
+        # Keep only embedded data referenced by self.digest
+        keep_digests = (
+            set(chain.from_iterable(self.digest.values())) & self.embedded.keys()
+        )
+        embedded = {d: self.embedded[d] for d in keep_digests}
+        data["embedded"] = embedded
         return msgpck.encode([data])
 
     def split(self, label, start, stop):
@@ -246,15 +257,21 @@ class Commit:
 
         for key in ("label", "length", "closed"):
             res[key] = getattr(self, key)[pos]
+        res["embedded"] = self.embedded
         return res
 
-    def update(self, label, start, stop, digest, length, closed="b"):
+    def update(self, label, start, stop, digest, length, closed="b", embedded=None):
         assert closed == "b", "Non-closed updates not supported"
         if not start <= stop:
             raise ValueError(f"Invalid range {start} -> {stop}")
-        inner = Commit.one(self.schema, label, start, stop, digest, length, closed)
+        inner = Commit.one(
+            self.schema, label, start, stop, digest, length, closed, embedded
+        )
         if len(self) == 0:
             return inner
+
+        if embedded:
+            self.embedded.update(embedded)
 
         first = (self.at(0)["label"], self.at(0)["start"])
         last = (self.at(-1)["label"], self.at(-1)["stop"])
@@ -346,7 +363,7 @@ class Commit:
         label = self.label[slc]
         length = self.length[slc]
         closed = self.closed[slc]
-        return Commit(schema, label, start, stop, digest, length, closed)
+        return Commit(schema, label, start, stop, digest, length, closed, self.embedded)
 
     def head(self, pos):
         return self.slice(None, pos)
@@ -381,8 +398,10 @@ class Commit:
         label = concatenate([ci.label for ci in all_ci])
         length = concatenate([ci.length for ci in all_ci])
         closed = concatenate([ci.closed for ci in all_ci])
-
-        return Commit(schema, label, start, stop, digest, length, closed)
+        embedded = {}
+        for ci in all_ci:
+            embedded.update(ci.embedded)
+        return Commit(schema, label, start, stop, digest, length, closed, embedded)
 
     def __repr__(self):
         fmt = lambda a: "/".join(map(str, a))
@@ -433,7 +452,7 @@ class Commit:
 
             digest = [arr[pos] for arr in self.digest.values()]
             sgm = Segment(
-                self.schema,
+                self,
                 pod,
                 digest,
                 start=arr_start,
@@ -453,6 +472,7 @@ class Commit:
             digest={k: v[keep] for k, v in self.digest.items()},
             length=self.length[keep],
             closed=self.closed[keep],
+            embedded=self.embedded,
         )
 
     def __contains__(self, row):
@@ -467,13 +487,13 @@ class Commit:
 
 
 class Segment:
-    def __init__(self, schema, pod, digests, start, stop, closed):
-        self.schema = schema
+    def __init__(self, commit, pod, digests, start, stop, closed):
+        self.commit = commit
         self.pod = pod
         self.start = start
         self.stop = stop
         self.closed = closed
-        self.digest = dict(zip(schema, digests))
+        self.digest = dict(zip(commit.schema, digests))
         self._frm = None
         self.start_pos = None
         self.stop_pos = None
@@ -489,10 +509,13 @@ class Segment:
         return self.frame[name][start_pos:stop_pos]
 
     def _read(self, name):
-        folder, filename = hashed_path(self.digest[name])
-        payload = self.pod.cd(folder).read(filename)
-        # TODO check payload checksum
-        arr = self.schema[name].codec.decode(payload)
+        dig = self.digest[name]
+        # check first if content is not already in commit
+        data = self.commit.embedded.get(dig)
+        if data is None:
+            folder, filename = hashed_path(dig)
+            data = self.pod.cd(folder).read(filename)
+        arr = self.commit.schema[name].codec.decode(data)
         return arr[self.start_pos : self.stop_pos]
 
     @property
@@ -503,9 +526,9 @@ class Segment:
                 return self._frm
 
             cols = {}
-            for name in self.schema.idx:
+            for name in self.commit.schema.idx:
                 cols[name] = self._read(name)
-            frm = Frame(self.schema, cols)
+            frm = Frame(self.commit.schema, cols)
             self.start_pos, self.stop_pos = frm.index_slice(
                 self.start, self.stop, closed=self.closed
             )

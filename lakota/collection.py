@@ -189,7 +189,7 @@ class Collection:
         step = 500_000
         all_labels = self.ls()
         # TODO run in parallel
-        with self.batch() as batch:
+        with self.batch(root=True) as batch:
             for label in all_labels:
                 logger.info('SQUASH label "%s"', label)
                 # Re-write each series
@@ -210,11 +210,14 @@ class Collection:
     def digests(self):
         for rev in self.changelog.log():
             ci = rev.commit(self)
-            yield from chain.from_iterable(ci.digest.values())
+            digs = set(chain.from_iterable(ci.digest.values()))
+            # return only digest not already embedded in the commit
+            digs = digs - set(ci.embedded)
+            yield from digs
 
     @contextmanager
-    def batch(self, force_parent=None):
-        b = Batch(self, force_parent)
+    def batch(self, root=None):
+        b = Batch(self, root)
         yield b
         b.flush()
 
@@ -226,8 +229,8 @@ class Batch:
         self.revs = None
         self.root = root
 
-    def append(self, ci_info):
-        self._ci_info.append(ci_info)
+    def append(self, label, start, stop, all_dig, frame_len, embedded):
+        self._ci_info.append((label, start, stop, all_dig, frame_len, embedded))
 
     def extend(self, *other_batches):
         for b in other_batches:
@@ -245,12 +248,20 @@ class Batch:
         if leaf_rev:
             last_ci = leaf_rev.commit(self.collection)
         else:
-            label, start, stop, all_dig, length = next(all_ci_info)
+            label, start, stop, all_dig, length, embedded = next(all_ci_info)
             last_ci = Commit.one(
-                self.collection.schema, label, start, stop, all_dig, length
+                self.collection.schema,
+                label,
+                start,
+                stop,
+                all_dig,
+                length,
+                embedded=embedded,
             )
-        for label, start, stop, all_dig, length in all_ci_info:
-            last_ci = last_ci.update(label, start, stop, all_dig, length)
+        for label, start, stop, all_dig, length, embedded in all_ci_info:
+            last_ci = last_ci.update(
+                label, start, stop, all_dig, length, embedded=embedded
+            )
 
         # Save it
         payload = last_ci.encode()

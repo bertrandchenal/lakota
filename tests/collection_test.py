@@ -3,7 +3,7 @@ from time import sleep
 import pytest
 from numpy import arange
 
-from lakota.changelog import Revision
+from lakota.changelog import phi
 from lakota.repo import Repo, Schema
 
 schema = Schema(["timestamp timestamp*", "value float"])
@@ -54,13 +54,7 @@ def test_multi():
     assert list(temperature) == ["Brussels", "Paris"]
 
 
-@pytest.mark.parametrize(
-    "fast",
-    [
-        True,
-        False,
-    ],
-)
+@pytest.mark.parametrize("fast", [True, False])
 def test_squash(fast):
     repo = Repo()
     other_frame = {
@@ -84,9 +78,8 @@ def test_squash(fast):
         temperature.squash(fast=True)
     else:
         (new_commit,) = temperature.squash(fast=False)
-        # New commit should have the same digests
-        old_ci = Revision.from_path(temperature.changelog, prev_commits[1])
-        assert old_ci.child == new_commit.parent
+        # Non-fast commit are based on root
+        assert new_commit.parent == phi
 
     assert len(list(temperature.changelog)) == 1
 

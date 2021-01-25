@@ -31,9 +31,10 @@ logger = logging.getLogger("lakota")
 class Settings:
     threaded: bool
     debug: bool
+    embed_threshold: int
 
 
-settings = Settings(threaded=True, debug=False)
+settings = Settings(threaded=True, debug=False, embed_threshold=1024)
 
 
 def chunky(collection, size=100):
