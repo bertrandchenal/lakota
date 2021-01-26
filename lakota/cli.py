@@ -720,7 +720,7 @@ def run():
     parser_write.set_defaults(func=merge)
 
     # Add delete command
-    parser_delete = subparsers.add_parser("delete")
+    parser_delete = subparsers.add_parser("delete", aliases=["del"])
     parser_delete.add_argument("label", help="collection or series to delete")
     parser_delete.set_defaults(func=delete)
 
