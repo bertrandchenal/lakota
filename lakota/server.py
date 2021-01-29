@@ -39,19 +39,23 @@ provide persistant caching.
 expose full read and write access to the underlying repository.
 """
 
-from flask import Flask, Response, abort, request
+from urllib.parse import urlsplit
 
-app = Flask("Lakota Repository")
+from flask import Blueprint, Flask, Response, abort, request
+
+# Simple dict to register repositories
+dispatcher = {}
+
+pod_bp = Blueprint(f"Lakota POD", __name__)
 
 
-@app.route("/<action>/")
-@app.route("/<action>/<path:relpath>", methods=["GET", "POST"])
-def pod(action, relpath=None):
+@pod_bp.route("/<action>", methods=["GET", "POST"])
+def pod(repo, action, relpath=None):
     """
     summary: Interact with low-level POD object (GET)
     ---
     parameters:
-      - in: path
+      - in: action
         name: action
         schema:
           type: string
@@ -64,8 +68,8 @@ def pod(action, relpath=None):
         required: false
         description: Relative path
     """
+    relpath = request.args.get("path")
 
-    repo = app.config["lakota_repo"]
     if action == "ls":
         try:
             relpath = "." if relpath is None else relpath
@@ -102,8 +106,14 @@ def pod(action, relpath=None):
         return abort(404, f"Action {action} not supported")
 
 
-def run(repo, netloc=None, debug=False):
-    host, port = netloc.split(":", 1)
-    port = port and int(port) or None
-    app.config["lakota_repo"] = repo
-    app.run(host, debug=debug, port=port)
+def run(repo, web_uri=None, debug=False):
+    parts = urlsplit(web_uri)
+    if not parts.scheme == "http":
+        # if no scheme is given, hostname and port are not interpreted correctly
+        msg = "Incorrect web uri, it should start with 'http://'"
+        raise ValueError(msg)
+
+    # Instanciate app and blueprint. Run app
+    app = Flask("Lakota Repository")
+    app.register_blueprint(pod_bp, url_prefix=parts.path, url_defaults={"repo": repo})
+    app.run(parts.hostname, debug=debug, port=parts.port)

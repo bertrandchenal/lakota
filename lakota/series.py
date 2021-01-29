@@ -121,7 +121,7 @@ class Series:
                 digest = hexdigest(data)
                 all_dig.append(digest)
                 if (
-                    len(data) < settings.embed_threshold
+                    len(data) < settings.embed_max_size
                 ):  # every small array gets embedded
                     # Put small arrays aside
                     embedded[digest] = data

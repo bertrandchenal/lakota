@@ -1,27 +1,36 @@
 from pathlib import Path
 
 import s3fs
+import urllib3
 
 from .pod import POD
 from .utils import logger
+
+
+def silence_insecure_warning():
+    urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 
 class S3POD(POD):
 
     protocol = "s3"
 
-    def __init__(self, path, netloc=None, profile=None, fs=None):
+    def __init__(self, path, netloc=None, profile=None, verify=True, fs=None):
         # TODO document use of param: endpoint_url='http://127.0.0.1:5300'
         self.path = path
         if fs:
             self.fs = fs
         else:
-            client_kwargs = {}
+            if not verify:
+                silence_insecure_warning()
+            client_kwargs = {"verify": verify}
             if netloc:
                 # TODO support for https
                 client_kwargs["endpoint_url"] = f"http://{netloc}"
             self.fs = s3fs.S3FileSystem(
-                anon=False, client_kwargs=client_kwargs, profile=profile
+                anon=False,
+                client_kwargs=client_kwargs,
+                profile=profile,
             )
 
         super().__init__()

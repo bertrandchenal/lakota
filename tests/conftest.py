@@ -32,16 +32,16 @@ def pod(request):
     elif request.param == "http":
         # Start moto server
         port = "8081"
-        netloc = f"127.0.0.1:{port}"
+        web_uri = f"http://127.0.0.1:{port}/some_prefix/test_repo"
         with TemporaryDirectory() as tdir:
             proc = Popen(
-                ["lakota", "-r", tdir, "serve", netloc],
+                ["lakota", "-r", tdir, "serve", web_uri],
                 stderr=DEVNULL,
                 stdout=DEVNULL,
             )  # TODO launch only one process and clear repo between tests (same with moto)
             time.sleep(2)
             with proc:
-                pod = POD.from_uri(f"http://{netloc}")
+                pod = POD.from_uri(web_uri)
                 yield pod
                 proc.terminate()
 

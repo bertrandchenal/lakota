@@ -62,7 +62,8 @@ def test_squash(fast):
         "value": [4, 5, 6],
     }
     temperature = repo.create_collection(schema, "temperature")
-    assert temperature.squash(fast=fast) is None
+    revs = temperature.squash(fast=fast)
+    assert revs == []
 
     # We need two writes in order to have something to squash
     temp_bru = temperature / "Brussels"

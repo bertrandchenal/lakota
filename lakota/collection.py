@@ -183,7 +183,7 @@ class Collection:
             if leaf:
                 self.changelog.pod.clear(leaf.path)
                 self.changelog.refresh()
-            return
+            return []
 
         # Rewrite each series, based on `step` size arrays
         step = 500_000
@@ -201,7 +201,10 @@ class Collection:
             revs = batch.revs
         else:
             leaf = self.changelog.leaf()
-            revs = [leaf] if leaf is not None else []
+            if leaf is None:
+                # Empty collection
+                return []
+            revs = [leaf]
         skip = [r.path for r in revs]
         self.changelog.pod.clear(*skip)
         self.changelog.refresh()

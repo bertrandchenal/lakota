@@ -91,7 +91,8 @@ class POD:
                     f'Please install the "s3fs" module in order to access {uri}'
                 )
             profile = kwargs.get("profile", [None])[0]
-            return S3POD(path, netloc=parts.netloc, profile=profile)
+            verify = kwargs.get("verify", [""])[0].lower() != "false"
+            return S3POD(path, netloc=parts.netloc, profile=profile, verify=verify)
         elif scheme == "ssh":
             raise NotImplementedError("SSH support not implemented yet")
         elif scheme == "http":
@@ -99,8 +100,8 @@ class POD:
                 raise ImportError(
                     f'Please install the "requests" module in order to access "{uri}"'
                 )
-            base_uri = f"{parts.scheme}://{parts.netloc}/"
-            return HttpPOD(base_uri, path)
+            base_uri = f"{parts.scheme}://{parts.netloc}/{path}"
+            return HttpPOD(base_uri)
         elif scheme == "memory":
             return MemPOD(path)
         else:

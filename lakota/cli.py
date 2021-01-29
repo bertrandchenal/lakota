@@ -242,7 +242,7 @@ import csv
 import os
 import sys
 from datetime import datetime
-from io import StringIO
+from io import BytesIO, StringIO
 from itertools import chain
 
 from tabulate import tabulate
@@ -362,23 +362,61 @@ def read(args):
 def export(args):
     repo = get_repo(args)
     export_pod = POD.from_uri(args.uri)
-    for clc_name in repo.ls():
+    names = args.collection or repo.ls()
+    for clc_name in names:
         clc = repo / clc_name
+        if clc is None:
+            logger.warn('Collection "%s" not found', clc_name)
         pod = export_pod.cd(clc_name)
-        for srs_name in clc.ls():
-            # Read series
-            srs = clc / srs_name
-            frm = srs.frame()
-            columns = list(frm)
-            # Save series as csv in buff
-            buff = StringIO()
-            writer = csv.writer(buff)
-            writer.writerow(columns)
-            rows = zip(*(frm[c] for c in columns))
-            writer.writerows(rows)
-            # Write generated content in pod
-            buff.seek(0)
-            pod.write(f"{srs_name}.csv", buff.read().encode())
+        logger.info('Export collection "%s"', clc_name)
+        export_collection(pod, clc)
+
+
+def export_collection(pod, collection):
+    for srs_name in collection.ls():
+        # Read series
+        srs = collection / srs_name
+        frm = srs.frame()
+        columns = list(frm)
+        # Save series as csv in buff
+        buff = StringIO()
+        writer = csv.writer(buff)
+        writer.writerow(columns)
+        rows = zip(*(frm[c] for c in columns))
+        writer.writerows(rows)
+        # Write generated content in pod
+        buff.seek(0)
+        pod.write(f"{srs_name}.csv", buff.read().encode())
+
+
+def import_(args):
+    repo = get_repo(args)
+    import_pod = POD.from_uri(args.uri)
+    names = args.collection or import_pod.ls()
+    for clc_name in names:
+        clc = repo / clc_name
+        if clc is None:
+            logger.warn('Collection "%s" not found', clc_name)
+            continue
+        pod = import_pod.cd(clc_name)
+        logger.info('Import collection "%s"', clc_name)
+        import_collection(pod, clc)
+
+
+def import_collection(pod, collection):
+    column_names = sorted(collection.schema)
+    for file_name in pod.ls():
+        # Read file
+        stem, ext = file_name.rsplit(".", 1)
+        assert ext == "csv"
+        buff = StringIO(pod.read(file_name).decode())
+        reader = csv.reader(buff)
+        headers = next(reader)
+        assert sorted(headers) == column_names
+        columns = zip(*reader)
+        frm = dict(zip(headers, columns))
+        srs = collection / stem
+        srs.write(frm)
 
 
 def length(args):
@@ -541,9 +579,9 @@ def push(args):
     $ lakota -r some_repo push another_repo
     ```
     """
-    reg = get_repo(args)
-    remote_reg = Repo(args.remote)
-    reg.push(remote_reg, *args.labels)
+    repo = get_repo(args)
+    remote_repo = Repo(args.remote)
+    repo.push(remote_repo, *args.labels)
 
 
 def pull(args):
@@ -596,7 +634,7 @@ def serve(args):
         exit("Please install flask to run server")
 
     repo = get_repo(args)
-    server.run(repo, args.netloc, debug=args.verbose)
+    server.run(repo, args.web_uri, debug=args.verbose)
 
 
 def deploy(args):
@@ -661,9 +699,19 @@ def run():
     parser_read.set_defaults(func=read)
 
     # Add export command
-    parser_len = subparsers.add_parser("export")
-    parser_len.add_argument("uri")
-    parser_len.set_defaults(func=export)
+    parser_export = subparsers.add_parser("export")
+    parser_export.add_argument("uri")
+    parser_export.add_argument(
+        "--collection", "-c", nargs="*", help="Export only the given collestion(s)"
+    )
+    parser_export.set_defaults(func=export)
+
+    parser_import = subparsers.add_parser("import")
+    parser_import.add_argument("uri")
+    parser_import.add_argument(
+        "--collection", "-c", nargs="*", help="Import only the given collestion(s)"
+    )
+    parser_import.set_defaults(func=import_)
 
     # Add len command
     parser_len = subparsers.add_parser("length", aliases=["len"])
@@ -739,7 +787,7 @@ def run():
 
     # Add serve command
     parser_serve = subparsers.add_parser("serve")
-    parser_serve.add_argument("netloc", nargs="?", default="127.0.0.1:8080")
+    parser_serve.add_argument("web_uri", nargs="?", default="http://127.0.0.1:8080")
     parser_serve.set_defaults(func=serve)
 
     # Add deploy command
