@@ -526,8 +526,12 @@ class Segment:
                 return self._frm
 
             cols = {}
+            # with Pool() as pool: # TODO need a smarter pool
+            #     for name in self.commit.schema.idx:
+            #         pool.submit(lambda: cols.update({name: self._read(name)}))
             for name in self.commit.schema.idx:
-                cols[name] = self._read(name)
+                cols[name] =  self._read(name)
+
             frm = Frame(self.commit.schema, cols)
             self.start_pos, self.stop_pos = frm.index_slice(
                 self.start, self.stop, closed=self.closed
