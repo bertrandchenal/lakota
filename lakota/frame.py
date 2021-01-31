@@ -1,7 +1,8 @@
+
 from bisect import bisect_left, bisect_right
 from collections import defaultdict
 
-from numpy import argsort, array_equal, asarray, concatenate, ndarray, rec, unique
+from numpy import argsort, array_equal, asarray, concatenate, ndarray, rec, unique, arange
 
 from .schema import Schema
 from .sexpr import AST, Alias
@@ -75,6 +76,19 @@ class Frame:
         arr = rec.fromarrays([self[n] for n in idx_cols], names=idx_cols)
         # Mergesort is faster on pre-sorted arrays
         return argsort(arr, kind="mergesort")
+
+    def is_sorted(self):
+        return True
+        idx_cols = list(self.schema.idx)
+        if len(idx_cols) == 1:
+            arr = self[idx_cols[0]]
+            return all(arr[1:] >= arr[:-1])
+
+        # Multi-column index we fallback on argsort
+        arr = rec.fromarrays([self[n] for n in idx_cols], names=idx_cols)
+        sort_mask = self.argsort()
+        a_range = arange(len(sort_mask))
+        return all(sort_mask == a_range)
 
     @classmethod
     def concat(cls, *frames):

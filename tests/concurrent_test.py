@@ -1,3 +1,5 @@
+from time import sleep
+
 import numpy
 from dask.distributed import Client, LocalCluster
 from pandas import DataFrame, date_range
@@ -44,6 +46,8 @@ def test_insert(pod):
     client.close()
     cluster.close()
 
+    sleep(0.1)
+    collection.refresh()
     # Merge everything and read series
     with timeit(f"\nMERGE ({pod.protocol})"):
         revs = collection.merge()

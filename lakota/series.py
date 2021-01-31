@@ -1,6 +1,5 @@
 from time import time
-
-from numpy import arange, issubdtype
+from numpy import issubdtype
 
 from .changelog import phi
 from .commit import Commit
@@ -103,8 +102,7 @@ class Series:
             frame = Frame(self.schema, self.schema.cast(frame))
 
         # Make sure frame is sorted
-        sort_mask = frame.argsort()
-        assert (sort_mask == arange(len(sort_mask))).all(), "Dataframe is not sorted!"
+        assert frame.is_sorted(), "Frame is not sorted!"
 
         # Save segments
         all_dig = []

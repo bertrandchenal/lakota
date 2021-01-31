@@ -124,12 +124,12 @@ class Collection:
         revisions = self.changelog.log()
         # Corner cases
         if not revisions:
-            return
+            return []
         if not heads:
             heads = [r for r in revisions if r.is_leaf]
 
         if len(heads) < 2:
-            return
+            return []
 
         # Reorganise revision as child->parents dict
         ch2pr = defaultdict(list)

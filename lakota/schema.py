@@ -2,7 +2,7 @@ import shlex
 from dataclasses import dataclass
 
 from numcodecs import registry
-from numpy import asarray, ascontiguousarray, dtype, frombuffer, issubdtype
+from numpy import asarray, ascontiguousarray, dtype, frombuffer, issubdtype, ndarray
 
 DTYPES = [dtype(s) for s in ("datetime64[s]", "int64", "float64", "U", "O")]
 
@@ -95,6 +95,8 @@ class SchemaColumn:
         return SchemaColumn(name, dt, codecs=codec_names, idx=idx)
 
     def cast(self, arr):
+        if isinstance(arr, ndarray) and issubdtype(arr.dtype, self.codec.dt):
+            return arr
         return asarray(arr, dtype=self.codec.dt)
 
     def cast_scalar(self, value):
