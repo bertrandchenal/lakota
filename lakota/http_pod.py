@@ -1,3 +1,4 @@
+import base64
 from pathlib import PurePosixPath
 
 import requests
@@ -10,10 +11,14 @@ class HttpPOD(POD):
 
     protocol = "http"
 
-    def __init__(self, base_uri, path=None, session=None):
+    def __init__(self, base_uri, path=None, session=None, headers=None):
         self.base_uri = base_uri if base_uri.endswith("/") else base_uri + "/"
         self.path = path or PurePosixPath("")
-        self.session = session or requests.Session()
+        if session:
+            self.session = session
+        else:
+            self.session = requests.Session()
+            self.session.headers.update(headers)
         super().__init__()
 
     def cd(self, *others):
@@ -21,7 +26,7 @@ class HttpPOD(POD):
         return HttpPOD(self.base_uri, path, session=self.session)
 
     def ls(self, relpath=".", missing_ok=False):
-        logger.debug("LIST %s://%s %s", self.protocol, self.path, relpath)
+        logger.debug("LIST %s %s %s", self.base_uri, self.path, relpath)
         params = {"path": str(self.path / relpath)}
         resp = self.session.get(self.base_uri + "ls", params=params)
 
@@ -31,8 +36,7 @@ class HttpPOD(POD):
             raise FileNotFoundError(f"{relpath} not found")
         else:
             resp.raise_for_status()
-
-        return resp.text.splitlines()
+        return resp.json()["body"]
 
     def read(self, relpath, mode="rb"):
         logger.debug("READ %s://%s %s", self.protocol, self.path, relpath)
@@ -43,7 +47,7 @@ class HttpPOD(POD):
             raise FileNotFoundError(f"{relpath} not found")
         else:
             resp.raise_for_status()
-        return resp.content
+        return base64.b64decode(resp.json()["body"])
 
     def write(self, relpath, data, mode="wb"):
         logger.debug("WRITE %s://%s %s", self.protocol, self.path, relpath)
@@ -51,7 +55,8 @@ class HttpPOD(POD):
         params = {"path": str(path)}
         resp = self.session.post(self.base_uri + "write", params=params, data=data)
         resp.raise_for_status()
-        return int(resp.content) if resp.content else None
+        body = resp.json()["body"]
+        return body
 
     def rm(self, relpath=".", recursive=False, missing_ok=False):
         logger.debug("REMOVE %s://%s %s", self.protocol, self.path, relpath)
@@ -74,4 +79,5 @@ class HttpPOD(POD):
 
         resp = self.session.get(self.base_uri + "walk", params=params)
         resp.raise_for_status()
-        return resp.text.splitlines()
+        body = resp.json()["body"]
+        return body

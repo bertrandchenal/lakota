@@ -39,9 +39,10 @@ provide persistant caching.
 expose full read and write access to the underlying repository.
 """
 
+import base64
 from urllib.parse import urlsplit
 
-from flask import Blueprint, Flask, Response, abort, request
+from flask import Blueprint, Flask, abort, request
 
 # Simple dict to register repositories
 dispatcher = {}
@@ -73,37 +74,50 @@ def pod(repo, action, relpath=None):
     if action == "ls":
         try:
             relpath = "." if relpath is None else relpath
-            payload = "\n".join(repo.pod.ls(relpath))
+            names = repo.pod.ls(relpath)
         except FileNotFoundError:
-            return abort(404)
-        return Response(payload, mimetype="text/plain")
+            return 'Path "{relpath}" not found', 404
+        return {"body": names}
 
     elif action == "read":
-        payload = repo.pod.read(relpath)
-        return Response(payload, mimetype="application/octet-stream")
+        try:
+            payload = repo.pod.read(relpath)
+            payload = base64.b64encode(payload).decode("ascii")
+        except FileNotFoundError:
+            return 'Path "{relpath}" not found', 404
+        return {"body": payload, "b64encoded": True}
 
     elif action == "rm":
         recursive = request.args.get("recursive", "").lower() == "true"
         missing_ok = request.args.get("missing_ok", "").lower() == "true"
-        repo.pod.rm(relpath, recursive=recursive, missing_ok=missing_ok)
-        return Response("ok", mimetype="text/plain")
+        try:
+            repo.pod.rm(relpath, recursive=recursive, missing_ok=missing_ok)
+        except FileNotFoundError:
+            return 'Path "{relpath}" not found', 404
+        return {"status": "ok"}
 
     elif action == "write":
-        info = repo.pod.write(relpath, request.data)
-        return Response(str(info or ""), mimetype="text/plain")
+        try:
+            info = repo.pod.write(relpath, request.data)
+        except FileNotFoundError:
+            return 'Path "{relpath}" not found', 404
+        return {"body": info}
 
     elif action == "walk":
         pod = repo.pod
-        if relpath:
-            pod = pod.cd(relpath)
-        max_depth = request.args.get("max_depth")
-        if max_depth is not None:
-            max_depth = int(max_depth)
-        payload = "\n".join(pod.walk(max_depth=max_depth))
-        return Response(payload, mimetype="text/plain")
+        try:
+            if relpath:
+                pod = pod.cd(relpath)
+            max_depth = request.args.get("max_depth")
+            if max_depth is not None:
+                max_depth = int(max_depth)
+            names = list(pod.walk(max_depth=max_depth))
+        except FileNotFoundError:
+            return 'Path "{relpath}" not found', 404
+        return {"body": names}
 
     else:
-        return abort(404, f"Action {action} not supported")
+        return 'Action "{action}" not supported', 404
 
 
 def run(repo, web_uri=None, debug=False):

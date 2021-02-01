@@ -95,13 +95,18 @@ class POD:
             return S3POD(path, netloc=parts.netloc, profile=profile, verify=verify)
         elif scheme == "ssh":
             raise NotImplementedError("SSH support not implemented yet")
-        elif scheme == "http":
+        elif scheme in ("http", "https"):
             if requests is None:
                 raise ImportError(
                     f'Please install the "requests" module in order to access "{uri}"'
                 )
+            # Build base uri
             base_uri = f"{parts.scheme}://{parts.netloc}/{path}"
-            return HttpPOD(base_uri)
+            # Extract headers
+            headers = {
+                k[7:]: v[0] for k, v in kwargs.items() if k.startswith("header-")
+            }
+            return HttpPOD(base_uri, headers=headers)
         elif scheme == "memory":
             return MemPOD(path)
         else:
