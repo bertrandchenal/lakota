@@ -46,8 +46,7 @@ def test_insert(pod):
 
     # Merge everything and read series
     with timeit(f"\nMERGE ({pod.protocol})"):
-        revs = collection.merge()
-    assert len(revs) > 1
+        collection.merge()
 
     with timeit(f"\nREAD ({pod.protocol})"):
         series = collection / label
