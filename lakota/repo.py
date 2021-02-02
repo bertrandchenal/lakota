@@ -263,21 +263,20 @@ class Repo:
         remote_cache = {r.label: r for r in remote.search()}
         if not labels:
             labels = remote_cache.keys()
-        with Pool() as pool:
-            for label in labels:
-                logger.info("Sync collection: %s", label)
-                r_clct = remote_cache[label]
-                if not label in local_cache:
-                    l_clct = self.create_collection(r_clct.schema, label)
-                else:
-                    l_clct = local_cache[label]
-                    if l_clct.schema != r_clct.schema:
-                        msg = (
-                            f'Unable to sync collection "{label}",'
-                            "incompatible meta-info."
-                        )
-                        raise ValueError(msg)
-                pool.submit(l_clct.pull, r_clct)
+        for label in labels:
+            logger.info("Sync collection: %s", label)
+            r_clct = remote_cache[label]
+            if not label in local_cache:
+                l_clct = self.create_collection(r_clct.schema, label)
+            else:
+                l_clct = local_cache[label]
+                if l_clct.schema != r_clct.schema:
+                    msg = (
+                        f'Unable to sync collection "{label}",'
+                        "incompatible meta-info."
+                    )
+                    raise ValueError(msg)
+            l_clct.pull(r_clct)
 
     def merge(self):
         """

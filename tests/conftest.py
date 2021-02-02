@@ -13,10 +13,10 @@ from lakota.utils import settings
 params = [
     "file",
     "s3",
-    "memory+s3",
     "memory",
+    "memory+s3",
     "http",
-]  # "ssh"
+]  # TODO "ssh"
 
 
 @pytest.fixture(scope="function", params=params)

@@ -19,6 +19,7 @@ import io
 import os
 import shutil
 from pathlib import Path, PurePosixPath
+from time import time
 from urllib.parse import parse_qs, urlsplit
 from uuid import uuid4
 
@@ -136,6 +137,7 @@ class POD:
                 subfolders = [
                     (full_path, c, depth + 1) for c in reversed(self.ls(full_path))
                 ]
+
                 folders.extend(subfolders)
             else:
                 yield full_path
@@ -202,138 +204,148 @@ class FilePOD(POD):
                     return
                 raise
 
+    @property
+    def size(self):
+        return sum(os.path.getsize(self.path / name) for name in self.walk())
+
+
+class File:
+    """Utility class for MemPOD"""
+
+    def __init__(self, content):
+        self.content = content
+        self.ts = time()
+
+
+class Folder:
+    """Utility class for MemPOD"""
+
+    def __init__(self):
+        self.items = {}
+
+    def add(self, key, kind):
+        assert kind in (File, Folder)
+        current = self.items.get(key)
+        if current is not None:
+            assert current == kind
+        else:
+            self.items[key] = kind
+
+    def rm(self, entry):
+        self.items.pop(entry, None)
+
+    def ls(self):
+        return self.items.keys()
+
 
 class MemPOD(POD):
 
     protocol = "memory"
 
-    def __init__(self, path=".", parent=None):
-        self.path = PurePosixPath(path)
-        self.parent = parent
-        # store keys are path, values are either bytes (aka a file)
-        # either another dict (aka a directory)
-        self.store = {}
+    def __init__(self, path, store=None):
+        self.path = Path(path)
+        self.parts = self.path.parts
+        if store:
+            self.store = store
+        else:
+            self.store = {self.parts: Folder()}
         super().__init__()
 
     def cd(self, *others):
-        pod = self
-        for o in others:
-            pod = pod.find_pod(o)
-        return pod
+        path = Path(*(self.parts + others))
+        return MemPOD(path, store=self.store)
+
+    def isdir(self, relpath):
+        relpath = self.split(relpath)
+        key = self.parts + relpath
+        item = self.store.get(key)
+        return isinstance(item, Folder)
+
+    def isfile(self, relpath):
+        relpath = self.split(relpath)
+        key = self.parts + relpath
+        item = self.store.get(key)
+        return isinstance(item, File)
+
+    def write(self, relpath, data):
+        if self.isfile(relpath):
+            logger.debug("SKIP-WRITE %s %s", self.path, relpath)
+            return
+        logger.debug("WRITE %s %s", self.parts, relpath)
+
+        current_path = tuple()
+        relpath = self.split(relpath)
+        full_path = self.parts + relpath
+
+        for part in full_path:
+            parent = current_path
+            current_path = current_path + (part,)
+            folder = self.store.setdefault(parent, Folder())
+            assert isinstance(folder, Folder)
+            if current_path == full_path:
+                folder.add(part, File)
+                current_file = self.store.get(current_path)
+                if current_file is not None:
+                    assert isinstance(current_file, File)
+                    logger.debug("SKIP-WRITE memory://%s %s", self.path, relpath)
+                self.store[current_path] = File(data)
+            else:
+                folder.add(part, Folder)
+        return len(data)
+
+    def ls(self, relpath="", missing_ok=False):
+        path = self.parts + self.split(relpath)
+        item = self.store.get(path)
+        if item is None:
+            if missing_ok:
+                return []
+            raise FileNotFoundError(f'Path "{path}" not found')
+        elif isinstance(item, Folder):
+            return list(item.ls())
+        else:
+            return ["/".join(path)]
+
+    def rm(self, relpath=".", recursive=False, missing_ok=False):
+        path = self.parts + self.split(relpath)
+        item = self.store.get(path)
+        if isinstance(item, File):
+            del self.store[path]
+        elif isinstance(item, Folder):
+            if not recursive:
+                raise FileNotFoundError(f"{relpath} is not empty")
+
+            # Delete and recurse
+            del self.store[path]
+            for child in list(item.items):
+                self.rm(relpath + "/" + child, recursive=True)
+
+        elif not missing_ok:
+            raise FileNotFoundError(f"{relpath} not found")
+
+        # Update folder info
+        parent_path = path[:-1]
+        parent_folder = self.store.get(parent_path)
+        if parent_folder:
+            # Note: Parent my not exists in the middle of a
+            # reccursive deletion
+            parent_folder.rm(path[-1])
+
+    def read(self, relpath):
+        path = self.parts + self.split(relpath)
+        item = self.store.get(path)
+        if not isinstance(item, File):
+            raise FileNotFoundError(f'Path "{path}" not found')
+        return item.content
 
     @classmethod
     def split(cls, path):
-        return PurePosixPath(path).as_posix().split("/")
-
-    def find_pod(self, relpath, auto_mkdir=True):
-        fragments = self.split(relpath)
-        return self._find_pod(fragments, auto_mkdir)
-
-    def _find_pod(self, fragments, auto_mkdir=False):
-        path = self.path
-        pod = self
-        for frag in fragments:
-            if frag == ".":
-                continue
-            path = path / frag
-            if frag in pod.store:
-                pod = pod.store[frag]
-            elif auto_mkdir:
-                parent = pod
-                pod = MemPOD(path, parent=parent)
-                parent.store[frag] = pod
-            else:
-                return None
-        return pod
-
-    def find_parent_pod(self, relpath, auto_mkdir=False):
-        fragments = self.split(relpath)
-        pod = self._find_pod(fragments[:-1], auto_mkdir)
-        return pod, fragments[-1]
-
-    def ls(self, relpath=".", missing_ok=False):
-        logger.debug("LIST memory://%s %s", self.path, relpath)
-        pod, leaf = self.find_parent_pod(relpath)
-        # Handle pathological cases
-        if not pod:
-            if missing_ok:
-                return []
-            raise FileNotFoundError(f"{relpath} not found")
-        elif leaf not in pod.store:
-            if leaf == ".":
-                return list(self.store.keys())
-            elif missing_ok:
-                return [leaf]
-            raise FileNotFoundError(f"{relpath} not found")
-        # "happy" scenario
-        if pod.isdir(leaf):
-            return list(pod.store[leaf].store.keys())
-        else:
-            return [leaf]
-
-    def read(self, relpath, mode="rb"):
-        logger.debug("READ memory://%s %s", self.path, relpath)
-        pod, leaf = self.find_parent_pod(relpath)
-        if not pod:
-            raise FileNotFoundError(f"{relpath} not found")
-        if leaf not in pod.store:
-            raise FileNotFoundError(f"{leaf} not found in {pod.path}")
-        if isinstance(pod.store[leaf], POD):
-            raise FileNotFoundError(f"{leaf} is a directory in {pod.path}")
-        return pod.store[leaf]
-
-    def write(self, relpath, data, mode="wb"):
-        pod, leaf = self.find_parent_pod(relpath, auto_mkdir=True)
-        if not pod:
-            raise FileNotFoundError(f"{relpath} not found")
-        if leaf in pod.store:
-            logger.debug("SKIP-WRITE memory://%s %s", self.path, relpath)
-            return
-        logger.debug("WRITE memory://%s %s", self.path, relpath)
-        pod.store[leaf] = data
-        return len(data)
-
-    def isdir(self, relpath):
-        pod, leaf = self.find_parent_pod(relpath)
-        if pod is None:
-            return False
-        return isinstance(pod.store[leaf], POD)
-
-    def isfile(self, relpath):
-        pod, leaf = self.find_parent_pod(relpath)
-        if pod is None:
-            return False
-        return leaf in pod.store and not isinstance(pod.store[leaf], POD)
-
-    def rm(self, relpath, recursive=False, missing_ok=False):
-        logger.debug("REMOVE memory://%s %s", self.path, relpath)
-        if relpath == ".":
-            if not self.parent:
-                raise FileNotFoundError('Not parent for "."')
-            pod = self.parent
-            leaf = self.split(self.path)[-1]
-        else:
-            pod, leaf = self.find_parent_pod(relpath)
-
-        if not pod:
-            if missing_ok:
-                return
-            raise FileNotFoundError(f"{relpath} not found")
-        if leaf not in pod.store:
-            if missing_ok:
-                return
-            else:
-                msg = f'File "{leaf}" not found in "{pod.path}"'
-                raise FileNotFoundError(msg)
-
-        if recursive:
-            del pod.store[leaf]
-        elif pod.isdir(leaf):
-            if pod.store[leaf].store:
-                raise FileNotFoundError(f"{relpath} is not empty")
-            del pod.store[leaf]
-        else:
-            del pod.store[leaf]
+        if not path:
+            return tuple()
+        if isinstance(path, tuple):
+            return path
+        if isinstance(path, PurePosixPath):
+            return path.parts
+        return tuple(p for p in path.split("/") if p != ".")
 
 
 class CachePOD(POD):

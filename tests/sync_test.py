@@ -23,7 +23,7 @@ def test_pull(threaded, large):
     remote_coll = remote_repo.create_collection(schema, c_label)
     rseries = remote_coll / s_label
 
-    # Test support of noth small dataset (where data is embedded in
+    # Test support of both small dataset (where data is embedded in
     # commits) and large one (arrays are save on their own)
     N = 100_000 if large else 10
     for i in range(10):
