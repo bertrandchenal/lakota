@@ -19,6 +19,8 @@ import io
 import os
 import shutil
 from pathlib import Path, PurePosixPath
+from random import choice
+from threading import Lock
 from time import time
 from urllib.parse import parse_qs, urlsplit
 from uuid import uuid4
@@ -109,7 +111,8 @@ class POD:
             }
             return HttpPOD(base_uri, headers=headers)
         elif scheme == "memory":
-            return MemPOD(path)
+            max_size = int(kwargs.get("max_size", [0])[0])
+            return MemPOD(path, max_size=max_size)
         else:
             raise ValueError(f'Protocol "{scheme}" not supported')
 
@@ -216,6 +219,9 @@ class File:
         self.content = content
         self.ts = time()
 
+    def touch(self):
+        self.ts = time()
+
 
 class Folder:
     """Utility class for MemPOD"""
@@ -242,9 +248,16 @@ class MemPOD(POD):
 
     protocol = "memory"
 
-    def __init__(self, path, store=None):
+    def __init__(self, path, store=None, max_size=None):
         self.path = Path(path)
         self.parts = self.path.parts
+        self.max_size = None
+        if max_size is not None and max_size > 0:
+            self.max_size = max_size
+
+        self._update_lock = Lock()
+        self._lru = set()
+        self._size = 0
         if store:
             self.store = store
         else:
@@ -289,8 +302,10 @@ class MemPOD(POD):
                     assert isinstance(current_file, File)
                     logger.debug("SKIP-WRITE memory://%s %s", self.path, relpath)
                 self.store[current_path] = File(data)
+                self._lru_add(current_path)
             else:
                 folder.add(part, Folder)
+        self._update_size(len(data))
         return len(data)
 
     def ls(self, relpath="", missing_ok=False):
@@ -309,7 +324,9 @@ class MemPOD(POD):
         path = self.parts + self.split(relpath)
         item = self.store.get(path)
         if isinstance(item, File):
-            del self.store[path]
+            item = self.store.pop(path)
+            self._update_size(-len(item.content))
+
         elif isinstance(item, Folder):
             if not recursive:
                 raise FileNotFoundError(f"{relpath} is not empty")
@@ -335,6 +352,7 @@ class MemPOD(POD):
         item = self.store.get(path)
         if not isinstance(item, File):
             raise FileNotFoundError(f'Path "{path}" not found')
+        item.touch()
         return item.content
 
     @classmethod
@@ -346,6 +364,29 @@ class MemPOD(POD):
         if isinstance(path, PurePosixPath):
             return path.parts
         return tuple(p for p in path.split("/") if p != ".")
+
+    def _lru_add(self, path):
+        if self.max_size is None:
+            return
+        while len(self._lru) >= 20:
+            # remove random item
+            self._lru.discard(choice(list(self._lru)))
+        self._lru.add(path)
+
+    def _lru_pop(self):
+        lru = sorted(self._lru, key=lambda p: self.store[p].ts)
+        path = lru[0]
+        self._lru.discard(path)
+        return path
+
+    def _update_size(self, value):
+        self._size += value
+        if value < 0 or self.max_size is None:
+            return
+        with self._update_lock:
+            while self._size > self.max_size:
+                oldest = self._lru_pop()
+                self.rm(oldest, missing_ok=True)
 
 
 class CachePOD(POD):
