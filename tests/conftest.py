@@ -63,7 +63,7 @@ def pod(request):
             if request.param == "s3":
                 pod = POD.from_uri(s3_uri)
             elif request.param == "memory+s3":
-                pod = POD.from_uri("memory://" + s3_uri)
+                pod = POD.from_uri("memory://+" + s3_uri)
 
             yield pod
             proc.kill()

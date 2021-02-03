@@ -1,6 +1,6 @@
 import pytest
 
-from lakota.pod import FilePOD, MemPOD
+from lakota.pod import S3POD, CachePOD, FilePOD, MemPOD
 
 
 def test_cd(pod):
@@ -9,7 +9,7 @@ def test_cd(pod):
 
 
 def test_simple_ls(pod):
-    if pod.protocol != "s3":
+    if not isinstance(pod, (S3POD, CachePOD)):
         # Note: s3fs does not complain when listing a non-existing
         # path (only if the bucket is missing)
         with pytest.raises(FileNotFoundError):

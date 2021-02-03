@@ -18,6 +18,7 @@ It is mainly used through the `lakota.Repo` class.
 import io
 import os
 import shutil
+import sys
 from pathlib import Path, PurePosixPath
 from random import choice
 from threading import Lock
@@ -37,7 +38,7 @@ except ImportError:
 
 from .utils import logger
 
-__all__ = ["POD"]
+__all__ = ["POD", "FilePOD", "MemPOD", "CachePOD"]
 
 
 class POD:
@@ -111,8 +112,8 @@ class POD:
             }
             return HttpPOD(base_uri, headers=headers)
         elif scheme == "memory":
-            max_size = int(kwargs.get("max_size", [0])[0])
-            return MemPOD(path, max_size=max_size)
+            lru_size = int(kwargs.get("lru_size", [0])[0])
+            return MemPOD(path, lru_size=lru_size)
         else:
             raise ValueError(f'Protocol "{scheme}" not supported')
 
@@ -244,24 +245,84 @@ class Folder:
         return self.items.keys()
 
 
+class Store:
+    """Utility class for MemPOD"""
+
+    def __init__(self, lru_size=None):
+        self.kv = {tuple(): Folder()}
+        self._update_lock = Lock()
+        self._lru = set()
+        self._size = 0
+        self.lru_size = None
+        if lru_size is not None and lru_size > 0:
+            self.lru_size = lru_size
+
+    def get(self, key):
+        item = self.kv.get(key)
+        if isinstance(item, File):
+            item.touch()
+        return item
+
+    def set(self, key, value):
+        assert isinstance(value, (File, Folder))
+        self.kv[key] = value
+        if isinstance(value, File):
+            self._lru_add(key)
+            self._update_size(len(value.content))
+
+    def setdefault(self, key, value):
+        assert isinstance(value, (File, Folder))
+        return self.kv.setdefault(key, value)
+
+    def delete(self, key):
+        try:
+            item = self.kv.pop(key)
+            if isinstance(item, File):
+                self._update_size(-len(item.content))
+        except:
+            import pdb
+
+            pdb.set_trace()
+
+    def _lru_add(self, path):
+        if self.lru_size is None:
+            return
+        while len(self._lru) >= 20:
+            # remove random item
+            c = choice(list(self._lru))
+            self._lru.discard(c)
+        self._lru.add(path)
+
+    def _get_ts(self, k):
+        item = self.kv.get(k)
+        if item is None:
+            return sys.maxsize
+        return item.ts
+
+    def _lru_pop(self):
+        lru = sorted(self._lru, key=lambda k: self._get_ts(k))
+        path = lru[0]
+        self._lru.discard(path)
+        return path
+
+    def _update_size(self, value):
+        self._size += value
+        if value < 0 or self.lru_size is None:
+            return
+        with self._update_lock:
+            while self._size > self.lru_size:
+                oldest = self._lru_pop()
+                self.delete(oldest)
+
+
 class MemPOD(POD):
 
     protocol = "memory"
 
-    def __init__(self, path, store=None, max_size=None):
+    def __init__(self, path, store=None, lru_size=None):
         self.path = Path(path)
         self.parts = self.path.parts
-        self.max_size = None
-        if max_size is not None and max_size > 0:
-            self.max_size = max_size
-
-        self._update_lock = Lock()
-        self._lru = set()
-        self._size = 0
-        if store:
-            self.store = store
-        else:
-            self.store = {self.parts: Folder()}
+        self.store = store or Store(lru_size=lru_size)
         super().__init__()
 
     def cd(self, *others):
@@ -280,7 +341,7 @@ class MemPOD(POD):
         item = self.store.get(key)
         return isinstance(item, File)
 
-    def write(self, relpath, data):
+    def write(self, relpath, data, mode="rb"):
         if self.isfile(relpath):
             logger.debug("SKIP-WRITE %s %s", self.path, relpath)
             return
@@ -301,11 +362,10 @@ class MemPOD(POD):
                 if current_file is not None:
                     assert isinstance(current_file, File)
                     logger.debug("SKIP-WRITE memory://%s %s", self.path, relpath)
-                self.store[current_path] = File(data)
-                self._lru_add(current_path)
+                else:
+                    self.store.set(current_path, File(data))
             else:
                 folder.add(part, Folder)
-        self._update_size(len(data))
         return len(data)
 
     def ls(self, relpath="", missing_ok=False):
@@ -324,15 +384,14 @@ class MemPOD(POD):
         path = self.parts + self.split(relpath)
         item = self.store.get(path)
         if isinstance(item, File):
-            item = self.store.pop(path)
-            self._update_size(-len(item.content))
+            item = self.store.delete(path)
 
         elif isinstance(item, Folder):
             if not recursive:
                 raise FileNotFoundError(f"{relpath} is not empty")
 
             # Delete and recurse
-            del self.store[path]
+            self.store.delete(path)
             for child in list(item.items):
                 self.rm(relpath + "/" + child, recursive=True)
 
@@ -347,12 +406,11 @@ class MemPOD(POD):
             # reccursive deletion
             parent_folder.rm(path[-1])
 
-    def read(self, relpath):
+    def read(self, relpath, mode="rb"):
         path = self.parts + self.split(relpath)
         item = self.store.get(path)
         if not isinstance(item, File):
             raise FileNotFoundError(f'Path "{path}" not found')
-        item.touch()
         return item.content
 
     @classmethod
@@ -364,29 +422,6 @@ class MemPOD(POD):
         if isinstance(path, PurePosixPath):
             return path.parts
         return tuple(p for p in path.split("/") if p != ".")
-
-    def _lru_add(self, path):
-        if self.max_size is None:
-            return
-        while len(self._lru) >= 20:
-            # remove random item
-            self._lru.discard(choice(list(self._lru)))
-        self._lru.add(path)
-
-    def _lru_pop(self):
-        lru = sorted(self._lru, key=lambda p: self.store[p].ts)
-        path = lru[0]
-        self._lru.discard(path)
-        return path
-
-    def _update_size(self, value):
-        self._size += value
-        if value < 0 or self.max_size is None:
-            return
-        with self._update_lock:
-            while self._size > self.max_size:
-                oldest = self._lru_pop()
-                self.rm(oldest, missing_ok=True)
 
 
 class CachePOD(POD):
