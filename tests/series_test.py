@@ -72,8 +72,22 @@ def test_spill_write(series, how):
     )
     series.write(frm)
 
-    frm_copy = series.frame()
-    assert frm_copy == frm
+    args = [
+        # closed is both (default)
+        (None, None, "b"),
+        (min(ts), max(ts), "b"),
+        (None, max(ts), "b"),
+        (min(ts), None, "b"),
+        # open on left
+        (min(ts)-1, max(ts), 'r'),
+        # open on right
+        (min(ts), max(ts)+1, 'l'),
+        # full open
+        (min(ts)-1, max(ts)+1, 'n'),
+    ]
+    for start, stop, closed in args:
+        frm_copy = series.frame(start=start, stop=stop, closed=closed)
+        assert frm_copy == frm
 
 
 @pytest.mark.parametrize("how", ["left", "right"])
@@ -103,34 +117,36 @@ def test_short_cover(series, how):
 @pytest.mark.parametrize("how", ["left", "right"])
 def test_adjacent_write(series, how):
     if how == "left":
-        ts = [1589455902]
-        vals = [2.2]
+        ts = [1589455901, 1589455902]
+        vals = [1.1, 2.2]
     else:
-        ts = [1589455906]
-        vals = [6.6]
+        ts = [1589455906, 1589455907]
+        vals = [6.6, 7.7]
 
-    frm = Frame(
-        schema,
-        {
-            "timestamp": ts,
-            "value": vals,
-        },
-    )
-    series.write(frm)
+    # We do two write of one arrays (should trigger more corner cases)
+    for pos, stamp in enumerate(ts):
+        frm = Frame(
+            schema,
+            {
+                "timestamp": [stamp],
+                "value": [vals[pos]],
+            },
+        )
+        series.write(frm)
 
     # Full read
     frm_copy = series.frame()
     if how == "left":
         assert all(
-            frm_copy["timestamp"] == [1589455902, 1589455903, 1589455904, 1589455905]
+            frm_copy["timestamp"] == [1589455901, 1589455902, 1589455903, 1589455904, 1589455905]
         )
-        assert all(frm_copy["value"] == [2.2, 3.3, 4.4, 5.5])
+        assert all(frm_copy["value"] == [1.1, 2.2, 3.3, 4.4, 5.5])
 
     else:
         assert all(
-            frm_copy["timestamp"] == [1589455903, 1589455904, 1589455905, 1589455906]
+            frm_copy["timestamp"] == [1589455903, 1589455904, 1589455905, 1589455906, 1589455907]
         )
-        assert all(frm_copy["value"] == [3.3, 4.4, 5.5, 6.6])
+        assert all(frm_copy["value"] == [3.3, 4.4, 5.5, 6.6, 7.7])
 
     # Slice read - left slice
     frm_copy = series[1589455902:1589455903].frame(closed="b")
@@ -306,140 +322,3 @@ def test_paginate(series, extra_commit):
 #         assert itv == partition
 
 
-def _bisect(frm, new_start, new_stop):
-    from bisect import bisect_left, bisect_right
-
-    idx_start = bisect_right(frm["stop"], new_start)
-    idx_stop = bisect_left(frm["start"], new_stop)
-    head = tail = None
-    if idx_start < len(frm):
-        if frm["start"][idx_start] < new_start < frm["stop"][idx_start]:
-            # Split @ idx_start
-            head = Frame(
-                frm.schema,
-                {
-                    "start": [frm["start"][idx_start]],
-                    "stop": [new_start],
-                },
-            )
-            if idx_start > 0:
-                head = Frame.concat(frm.slice(None, idx_start), head)  # -1
-
-    if frm["start"][idx_stop - 1] <= new_stop < frm["stop"][idx_stop - 1]:
-        # Split @ idx_stop
-        tail = Frame(
-            frm.schema,
-            {
-                "start": [new_stop],
-                "stop": [frm["stop"][idx_stop - 1]],
-            },
-        )
-        if idx_stop < len(frm):
-            tail = Frame.concat(tail, frm.slice(idx_stop, None))
-
-    head = head or frm.slice(None, idx_start)
-    tail = tail or frm.slice(idx_stop, None)
-
-    new_frm = Frame(
-        frm.schema,
-        {
-            "start": [new_start],
-            "stop": [new_stop],
-        },
-    )
-    return Frame.concat(head, new_frm, tail)
-
-
-def test_bisect_range():
-    schema = Schema(["start timestamp*", "stop timestamp"])
-    frm = Frame(
-        schema,
-        {
-            "start": asarray(["2020-01-01", "2020-01-10", "2020-01-20"]),
-            "stop": asarray(["2020-01-10", "2020-01-20", "2020-01-30"]),
-        },
-    )
-
-    # print("DOUBLE LEN")
-    new_start, new_stop = asarray(["2020-01-10", "2020-01-30"], "M8")
-    res = _bisect(frm, new_start, new_stop)
-    assert all(res["start"] == asarray(["2020-01-01", "2020-01-10"], "M8"))
-    assert all(res["stop"] == asarray(["2020-01-10", "2020-01-30"], "M8"))
-
-    new_start, new_stop = asarray(["2020-01-01", "2020-01-20"], "M8")
-    res = _bisect(frm, new_start, new_stop)
-    assert all(res["start"] == asarray(["2020-01-01", "2020-01-20"], "M8"))
-    assert all(res["stop"] == asarray(["2020-01-20", "2020-01-30"], "M8"))
-
-    # print("SINGLE LEN")
-    for new_start, new_stop in (
-        asarray(["2020-01-01", "2020-01-10"], "M8"),
-        asarray(["2020-01-10", "2020-01-20"], "M8"),
-        asarray(["2020-01-20", "2020-01-30"], "M8"),
-    ):
-
-        res = _bisect(frm, new_start, new_stop)
-        assert all(
-            res["start"] == asarray(["2020-01-01", "2020-01-10", "2020-01-20"], "M8")
-        )
-        assert all(
-            res["stop"] == asarray(["2020-01-10", "2020-01-20", "2020-01-30"], "M8")
-        )
-
-    # print("FULL RIGHT")
-    new_start, new_stop = asarray(["2020-02-01", "2020-02-10"], "M8")
-    res = _bisect(frm, new_start, new_stop)
-    expect = asarray(["2020-01-01", "2020-01-10", "2020-01-20", "2020-02-01"], "M8")
-    assert all(res["start"] == expect)
-    expect = asarray(["2020-01-10", "2020-01-20", "2020-01-30", "2020-02-10"], "M8")
-    assert all(res["stop"] == expect)
-
-    # print("FULL LEFT")
-    new_start, new_stop = asarray(["2019-12-20", "2019-12-30"], "M8")
-    res = _bisect(frm, new_start, new_stop)
-    expect = asarray(
-        [
-            "2019-12-20",
-            "2020-01-01",
-            "2020-01-10",
-            "2020-01-20",
-        ],
-        "M8",
-    )
-    assert all(res["start"] == expect)
-    assert all(
-        res["stop"]
-        == asarray(["2019-12-30", "2020-01-10", "2020-01-20", "2020-01-30"], "M8")
-    )
-
-    # print("STRADDLE")
-    new_start, new_stop = asarray(["2020-01-05", "2020-01-15"], "M8")
-    res = _bisect(frm, new_start, new_stop)
-    expect = asarray(
-        [
-            "2020-01-01",
-            "2020-01-05",
-            "2020-01-15",
-            "2020-01-20",
-        ],
-        "M8",
-    )
-    assert all(res["start"] == expect)
-    expect = asarray(["2020-01-05", "2020-01-15", "2020-01-20", "2020-01-30"], "M8")
-    assert all(res["stop"] == expect)
-
-    new_start, new_stop = asarray(["2020-01-15", "2020-01-25"], "M8")
-    res = _bisect(frm, new_start, new_stop)
-    expect = asarray(["2020-01-01", "2020-01-10", "2020-01-15", "2020-01-25"], "M8")
-    assert all(res["start"] == expect)
-    expect = asarray(["2020-01-10", "2020-01-15", "2020-01-25", "2020-01-30"], "M8")
-    assert all(res["stop"] == expect)
-
-    # print("INNER")
-    # new_start, new_stop = asarray(["2020-01-03", "2020-01-07"], "M8")
-
-    # res = _bisect(frm, new_start, new_stop, True)
-    # expect = asarray(["2020-01-01", "2020-01-03", "2020-01-07", "2020-01-10"], "M8")
-    # assert all(res["start"] == expect)
-    # expect = asarray(["2020-01-03", "2020-01-07", "2020-01-10", "2020-01-20"], "M8")
-    # assert all(res["stop"] == expect)
