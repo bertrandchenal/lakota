@@ -1,4 +1,4 @@
-from collections import defaultdict
+from collections import defaultdict, namedtuple
 from itertools import chain
 from random import random
 from time import sleep
@@ -131,6 +131,9 @@ class Changelog:
         return new_paths
 
 
+RevDigest = namedtuple('RevDigest', ['parent', 'child'])
+
+
 class Revision:
     def __init__(self, changelog, parent, child):
         self.changelog = changelog
@@ -147,7 +150,7 @@ class Revision:
     @property
     def digests(self):
         items = (self.parent, self.child)
-        return tuple(i.split("-")[1] for i in items)
+        return RevDigest(*(i.split("-")[1] for i in items))
 
     @property
     def path(self):
