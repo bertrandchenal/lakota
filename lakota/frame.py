@@ -25,9 +25,7 @@ class Frame:
         self.schema = schema
         if DataFrame is not None and isinstance(columns, DataFrame):
             columns = {c: columns[c].values for c in columns}
-        else:
-            columns = schema.cast(columns)
-        self.columns = columns
+        self.columns = schema.cast(columns)
 
     @classmethod
     def from_segments(cls, schema, segments, limit=None, offset=None, select=None):
@@ -78,7 +76,6 @@ class Frame:
         return argsort(arr, kind="mergesort")
 
     def is_sorted(self):
-        return True
         idx_cols = list(self.schema.idx)
         if len(idx_cols) == 1:
             arr = self[idx_cols[0]]
@@ -157,7 +154,7 @@ class Frame:
 
     def rows(self):
         for pos in range(len(self)):
-            values = self.schema.row(pos)
+            values = self.schema.row(self, pos)
             yield dict(zip(self.schema.columns, values))
 
     def index_slice(self, start=None, stop=None, closed="l"):
@@ -200,7 +197,11 @@ class Frame:
         return Frame(self.schema, cols)
 
     def __eq__(self, other):
+        other = self.schema.cast(other)
         return all(array_equal(self[c], other[c]) for c in self.schema.columns)
+
+    def get(self, name, default=None):
+        return self.columns.get(name, default)
 
     def __contains__(self, column):
         return column in self.columns

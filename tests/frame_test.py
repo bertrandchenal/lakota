@@ -1,5 +1,5 @@
 import pytest
-from numpy import array
+from numpy import array, asarray
 from pandas import DataFrame
 
 from lakota import Frame, Repo, Schema
@@ -8,13 +8,14 @@ from lakota.sexpr import AST
 NAMES = list("abcde")
 VALUES = [1.1, 2.2, 3.3, 4.4, 5.5]
 base_schema = Schema(["category str*", "value float"])
+multi_idx_schema = Schema(["timestamp timestamp*", "category str*", "value float"])
 
 
 @pytest.fixture
 def frame_values():
     return {
-        "value": VALUES,
         "category": NAMES,
+        "value": VALUES,
     }
 
 
@@ -205,3 +206,55 @@ def test_df_conversion():
     frm = Frame(base_schema, df)
     for col in frm:
         assert all(frm.df()[col] == df[col])
+
+def test_sort():
+    # One index column
+    category = ['b', 'a', 'c']
+    value = [2, 1, 3]
+    frm = Frame(base_schema, {
+        'category': category,
+        'value': value,
+    })
+    assert frm.is_sorted() == False
+
+
+    frm = frm.sorted()
+    assert all(frm['category'] == sorted(category))
+    assert all(frm['value'] == sorted(value))
+    assert frm.is_sorted() == True
+
+    # multi-index
+    timestamp = ['2020-01-02', '2020-01-03', '2020-01-02']
+    frm = Frame(multi_idx_schema, {
+        'timestamp': timestamp,
+        'category': category,
+        'value': value,
+    })
+    assert frm.is_sorted() == False
+
+    timestamp, category = zip(*sorted(zip(timestamp, category)))
+    frm = frm.sorted()
+    assert all(frm['timestamp'] == asarray(timestamp, 'M'))
+    assert all(frm['category'] == category)
+    assert all(frm['value'] == [2, 3, 1])
+    assert frm.is_sorted() == True
+
+
+def test_rowdict(frame_values):
+    frm = Frame(base_schema, frame_values)
+    rows = list(zip(*frame_values.values()))
+    for pos, idx in enumerate(frm['category']):
+        rd = frm.rowdict(idx)
+        assert tuple(rd.values()) == rows[pos]
+        assert list(rd.keys()) == ['category', 'value']
+
+
+def test_rows(frame_values):
+    frm = Frame(base_schema, frame_values)
+    expected = [
+        {'category': 'a', 'value': 1.1},
+        {'category': 'b', 'value': 2.2},
+        {'category': 'c', 'value': 3.3},
+        {'category': 'd', 'value': 4.4},
+        {'category': 'e', 'value': 5.5}]
+    assert list(frm.rows()) == expected

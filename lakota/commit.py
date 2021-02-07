@@ -169,16 +169,6 @@ class Commit:
         return Commit(schema, label, start, stop, digest, length, closed, embedded)
 
     @classmethod
-    def empty(cls, schema):
-        label = asarray([])
-        start = dict(zip(schema.idx, (asarray([]) for _ in schema.idx)))
-        stop = dict(zip(schema.idx, (asarray([]) for _ in schema.idx)))
-        digest = dict(zip(schema, (asarray([]) for _ in schema)))
-        length = []
-        closed = []
-        return Commit(schema, label, start, stop, digest, length, closed)
-
-    @classmethod
     def decode(cls, schema, payload):
         msgpck = registry.codec_registry["msgpack2"]()
         data = msgpck.decode(payload)[0]

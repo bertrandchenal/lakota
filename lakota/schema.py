@@ -202,10 +202,12 @@ class Schema:
             columns = list(self)
         else:
             columns = [c for c in df if c in self]
+
+        res = {}
         for name in columns:
             col = self[name]
-            df[col.name] = col.cast(df.get(col.name, []))
-        return df
+            res[col.name] = col.cast(df.get(col.name, []))
+        return res
 
     def __getitem__(self, name):
         return self.columns[name]

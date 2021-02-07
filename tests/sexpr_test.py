@@ -134,4 +134,4 @@ def test_alias():
 
     frm = Frame(schema, values)
     frm = frm.reduce("(as self.timestamp 'ts')")
-    assert all(frm["ts"] == values["timestamp"])
+    assert all(frm["ts"] == asarray(values["timestamp"], 'M'))

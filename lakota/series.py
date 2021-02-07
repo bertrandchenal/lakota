@@ -99,7 +99,7 @@ class Series:
         # series in one commit)
 
         if not isinstance(frame, Frame):
-            frame = Frame(self.schema, self.schema.cast(frame))
+            frame = Frame(self.schema, frame)
 
         # Make sure frame is sorted
         assert frame.is_sorted(), "Frame is not sorted!"

@@ -30,7 +30,7 @@ def pod(request):
             yield POD.from_uri(f"file:///{tdir}")
 
     elif request.param == "http":
-        # Start moto server
+        # Start http server
         port = "8081"
         web_uri = f"http://127.0.0.1:{port}/some_prefix/test_repo"
         with TemporaryDirectory() as tdir:
