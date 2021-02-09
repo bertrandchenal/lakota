@@ -322,19 +322,20 @@ def test_paginate(series, extra_commit):
     assert res == []
 
 
-def test_write_one_by_one(series):
+def test_fragmented_write(series):
     ts = [1589455901, 1589455902, 1589455903, 1589455904, 1589455905, 1589455906]
     vals = [11, 22, 33, 44, 55, 66]
 
-    for pos in range(len(ts)):
-        frm = Frame(
-            schema,
-            {
-                "timestamp": [ts[pos]],
-                "value": [vals[pos]],
-            },
-        )
-        series.write(frm)
+    for sgm_size in [1, 2, 3]:
+        for pos in range(len(ts)):
+            frm = Frame(
+                schema,
+                {
+                    "timestamp": ts[pos : pos + sgm_size],
+                    "value": vals[pos : pos + sgm_size],
+                },
+            )
+            series.write(frm)
 
     frm = series.frame()
     assert all(frm["timestamp"] == ts)

@@ -269,7 +269,6 @@ class Commit:
             return inner
 
         start_pos, stop_pos = self.split(label, start, stop)
-
         # Truncate start_pos row
         head = None
         # start_pos is the result of a bisect_right, so we have to
@@ -295,8 +294,6 @@ class Commit:
             if start_row["start"] == start_row["stop"]:
                 # Ignore star_row
                 head = self.head(start_pos)
-            elif start_pos == len(self):
-                head = Commit.one(schema=self.schema, **start_row)
             else:
                 head = Commit.concat(
                     self.head(start_pos),
@@ -330,8 +327,6 @@ class Commit:
             if stop_row["start"] == stop_row["stop"]:
                 # Ignore stop_row
                 tail = self.tail(stop_pos)
-            elif stop_pos == 0:
-                tail = Commit.one(schema=self.schema, **stop_row)
             else:
                 tail = Commit.concat(
                     Commit.one(schema=self.schema, **stop_row),
