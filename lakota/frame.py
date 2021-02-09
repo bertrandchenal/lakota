@@ -1,8 +1,16 @@
-
 from bisect import bisect_left, bisect_right
 from collections import defaultdict
 
-from numpy import argsort, array_equal, asarray, concatenate, ndarray, rec, unique, arange
+from numpy import (
+    arange,
+    argsort,
+    array_equal,
+    asarray,
+    concatenate,
+    ndarray,
+    rec,
+    unique,
+)
 
 from .schema import Schema
 from .sexpr import AST, Alias
@@ -67,7 +75,7 @@ class Frame:
     def df(self, *columns):
         if DataFrame is None:
             raise ModuleNotFoundError("No module named 'pandas'")
-        return DataFrame({c: self[c] for c in self.schema.columns})
+        return DataFrame({c: self[c] for c in self.schema.columns if c in self.columns})
 
     def argsort(self):
         idx_cols = list(self.schema.idx)

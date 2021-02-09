@@ -1,4 +1,5 @@
 from time import time
+
 from numpy import issubdtype
 
 from .changelog import phi
@@ -102,6 +103,7 @@ class Series:
             frame = Frame(self.schema, frame)
 
         # Make sure frame is sorted
+        # XXX forbid repeated values in index ??
         assert frame.is_sorted(), "Frame is not sorted!"
 
         # Save segments
