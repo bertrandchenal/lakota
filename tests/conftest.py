@@ -1,14 +1,65 @@
 import time
+from pathlib import Path
+from shutil import rmtree
 from subprocess import DEVNULL, Popen
 from tempfile import TemporaryDirectory
 from uuid import uuid4
 
 import pytest
+import requests
 from botocore.session import Session
 from moto import mock_s3
 
 from lakota import POD
 from lakota.utils import settings
+
+http_uri = f"http://127.0.0.1:8081/some_prefix/test_repo"
+s3_netloc = f"127.0.0.1:8082"
+
+
+def http_reset(path):
+    for item in Path(path).iterdir():
+        if item.is_dir():
+            rmtree(item)
+        else:
+            item.unlink()
+
+
+@pytest.fixture(scope="session")
+def http_server():
+    # Start http server
+    with TemporaryDirectory() as tdir:
+        proc = Popen(
+            ["lakota", "-r", tdir, "serve", http_uri],
+            stderr=DEVNULL,
+            stdout=DEVNULL,
+        )  # TODO launch only one process and clear repo between tests (same with moto)
+        time.sleep(1)
+        with proc:
+            yield lambda: http_reset(tdir)
+            proc.kill()
+
+
+def s3_reset(client):
+    requests.post("http://127.0.0.1:8082/moto-api/reset")
+    # We always create a fresh bucket to avoid caching issue (in s3fs)
+    s3_bucket_id = str(uuid4())
+    client.create_bucket(Bucket=s3_bucket_id)
+    return s3_bucket_id
+
+
+@pytest.fixture(scope="session")
+def moto_server():
+    # Start moto server
+    proc = Popen(["moto_server", "s3", "-p", "8082"], stderr=DEVNULL, stdout=DEVNULL)
+    time.sleep(1)
+    with mock_s3(), proc:
+        # Make sure bucket exists
+        session = Session()
+        client = session.create_client("s3", endpoint_url=f"http://{s3_netloc}")
+        yield lambda: s3_reset(client)
+        proc.kill()
+
 
 params = [
     "file",
@@ -20,7 +71,7 @@ params = [
 
 
 @pytest.fixture(scope="function", params=params)
-def pod(request):
+def pod(request, http_server, moto_server):
     if request.param == "memory":
         yield POD.from_uri("memory://")
 
@@ -30,43 +81,18 @@ def pod(request):
             yield POD.from_uri(f"file:///{tdir}")
 
     elif request.param == "http":
-        # Start http server
-        port = "8081"
-        web_uri = f"http://127.0.0.1:{port}/some_prefix/test_repo"
-        with TemporaryDirectory() as tdir:
-            proc = Popen(
-                ["lakota", "-r", tdir, "serve", web_uri],
-                stderr=DEVNULL,
-                stdout=DEVNULL,
-            )  # TODO launch only one process and clear repo between tests (same with moto)
-            time.sleep(2)
-            with proc:
-                pod = POD.from_uri(web_uri)
-                yield pod
-                proc.terminate()
+        http_server()  # Clear server pod
+        pod = POD.from_uri(http_uri)
+        yield pod
 
     elif "s3" in request.param:
-        # Start moto server
-        port = "8082"
-        netloc = f"127.0.0.1:{port}"
-        proc = Popen(["moto_server", "s3", "-p", port], stderr=DEVNULL, stdout=DEVNULL)
-        time.sleep(1)
-
-        with mock_s3(), proc:
-            # Pick a random bucket name to overcome s3fs caching
-            bucket = str(uuid4())
-            # Make sure bucket exists
-            session = Session()
-            client = session.create_client("s3", endpoint_url=f"http://{netloc}")
-            client.create_bucket(Bucket=bucket)
-            s3_uri = f"s3://{netloc}/{bucket}/"
-            if request.param == "s3":
-                pod = POD.from_uri(s3_uri)
-            elif request.param == "memory+s3":
-                pod = POD.from_uri("memory://+" + s3_uri)
-
-            yield pod
-            proc.kill()
+        s3_bucket_id = moto_server()  # Clear moto bucket
+        s3_uri = f"s3://{s3_netloc}/{s3_bucket_id}/"
+        if request.param == "s3":
+            pod = POD.from_uri(s3_uri)
+        elif request.param == "memory+s3":
+            pod = POD.from_uri("memory://+" + s3_uri)
+        yield pod
 
     else:
         raise
