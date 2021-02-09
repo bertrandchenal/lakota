@@ -72,6 +72,7 @@ def test_spill_write(series, how):
     )
     series.write(frm)
 
+    # Test full read
     args = [
         # closed is both (default)
         (None, None, "b"),
@@ -79,15 +80,37 @@ def test_spill_write(series, how):
         (None, max(ts), "b"),
         (min(ts), None, "b"),
         # open on left
-        (min(ts)-1, max(ts), 'r'),
+        (min(ts) - 1, max(ts), "r"),
         # open on right
-        (min(ts), max(ts)+1, 'l'),
+        (min(ts), max(ts) + 1, "l"),
         # full open
-        (min(ts)-1, max(ts)+1, 'n'),
+        (min(ts) - 1, max(ts) + 1, "n"),
     ]
     for start, stop, closed in args:
         frm_copy = series.frame(start=start, stop=stop, closed=closed)
         assert frm_copy == frm
+
+    # Test partial read
+    expected = Frame(
+        schema,
+        {
+            "timestamp": [1589455903, 1589455904],
+            "value": [33, 44],
+        },
+    )
+    args = [
+        # closed is both (default)
+        (1589455903, 1589455904, "b"),
+        # Open on left
+        (1589455902, 1589455904, "r"),
+        # # open on right
+        (1589455903, 1589455905, "l"),
+        # # open on both
+        (1589455902, 1589455905, "n"),
+    ]
+    for start, stop, closed in args:
+        frm_copy = series.frame(start=start, stop=stop, closed=closed)
+        assert frm_copy == expected
 
 
 @pytest.mark.parametrize("how", ["left", "right"])
@@ -138,13 +161,15 @@ def test_adjacent_write(series, how):
     frm_copy = series.frame()
     if how == "left":
         assert all(
-            frm_copy["timestamp"] == [1589455901, 1589455902, 1589455903, 1589455904, 1589455905]
+            frm_copy["timestamp"]
+            == [1589455901, 1589455902, 1589455903, 1589455904, 1589455905]
         )
         assert all(frm_copy["value"] == [1.1, 2.2, 3.3, 4.4, 5.5])
 
     else:
         assert all(
-            frm_copy["timestamp"] == [1589455903, 1589455904, 1589455905, 1589455906, 1589455907]
+            frm_copy["timestamp"]
+            == [1589455903, 1589455904, 1589455905, 1589455906, 1589455907]
         )
         assert all(frm_copy["value"] == [3.3, 4.4, 5.5, 6.6, 7.7])
 
@@ -297,6 +322,25 @@ def test_paginate(series, extra_commit):
     assert res == []
 
 
+def test_write_one_by_one(series):
+    ts = [1589455901, 1589455902, 1589455903, 1589455904, 1589455905, 1589455906]
+    vals = [11, 22, 33, 44, 55, 66]
+
+    for pos in range(len(ts)):
+        frm = Frame(
+            schema,
+            {
+                "timestamp": [ts[pos]],
+                "value": [vals[pos]],
+            },
+        )
+        series.write(frm)
+
+    frm = series.frame()
+    assert all(frm["timestamp"] == ts)
+    assert all(frm["value"] == vals)
+
+
 # def test_partition(repo):
 #     schema = Schema(["timestamp timestamp*", "value float"])
 #     clct = repo.create_collection(schema, "timeseries")
@@ -320,5 +364,3 @@ def test_paginate(series, extra_commit):
 #         series.write(frm)
 #         itv = series.interval()
 #         assert itv == partition
-
-

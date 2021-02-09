@@ -425,7 +425,7 @@ class Commit:
                 elif not arr_closed.right and start == arr_stop:
                     # Same
                     continue
-                elif start > arr_start:
+                elif start >= arr_start:
                     # closed "win" over arr_closed on the left
                     arr_closed = arr_closed.set_left(closed)
                     arr_start = start
@@ -435,7 +435,7 @@ class Commit:
                     continue
                 elif not arr_closed.left and stop == arr_start:
                     continue
-                elif stop < arr_stop:
+                elif stop <= arr_stop:
                     # closed "win" over arr_closed on the right
                     arr_closed = arr_closed.set_right(closed)
                     arr_stop = stop
@@ -520,7 +520,7 @@ class Segment:
             #     for name in self.commit.schema.idx:
             #         pool.submit(lambda: cols.update({name: self._read(name)}))
             for name in self.commit.schema.idx:
-                cols[name] =  self._read(name)
+                cols[name] = self._read(name)
 
             frm = Frame(self.commit.schema, cols)
             self.start_pos, self.stop_pos = frm.index_slice(
