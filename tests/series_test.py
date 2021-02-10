@@ -322,20 +322,25 @@ def test_paginate(series, extra_commit):
     assert res == []
 
 
-def test_fragmented_write(series):
+@pytest.mark.parametrize("forward", [True, False])
+@pytest.mark.parametrize("sgm_size", [1, 2, 3])
+def test_fragmented_write(series, forward, sgm_size):
     ts = [1589455901, 1589455902, 1589455903, 1589455904, 1589455905, 1589455906]
     vals = [11, 22, 33, 44, 55, 66]
 
-    for sgm_size in [1, 2, 3]:
-        for pos in range(len(ts)):
-            frm = Frame(
-                schema,
-                {
-                    "timestamp": ts[pos : pos + sgm_size],
-                    "value": vals[pos : pos + sgm_size],
-                },
-            )
-            series.write(frm)
+    if forward:
+        rg = range(len(ts))
+    else:
+        rg = range(len(ts) - 1, -1, -1)
+    for pos in rg:
+        frm = Frame(
+            schema,
+            {
+                "timestamp": ts[pos : pos + sgm_size],
+                "value": vals[pos : pos + sgm_size],
+            },
+        )
+        series.write(frm)
 
     frm = series.frame()
     assert all(frm["timestamp"] == ts)
