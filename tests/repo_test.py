@@ -138,15 +138,21 @@ def test_label_regexp():
             repo.create_collection(SCHEMA, label + " ")
 
 
-def test_gc(repo):
+@pytest.mark.parametrize("large", [True, False])
+def test_gc(repo, large):
+    # Because we auto-embed small arrays in commit, we have to test
+    # both small and big arrays.
+
     coll = repo.create_collection(SCHEMA, "a_collection")
+    size = 100_000 if large else 10
+
     for offset, label in enumerate(("label_a", "label_b")):
         series = coll / label
         for i in range(offset, offset + 10):
             series.write(
                 {
-                    "timestamp": range(i, i + 10),
-                    "value": range(i + 100, i + 110),
+                    "timestamp": range(i, i + size),
+                    "value": range(i + 100, i + 100 + size),
                 }
             )
 
