@@ -172,6 +172,8 @@ class Agg:
             return mean(arr)
         elif self.op == "sum":
             return sum(arr)
+        elif self.op in ("count", "len"):
+            return len(arr)
         elif self.op == "quantile":
             qt = operands[0] if len(operands) > 0 else 0.5
             interpolation = operands[1] if len(operands) > 1 else "linear"
