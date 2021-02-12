@@ -1,3 +1,4 @@
+from random import shuffle
 from time import sleep
 
 import pytest
@@ -322,16 +323,19 @@ def test_paginate(series, extra_commit):
     assert res == []
 
 
-@pytest.mark.parametrize("forward", [True, False])
+@pytest.mark.parametrize("direction", ["fwd", "bwd", "rand"])
 @pytest.mark.parametrize("sgm_size", [1, 2, 3])
-def test_fragmented_write(series, forward, sgm_size):
+def test_fragmented_write(series, direction, sgm_size):
     ts = [1589455901, 1589455902, 1589455903, 1589455904, 1589455905, 1589455906]
     vals = [11, 22, 33, 44, 55, 66]
 
-    if forward:
+    if direction == "fwd":
         rg = range(len(ts))
-    else:
+    elif direction == "bwd":
         rg = range(len(ts) - 1, -1, -1)
+    else:
+        rg = list(range(len(ts)))
+        shuffle(rg)
     for pos in rg:
         frm = Frame(
             schema,
