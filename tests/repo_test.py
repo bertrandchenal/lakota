@@ -155,7 +155,6 @@ def test_gc(repo):
     coll.merge()
 
     # Launch garbage collection
-    # TODO implement and test squash
     count = repo.gc()
     assert count == 0
 
@@ -177,3 +176,24 @@ def test_refresh():
     # refresh slove ths
     repo.refresh()
     assert repo.ls() == []
+
+
+def test_rename(repo):
+    frm = {
+        "timestamp": [1, 2, 3],
+        "value": [1, 2, 3],
+    }
+    # Rename collection
+    repo.create_collection(SCHEMA, "A", "B", "C")
+    srs = repo / "A" / "a"
+    srs.write(frm)
+    repo.rename("A", "D")
+
+    # Make sure series are still there
+    srs = repo / "D" / "a"
+    assert srs.frame() == frm
+
+    # Rename to an existing label is not supported
+    assert repo.ls() == ["B", "C", "D"]
+    with pytest.raises(ValueError):
+        repo.rename("B", "C")

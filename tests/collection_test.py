@@ -166,3 +166,26 @@ def test_delete_and_recreate():
         new_name = "New " + name
         frm = (temperature / new_name).frame()
         assert frm == frame
+
+
+def test_rename():
+    repo = Repo()
+    temperature = repo.create_collection(schema, "temperature")
+    temp_bru = temperature / "Brussels"
+    temp_bru.write(frame)
+
+    frame_ory = frame.copy()
+    frame_ory["value"] = [21, 22, 23]
+    temp_ory = temperature / "Paris"
+    temp_ory.write(frame_ory)
+
+    # Rename to a new name (and back)
+    temperature.rename("Brussels", "Rome")
+    assert temperature.ls() == ["Paris", "Rome"]
+    temperature.rename("Rome", "Brussels")
+    assert temperature.ls() == ["Brussels", "Paris"]
+
+    # Rename to an existing one (and overwrite values by doing so)
+    temperature.rename("Paris", "Brussels")
+    assert temperature.ls() == ["Brussels"]
+    assert all(temp_bru.frame()["value"] == [21, 22, 23])

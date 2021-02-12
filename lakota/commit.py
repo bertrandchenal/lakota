@@ -130,7 +130,7 @@ from itertools import chain
 from threading import Lock
 
 from numcodecs import registry
-from numpy import asarray, concatenate, isin, where
+from numpy import asarray, concatenate, isin, repeat, where
 
 from .frame import Frame
 from .schema import Codec, Schema
@@ -449,6 +449,9 @@ class Commit:
 
     def delete_labels(self, rm_labels):
         keep = ~isin(self.label, rm_labels)
+        return self.mask(keep)
+
+    def mask(self, keep):
         return Commit(
             schema=self.schema,
             label=self.label[keep],
@@ -459,6 +462,21 @@ class Commit:
             closed=self.closed[keep],
             embedded=self.embedded,
         )
+
+    def rename_label(self, from_label, to_label):
+        # First we create an extract with `from_label` only
+        extract = self.mask(self.label == from_label)
+        base_ci = self.delete_labels(from_label)
+
+        # replace label in extract
+        extract.label = repeat(to_label, len(extract))
+
+        # Re-inject it
+        for pos in range(len(extract)):
+            row = extract.at(pos)
+            base_ci = base_ci.update(**row)
+
+        return base_ci
 
     def __contains__(self, row):
         start_pos, _ = self.split(row["label"], row["start"], row["stop"])

@@ -77,20 +77,6 @@ class Series:
         target = min_period * size
         return Interval.bisect(target)
 
-    def delete(self, root=False, batch=False):
-        rev_info = {
-            "tombstone": True,
-            "epoch": time(),
-            "label": self.label,
-        }
-        key = hexdigest(*encoder(self.label, "tombstone"))
-        if batch:
-            batch.append(rev_info, key)
-
-        force_parent = phi if root else None
-        commit = self.changelog.commit(rev_info, key=key, force_parent=force_parent)
-        return commit
-
     def write(self, frame, start=None, stop=None, root=False, batch=False):
         # Each commit is like a frame. A row in this frame represent a
         # write (aka a segment) and contains one digest per series

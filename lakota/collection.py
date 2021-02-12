@@ -95,6 +95,17 @@ class Collection:
         payload = ci.encode()
         return self.changelog.commit(payload, parents=[parent])
 
+    def rename(self, from_label, to_label):
+        leaf_rev = self.changelog.leaf()
+        if not leaf_rev:
+            return
+
+        ci = leaf_rev.commit(self)
+        ci = ci.rename_label(from_label, to_label)
+        parent = leaf_rev.child
+        payload = ci.encode()
+        return self.changelog.commit(payload, parents=[parent])
+
     def refresh(self):
         self.changelog.refresh()
 

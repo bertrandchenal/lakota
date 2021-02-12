@@ -107,3 +107,9 @@ def test_walk(pod):
     assert sorted(pod.walk(max_depth=2)) == ["bar/baz", "qux"]
     assert sorted(pod.walk(max_depth=1)) == ["qux"]
     assert sorted(pod.walk(max_depth=0)) == []
+
+    sub_pod = pod.cd("bar")
+    assert sorted(sub_pod.walk()) == ["baz"]
+    assert sorted(sub_pod.walk(max_depth=10)) == ["baz"]
+    assert sorted(sub_pod.walk(max_depth=3)) == ["baz"]
+    assert sorted(sub_pod.walk(max_depth=2)) == ["baz"]

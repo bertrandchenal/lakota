@@ -285,6 +285,31 @@ class Repo:
         """
         return self.registry.merge()
 
+    def rename(self, from_label, to_label):
+        """
+        Change the label a collection
+        """
+        frm = self.collection_series.frame()
+        if to_label in frm["label"]:
+            raise ValueError(f'Collection "{to_label}" already exists')
+
+        # replace in label column
+        start, stop = frm.start(), frm.stop()
+        labels = frm["label"]
+        mask = labels == from_label
+        labels[mask] = to_label
+        frm["label"] = labels
+
+        # Re-order frame
+        frm = frm.sorted()
+        self.collection_series.write(
+            frm,
+            start=min(
+                frm.start(), start
+            ),  # Make sure we over-write the previous content
+            stop=max(frm.stop(), stop),  # same
+        )
+
     def gc(self):
         """
         Loop on all series, collect all used digests, and delete obsolete
