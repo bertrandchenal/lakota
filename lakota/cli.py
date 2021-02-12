@@ -328,6 +328,9 @@ def read(args):
     else:
         frames = [query.frame()]
 
+    if args.mask:
+        frames = (frm.mask(args.mask) for frm in frames)
+
     if reduce:
         kw = {c: c for c in args.columns}
         frames = (f.reduce(**kw) for f in frames)
@@ -338,10 +341,6 @@ def read(args):
 
     if args.pretty:
         for frm in frames:
-            if args.mask:
-                frm = frm.mask(args.mask)
-                if frm.empty:
-                    continue
             rows = zip(*(frm[col] for col in columns))
             if len(frm) == 0:
                 print(tabulate([], headers=columns))
@@ -351,10 +350,6 @@ def read(args):
         writer = csv.writer(sys.stdout)
         writer.writerow(columns)
         for frm in frames:
-            if args.mask:
-                frm = frm.mask(args.mask)
-                if frm.empty:
-                    continue
             rows = zip(*(frm[col] for col in columns))
             writer.writerows(rows)
 
