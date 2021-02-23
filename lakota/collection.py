@@ -18,13 +18,13 @@ my_series = clct.series / 'my_series'
 
 See `lakota.series` on how to use `lakota.series.Series`.
 
-The `lakota.collection.Collection.batch` method returns a contect manager that will provide atomic
+The `lakota.collection.Collection.multi` method returns a contect manager that will provide atomic
 (and faster) writes across several series
 ```python
-with clct.batch() as batch:
+with clct.multi():
     for label, df in ...:
         series = clct / label
-        series.write(df, batch=batch)
+        series.write(df)
 ```
 
 ## Concurrent writes and synchronization
@@ -44,6 +44,7 @@ clct.squash()
 ```
 """
 
+import threading
 from collections import defaultdict
 from contextlib import contextmanager
 from itertools import chain
@@ -62,6 +63,8 @@ class Collection:
         self.schema = schema
         self.label = label
         self.changelog = Changelog(self.pod / path)
+        self._local = threading.local()
+        self._local.batch = None
 
     def series(self, label):
         label = label.strip()
@@ -200,13 +203,13 @@ class Collection:
         step = 500_000
         all_labels = self.ls()
         # TODO run in parallel
-        with self.batch(root=True) as batch:
+        with self.multi(root=True) as batch:
             for label in all_labels:
                 logger.info('SQUASH label "%s"', label)
                 # Re-write each series
                 series = self / label
                 for frm in series.paginate(step):
-                    series.write(frm, batch=batch)
+                    series.write(frm)
 
         if batch.revs:
             revs = batch.revs
@@ -230,10 +233,20 @@ class Collection:
             yield from digs
 
     @contextmanager
-    def batch(self, root=None):
+    def multi(self, root=None):
         b = Batch(self, root)
+        self.batch = b
         yield b
         b.flush()
+        self.batch = None
+
+    @property
+    def batch(self):
+        return self._local.batch
+
+    @batch.setter
+    def batch(self, b):
+        self._local.batch = b
 
 
 class Batch:

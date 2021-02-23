@@ -1,11 +1,9 @@
-from time import time
-
 from numpy import issubdtype
 
 from .changelog import phi
 from .commit import Commit
 from .frame import Frame
-from .utils import Interval, Pool, encoder, hashed_path, hexdigest, settings
+from .utils import Interval, Pool, hashed_path, hexdigest, settings
 
 __all__ = ["Series", "KVSeries"]
 
@@ -77,7 +75,7 @@ class Series:
         target = min_period * size
         return Interval.bisect(target)
 
-    def write(self, frame, start=None, stop=None, root=False, batch=False):
+    def write(self, frame, start=None, stop=None, root=False):
         # Each commit is like a frame. A row in this frame represent a
         # write (aka a segment) and contains one digest per series
         # column + 2*N extra columns that encode start-stop values (N
@@ -85,8 +83,7 @@ class Series:
         # containing the series name (like that we can write all the
         # series in one commit)
 
-        if not isinstance(frame, Frame):
-            frame = Frame(self.schema, frame)
+        frame = Frame(self.schema, frame)
 
         # Make sure frame is sorted
         # XXX forbid repeated values in index ??
@@ -126,6 +123,7 @@ class Series:
             stop = (stop,)
 
         # Create new digest
+        batch = self.collection.batch
         if batch:
             ci_info = (self.label, start, stop, all_dig, len(frame), embedded)
             batch.append(*ci_info)
@@ -256,9 +254,9 @@ class Query:
 
 
 class KVSeries(Series):
-    def write(self, frame, start=None, stop=None, root=False, batch=False):
+    def write(self, frame, start=None, stop=None, root=False):
         if root or not (start is None is stop):
-            return super().write(frame, start=start, stop=stop, root=root, batch=batch)
+            return super().write(frame, start=start, stop=stop, root=root)
 
         if not isinstance(frame, Frame):
             frame = Frame(self.schema, frame).sorted()
@@ -266,12 +264,12 @@ class KVSeries(Series):
         start = self.schema.row(frame, pos=0, full=False)
         stop = self.schema.row(frame, pos=-1, full=False)
         segments = self.segments(start, stop, closed="b")
-        db_frm = Frame.from_segments(
+        db_frm = Frame.from_segments(  # TODO paginate
             self.schema, segments
         )  # Maybe paginate on large results
 
         if db_frm.empty:
-            return super().write(frame, batch=batch)
+            return super().write(frame)
 
         if db_frm == frame:
             # Nothing to do
@@ -283,7 +281,7 @@ class KVSeries(Series):
         non_idx = [c for c in self.schema if c not in self.schema.idx]
         reduce_kw.update({c: f"(first self.{c})" for c in non_idx})
         new_frm = new_frm.reduce(**reduce_kw)
-        return super().write(new_frm, batch=batch)
+        return super().write(new_frm)
 
     def delete(self, *keys):
         # XXX we have 4 delete method (on series, kvseries, collection

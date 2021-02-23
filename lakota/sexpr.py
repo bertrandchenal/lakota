@@ -204,7 +204,7 @@ class Agg:
             res = repeat(None, len(keys))
             # Repeated (revsersed) index gives first value
             res[bins[::-1]] = arr[::-1]
-            return res
+            return res.astype(arr.dtype)
         elif self.op in ("count", "len"):
             return bincount(bins)
 

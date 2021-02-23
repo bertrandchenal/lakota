@@ -34,7 +34,7 @@ def test_create():
     assert sorted(repo.ls()) == ["temperature", "wind"]
 
 
-def test_multi():
+def test_multi_create():
     repo = Repo()
     temperature = repo.create_collection(schema, "temperature")
     temp_bru = temperature / "Brussels"
@@ -189,3 +189,18 @@ def test_rename():
     temperature.rename("Paris", "Brussels")
     assert temperature.ls() == ["Brussels"]
     assert all(temp_bru.frame()["value"] == [21, 22, 23])
+
+
+def test_multi_batch():
+    repo = Repo()
+    temperature = repo.create_collection(schema, "temperature")
+    with pytest.raises(Exception):
+        srs = temperature / "Brussels"
+        srs.write(frame)
+        with temperature.multi():
+            srs = temperature / "Paris"
+            srs.write(frame)
+            raise Exception()
+
+    assert temperature.series("Paris").frame().empty
+    assert not temperature.series("Brussels").frame().empty
