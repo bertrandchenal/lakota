@@ -63,8 +63,6 @@ class POD:
                 )
             else:
                 return POD.from_uri(uri[0], **fs_kwargs)
-        elif uri and "+" in uri:
-            return POD.from_uri(uri.split("+"), **fs_kwargs)
 
         # Define protocal and path
         parts = urlsplit(uri)

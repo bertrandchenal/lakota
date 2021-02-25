@@ -253,9 +253,12 @@ from .repo import Repo
 from .schema import Schema
 from .utils import hextime, logger, strpt, timeit
 
+# Take default repo from env variable, fallback to .lakota in current dir
+default_repo = os.environ.get("LAKOTA_REPO", "file:///.lakota")
+
 
 def get_repo(args):
-    return Repo(args.repo)
+    return Repo(args.repo or default_repo)
 
 
 def get_collection(repo, label):
@@ -649,9 +652,6 @@ def print_help(parser, args):
 
 def run():
 
-    # Take default repo from env variable, fallback to .lakota in current dir
-    default_repo = os.environ.get("LAKOTA_REPO", "file:///.lakota")
-
     # top-level parser
     parser = argparse.ArgumentParser(
         prog="lakota",
@@ -660,7 +660,7 @@ def run():
     parser.add_argument(
         "--repo",
         "-r",
-        default=default_repo,
+        action="append",
         help=f"Lakota repo (default: {default_repo}",
     )
     parser.add_argument("--timing", "-t", action="store_true", help="Enable timing")

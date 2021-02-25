@@ -17,9 +17,9 @@ repo = Repo('some/local/path')
 repo = Repo('file://some/local/path')
 # From an S3 location
 repo = Repo('s3://my_bucket')
-# Chain uri with `+` to enable caching
-repo = Repo('memory://+s3://my_bucket')
-repo = Repo('file:///tmp/local_cache+s3://my_bucket')
+# Use a list of uri to enable caching
+repo = Repo(['memory://', 's3://my_bucket'])
+repo = Repo(['file:///tmp/local_cache', 's3://my_bucket'])
 ```
 
 S3 authentication is handled by
@@ -97,8 +97,8 @@ class Repo:
 
     def __init__(self, uri=None, pod=None):
         """
-        `uri`
-        : a string representing a storage location
+        `uri` : a string or a list of string representing a storage
+        location
 
         `pod`
         : a `lakota.pod.POD` instance
