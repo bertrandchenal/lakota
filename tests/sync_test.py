@@ -7,12 +7,7 @@ from lakota import Frame, Repo, Schema
 from lakota.changelog import Revision
 from lakota.utils import drange
 
-schema = Schema(
-    """
-timestamp int*
-value float
-"""
-)
+schema = Schema(timestamp="int*", value="float")
 
 
 @pytest.mark.parametrize("large", [True, False])
@@ -81,7 +76,7 @@ def test_pull(threaded, large):
 
     # Test with existing series with other schema
     local_repo = Repo()
-    other_schema = Schema(["timestamp int*", "value int"])
+    other_schema = Schema(timestamp="int*", value="int")
     local_coll = local_repo.create_collection(other_schema, c_label)
     lseries = local_coll / s_label
 

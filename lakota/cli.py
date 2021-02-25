@@ -514,7 +514,8 @@ def create(args):
     repo = get_repo(args)
     collection = args.label
 
-    schema = Schema(args.columns)
+    columns = dict(col.split(maxsplit=1) for col in args.columns)
+    schema = Schema(**columns)
     repo.create_collection(schema, collection)
 
 

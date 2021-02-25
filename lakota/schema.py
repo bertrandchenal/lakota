@@ -76,10 +76,10 @@ class SchemaColumn:
         self.idx = idx
 
     @classmethod
-    def from_ui(cls, line):
-        parser = shlex.shlex(line, posix=True, punctuation_chars="|*")
+    def from_ui(cls, name, definition):
+        parser = shlex.shlex(definition, posix=True, punctuation_chars="|*")
         parser.wordchars += "[]"
-        name, dt, *tokens = parser
+        dt, *tokens = parser
         idx = False
         codec_names = []
         state = None
@@ -118,32 +118,24 @@ class SchemaColumn:
 
 
 class Schema:
-    def __init__(self, from_ui=None, from_columns=None, kind=None):
-        assert (
-            from_ui or from_columns
-        ), "At least one of from_ui or from_columns is needed"
-        assert kind in (None, "kv")
-        self.kind = kind
-
-        if from_columns:
-            self.columns = {c.name: c for c in from_columns}
-        else:
-            self.columns = {}
-            if not isinstance(from_ui, (list, tuple)):
-                from_ui = from_ui.splitlines()
-            for line in from_ui:
-                line = line.strip()
-                if not line:
-                    continue
-                col = SchemaColumn.from_ui(line)
-                self.columns[col.name] = col
+    def __init__(self, **columns):
+        self.kind = None
+        self.columns = {}
+        for name, definition in columns.items():
+            if not isinstance(definition, SchemaColumn):
+                definition = SchemaColumn.from_ui(name, definition)
+            self.columns[name] = definition
 
         self.idx = {n: c for n, c in self.columns.items() if c.idx}
         self.non_idx = {n: c for n, c in self.columns.items() if not c.idx}
         if len(self.idx) == 0:
-            raise ValueError(
-                "Invalid schema, no index defined: " + str(from_ui or from_columns)
-            )
+            raise ValueError("Invalid schema, no index defined")
+
+    @classmethod
+    def kv(cls, **columns):
+        schema = Schema(**columns)
+        schema.kind = "kv"
+        return schema
 
     @classmethod
     def from_frame(cls, frame, idx_columns=None):
@@ -151,11 +143,11 @@ class Schema:
         Instantiate a schema based on the column names and type if the given frame (a dict or a dataframe)
         """
         idx_columns = idx_columns or list(frame)
-        col_defs = []
+        col_defs = {}
         for name in frame:
             arr = frame[name]
-            col_defs.append(SchemaColumn(name, arr.dtype, [], name in idx_columns))
-        return Schema(from_columns=col_defs)
+            col_defs[name] = SchemaColumn(name, arr.dtype, [], name in idx_columns)
+        return Schema(**col_defs)
 
     def serialize(self, values):
         if not values:
@@ -177,8 +169,12 @@ class Schema:
 
     @classmethod
     def loads(self, data):
-        columns = [SchemaColumn(name, **opts) for name, opts in data["columns"].items()]
-        return Schema(from_columns=columns, kind=data["kind"])
+        columns = {
+            name: SchemaColumn(name, **opts) for name, opts in data["columns"].items()
+        }
+        if data["kind"] == "kv":
+            return Schema.kv(**columns)
+        return Schema(**columns)
 
     def dump(self):
         columns = {c.name: c.dump() for c in self.columns.values()}

@@ -8,7 +8,7 @@ from pandas import DataFrame
 from lakota import Frame, Repo, Schema
 from lakota.schema import ALIASES
 
-schema = Schema(["timestamp int *", "value float"])
+schema = Schema(timestamp="int *", value="float")
 orig_frm = {
     "timestamp": [1589455903, 1589455904, 1589455905],
     "value": [3.3, 4.4, 5.5],
@@ -196,12 +196,11 @@ def test_adjacent_write(series, how):
 
 
 def test_column_types(repo):
-    cols = [f"{dt} {dt}" for dt in ALIASES]
     df = {str(dt): asarray([0], dtype=ALIASES[dt]) for dt in ALIASES}
 
-    for idx_len in range(1, len(cols)):
-        stars = ["*"] * idx_len + [""] * (len(cols) - idx_len)
-        schema = Schema([c + star for c, star in zip(cols, stars)])
+    for idx_len in range(1, len(ALIASES)):
+        stars = ["*"] * idx_len + [""] * (len(ALIASES) - idx_len)
+        schema = Schema(**{c: c + star for c, star in zip(ALIASES, stars)})
         clct = repo.create_collection(schema, str(idx_len))
         series = clct / "-"
         series.write(df)
@@ -212,7 +211,7 @@ def test_column_types(repo):
 
 
 def test_kv_series(repo):
-    schema = Schema(["timestamp timestamp*", "category str*", "value int"], kind="kv")
+    schema = Schema.kv(timestamp="timestamp*", category="str*", value="int")
     clct = repo.create_collection(schema, "-")
     series = clct / "_"
 
@@ -352,7 +351,7 @@ def test_fragmented_write(series, direction, sgm_size):
 
 
 # def test_partition(repo):
-#     schema = Schema(["timestamp timestamp*", "value float"])
+#     schema = Schema(timestamp="timestamp*", value="float")
 #     clct = repo.create_collection(schema, "timeseries")
 #     series = clct / "_"
 

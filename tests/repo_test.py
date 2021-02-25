@@ -7,12 +7,7 @@ from lakota.pod import MemPOD
 from lakota.utils import chunky
 
 LABELS = "zero one two three four five six seven eight nine".split()
-SCHEMA = Schema(
-    """
-timestamp int *
-value float
-"""
-)
+SCHEMA = Schema(timestamp="int *", value="float")
 
 
 @pytest.fixture

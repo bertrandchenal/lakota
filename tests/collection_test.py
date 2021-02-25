@@ -4,7 +4,7 @@ from numpy import arange
 from lakota.changelog import phi
 from lakota.repo import Repo, Schema
 
-schema = Schema(["timestamp timestamp*", "value float"])
+schema = Schema(timestamp="timestamp*", value="float")
 frame = {
     "timestamp": ["1970-01-01T00:00:01", "1970-01-01T00:00:02", "1970-01-01T00:00:03"],
     "value": [11, 12, 13],

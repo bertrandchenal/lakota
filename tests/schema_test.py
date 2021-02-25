@@ -24,7 +24,7 @@ def test_simple_codec():
 
 def test_vlen_codecs():
     for codecs in ("", "vlen-utf8", "vlen-utf8 gzip"):
-        schema = Schema(f"val str*  |{codecs}")
+        schema = Schema(val=f"str*  |{codecs}")
 
         arr = asarray(["ham", "spam"])
         buff = schema["val"].codec.encode(arr)
@@ -54,12 +54,7 @@ def test_schema_from_frame():
 
 def test_serialize():
     schema = Schema(
-        """
-    timestamp timestamp*
-    float f8
-    int i8
-    str str
-    """
+        **{"timestamp": "timestamp*", "float": "f8", "int": "i8", "str": "str"}
     )
 
     ts = strpt("2020-01-01")
@@ -68,11 +63,7 @@ def test_serialize():
     assert schema.serialize(values) == expected
     assert schema.deserialize(expected) == values
 
+
 def test_equality():
-    definition =  """
-    timestamp timestamp*
-    float f8
-    int i8
-    str str
-    """
-    assert Schema(definition) == Schema(definition)
+    definition = {"timestamp": "timestamp*", "float": "f8", "int": "i8", "str": "str"}
+    assert Schema(**definition) == Schema(**definition)

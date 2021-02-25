@@ -15,12 +15,7 @@ trueish_expr = [
     "(~ (and false true false))",
     '(in "foo" (list "ham" "foo" "bar"))',
 ]
-schema = Schema(
-    """
-    timestamp timestamp*
-    value int
-    """
-)
+schema = Schema(timestamp="timestamp*", value="int")
 values = {
     "timestamp": ["2020-01-01T11:30", "2020-01-02T12:30", "2020-01-03T13:30"],
     "value": [1, 2, 3],

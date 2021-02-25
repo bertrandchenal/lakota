@@ -17,7 +17,7 @@ You can then run:
 ``` python
 from lakota import Repo, Schema
 
-ts_schema = Schema(["timestamp timestamp*", "value float"])
+ts_schema = Schema(timestamp="timestamp*", value="float")
 repo = Repo("my-data-folder")  # or Repo("s3://my-s3-bucket")
 clct = repo.create_collection(ts_schema, "temperature")
 series = clct.series('Brussels')

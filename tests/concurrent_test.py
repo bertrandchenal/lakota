@@ -5,7 +5,7 @@ from pandas import DataFrame, date_range
 from lakota import POD, Frame, Repo, Schema
 from lakota.utils import timeit
 
-schema = Schema(["timestamp M8[s] *", "value int"])
+schema = Schema(timestamp="M8[s] *", value="int")
 
 
 def insert(args):

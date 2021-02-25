@@ -1,4 +1,4 @@
-'''
+"""
 
 The `Repo` class manage the organisation of a storage location. It
 provides creation and deletion of collections, synchronization with
@@ -45,13 +45,8 @@ repo = Repo(pod=pod)
 Create one or several collections:
 ```python
 # Define schema
-schema = Schema(
-"""
-timestamp int *
-value float
-"""
-)
-# Create one collections
+schema = Schema(timestamp='int*', value='float')
+# Create one collection
 repo.create_collection(schema, 'my_collection')
 # Create a few more
 labels = ['one', 'or_more', 'labels']
@@ -80,7 +75,7 @@ the `gc` method, which returns the number of deleted files.
 ```python
 nb_file_deleted = repo.gc()
 ```
-'''
+"""
 
 
 from .changelog import zero_hash
@@ -93,7 +88,7 @@ __all__ = ["Repo"]
 
 
 class Repo:
-    schema = Schema(["label str*", "meta O"], kind="kv")
+    schema = Schema.kv(label="str*", meta="O")
 
     def __init__(self, uri=None, pod=None):
         """

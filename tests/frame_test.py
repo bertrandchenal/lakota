@@ -7,8 +7,8 @@ from lakota.sexpr import AST
 
 NAMES = list("abcde")
 VALUES = [1.1, 2.2, 3.3, 4.4, 5.5]
-base_schema = Schema(["category str*", "value float"])
-multi_idx_schema = Schema(["timestamp timestamp*", "category str*", "value float"])
+base_schema = Schema(category="str*", value="float")
+multi_idx_schema = Schema(timestamp="timestamp*", category="str*", value="float")
 
 
 @pytest.fixture
@@ -26,7 +26,7 @@ def frm(frame_values):
 
 
 def test_index_slice():
-    schema = Schema(["x int*"])
+    schema = Schema(x="int*")
     frm = Frame(schema, {"x": [1, 2, 3, 4, 5, 5, 5, 6]})
 
     # include both side
@@ -54,7 +54,7 @@ def test_index_slice():
 
 def test_getitem():
     # with a slice
-    schema = Schema(["x int*"])
+    schema = Schema(x="int*")
     frm = Frame(schema, {"x": [1, 2, 3, 4, 5, 5, 5, 6]})
     frm2 = frm[5:]
     assert all(frm2["x"] == [5, 5, 5, 6])
@@ -66,7 +66,7 @@ def test_getitem():
 
 def test_mask():
     # with an array
-    schema = Schema(["x int*"])
+    schema = Schema(x="int*")
     frm = Frame(schema, {"x": [1, 2, 3, 4, 5, 5, 5, 6]})
     frm2 = frm.mask(array([True, False] * 4))
     assert all(frm2["x"] == [1, 3, 5, 5])
@@ -91,13 +91,7 @@ def test_double_slice(frame_values, frm):
 
 
 def test_reduce_agg():
-    schema = Schema(
-        f"""
-        timestamp timestamp*
-        category str*
-        value int
-        """
-    )
+    schema = Schema(timestamp="timestamp*", category="str*", value="int")
     values = {
         "timestamp": [1589455901, 1589455901, 1589455902, 1589455902],
         "category": list("abab"),
@@ -153,13 +147,7 @@ def test_reduce_agg():
 
 
 def test_reduce_without_agg():
-    schema = Schema(
-        f"""
-        timestamp timestamp*
-        category str*
-        value int
-        """
-    )
+    schema = Schema(timestamp="timestamp*", category="str*", value="int")
     values = {
         "timestamp": [1589455901, 1589455901, 1589455902, 1589455902],
         "category": list("abab"),
@@ -207,54 +195,61 @@ def test_df_conversion():
     for col in frm:
         assert all(frm.df()[col] == df[col])
 
+
 def test_sort():
     # One index column
-    category = ['b', 'a', 'c']
+    category = ["b", "a", "c"]
     value = [2, 1, 3]
-    frm = Frame(base_schema, {
-        'category': category,
-        'value': value,
-    })
+    frm = Frame(
+        base_schema,
+        {
+            "category": category,
+            "value": value,
+        },
+    )
     assert frm.is_sorted() == False
 
-
     frm = frm.sorted()
-    assert all(frm['category'] == sorted(category))
-    assert all(frm['value'] == sorted(value))
+    assert all(frm["category"] == sorted(category))
+    assert all(frm["value"] == sorted(value))
     assert frm.is_sorted() == True
 
     # multi-index
-    timestamp = ['2020-01-02', '2020-01-03', '2020-01-02']
-    frm = Frame(multi_idx_schema, {
-        'timestamp': timestamp,
-        'category': category,
-        'value': value,
-    })
+    timestamp = ["2020-01-02", "2020-01-03", "2020-01-02"]
+    frm = Frame(
+        multi_idx_schema,
+        {
+            "timestamp": timestamp,
+            "category": category,
+            "value": value,
+        },
+    )
     assert frm.is_sorted() == False
 
     timestamp, category = zip(*sorted(zip(timestamp, category)))
     frm = frm.sorted()
-    assert all(frm['timestamp'] == asarray(timestamp, 'M'))
-    assert all(frm['category'] == category)
-    assert all(frm['value'] == [2, 3, 1])
+    assert all(frm["timestamp"] == asarray(timestamp, "M"))
+    assert all(frm["category"] == category)
+    assert all(frm["value"] == [2, 3, 1])
     assert frm.is_sorted() == True
 
 
 def test_rowdict(frame_values):
     frm = Frame(base_schema, frame_values)
     rows = list(zip(*frame_values.values()))
-    for pos, idx in enumerate(frm['category']):
+    for pos, idx in enumerate(frm["category"]):
         rd = frm.rowdict(idx)
         assert tuple(rd.values()) == rows[pos]
-        assert list(rd.keys()) == ['category', 'value']
+        assert list(rd.keys()) == ["category", "value"]
 
 
 def test_rows(frame_values):
     frm = Frame(base_schema, frame_values)
     expected = [
-        {'category': 'a', 'value': 1.1},
-        {'category': 'b', 'value': 2.2},
-        {'category': 'c', 'value': 3.3},
-        {'category': 'd', 'value': 4.4},
-        {'category': 'e', 'value': 5.5}]
+        {"category": "a", "value": 1.1},
+        {"category": "b", "value": 2.2},
+        {"category": "c", "value": 3.3},
+        {"category": "d", "value": 4.4},
+        {"category": "e", "value": 5.5},
+    ]
     assert list(frm.rows()) == expected
