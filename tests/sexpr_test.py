@@ -13,7 +13,7 @@ trueish_expr = [
     "(= (/ 6 3 2) 1)",
     "(or false true false)",
     "(~ (and false true false))",
-    '(in "foo" "ham" "foo" "bar")',
+    '(in "foo" (list "ham" "foo" "bar"))',
 ]
 schema = Schema(
     """
@@ -134,4 +134,4 @@ def test_alias():
 
     frm = Frame(schema, values)
     frm = frm.reduce("(as self.timestamp 'ts')")
-    assert all(frm["ts"] == asarray(values["timestamp"], 'M'))
+    assert all(frm["ts"] == asarray(values["timestamp"], "M"))

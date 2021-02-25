@@ -98,7 +98,7 @@ class Changelog:
         # `revision` is sorted low to high (because filled based on
         # `sorted(self)`, so `queue` is sorted too (high to low). So
         # the last revision to be yield is the last child of the
-        # oldest branch (aka oldest parent)
+        # newest branch (aka oldest parent)
         parent_revs = [r for r in revisions if r not in all_children]
         first_gen = list(chain.from_iterable(revisions[p] for p in parent_revs))
         queue = list(reversed(first_gen))
@@ -131,7 +131,7 @@ class Changelog:
         return new_paths
 
 
-RevDigest = namedtuple('RevDigest', ['parent', 'child'])
+RevDigest = namedtuple("RevDigest", ["parent", "child"])
 
 
 class Revision:

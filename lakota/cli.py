@@ -242,7 +242,7 @@ import csv
 import os
 import sys
 from datetime import datetime
-from io import BytesIO, StringIO
+from io import StringIO
 from itertools import chain
 
 from tabulate import tabulate

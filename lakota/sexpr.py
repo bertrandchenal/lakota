@@ -262,7 +262,7 @@ class AST:
         ">=": lambda *x: reduce(operator.ge, x),
         ">": lambda *x: reduce(operator.gt, x),
         "~": lambda *xs: all(not x for x in xs),
-        "in": lambda *x: x[0] in x[1:],
+        "in": lambda *x: x[0] in x[1],
         "list": lambda *x: list(x),
         "as": lambda *x: Alias(x[0], x[1]),
         "dict": list_to_dict,
