@@ -632,8 +632,11 @@ def serve(args):
         raise
         exit("Please install flask to run server")
 
-    repo = get_repo(args)
-    server.run(repo, args.web_uri, debug=args.verbose)
+    repo_map = {}
+    for item in args.repo_map:
+        name, *uris = item.split()
+        repo_map[name] = uris
+    server.run(repo_map, args.web_uri, debug=args.verbose)
 
 
 def deploy(args):
@@ -783,7 +786,21 @@ def run():
 
     # Add serve command
     parser_serve = subparsers.add_parser("serve")
-    parser_serve.add_argument("web_uri", nargs="?", default="http://127.0.0.1:8080")
+    parser_serve.add_argument(
+        "repo_map",
+        nargs="+",
+        metavar="repo-map",
+        help="space-separated mapping of name and repo uri. "
+        "Example: 'my-local-repo file://.lakota' 'a-remote-one http://host/foobar'. "
+        "Use '/' as name to serve repo at root.",
+    )
+    parser_serve.add_argument(
+        "-w",
+        "--web-uri",
+        nargs="?",
+        default="http://127.0.0.1:8080",
+        help="Base url at which the repo will be served",
+    )
     parser_serve.set_defaults(func=serve)
 
     # Add deploy command
