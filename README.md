@@ -16,7 +16,7 @@ by a local folder and read it back.
 ``` python
 from lakota import Repo, Schema
 
-ts_schema = Schema(["timestamp timestamp*", "value float"])
+ts_schema = Schema(timestamp="timestamp*", value="float")
 repo = Repo("my-data-folder")  # or Repo("s3://my-s3-bucket")
 clct = repo.create_collection(ts_schema, "temperature")
 series = clct.series('Brussels')
@@ -50,13 +50,13 @@ from pandas import read_csv
 
 # Instantiate a local repo and define a schema
 repo = Repo('file://db')
-schema = Schema('''
-date_reported timestamp*
-new_cases int
-cumulative_cases int
-new_deaths int
-cumulative_deaths int
-''')
+schema = Schema(**{
+    'date_reported': 'timestamp*',
+    'new_cases': 'int',
+    'cumulative_cases': 'int',
+    'new_deaths': 'int',
+    'cumulative_deaths': 'int',
+})
 
 # Download csv from WHO's website
 resp = get('https://covid19.who.int/WHO-COVID-19-global-data.csv', stream=True)
@@ -114,10 +114,7 @@ from lakota.utils import logger
 
 # Instantiate a remote repo and populate it
 remote_repo = Repo('/tmp/remote_repo')
-schema = Schema('''
-timestamp timestamp*
-value float
-''')
+schema = Schema(timestamp='timestamp*', value='float')
 clct = remote_repo.create_collection(schema, "temperature")
 timestamp = [
     "2020-01-01T00:00",
@@ -199,10 +196,7 @@ from lakota import Repo, Schema
 
 # Instantiate a remote repo and populate it
 remote_repo = Repo('/tmp/remote_repo')
-schema = Schema('''
-timestamp timestamp*
-value float
-''')
+schema = Schema(timestamp='timestamp*', value='float')
 clct = remote_repo.create_collection(schema, "temperature")
 timestamp = [
     "2020-01-01T00:00",
