@@ -124,10 +124,10 @@ class Frame:
     def sorted(self):
         return self.mask(self.argsort())
 
-    def mask(self, mask):
+    def mask(self, mask, env=None):
         # if mask is a string, eval it first
         if isinstance(mask, str):
-            mask = self.eval(mask)
+            mask = self.eval(mask, env=env)
         cols = {}
         # Apply mask to each column
         for name in self.columns:
@@ -138,10 +138,12 @@ class Frame:
         # Return new frame
         return Frame(self.schema, cols)
 
-    def eval(self, expr):
+    def eval(self, expr, env=None):
         ast = AST.parse(expr)
-        env = self.eval_env()
-        res = ast.eval(env)
+        eval_env = self.eval_env()
+        if env is not None:
+            eval_env.update(env)
+        res = ast.eval(eval_env)
         return res
 
     def eval_env(self):
