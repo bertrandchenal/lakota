@@ -17,7 +17,7 @@ by a local folder and read it back.
 from lakota import Repo, Schema
 
 ts_schema = Schema(timestamp="timestamp*", value="float")
-repo = Repo("my-data-folder")  # or Repo("s3://my-s3-bucket")
+repo = Repo("my-data-folder")  # or Repo("s3:///my-s3-bucket")
 clct = repo.create_collection(ts_schema, "temperature")
 series = clct.series('Brussels')
 df = {
@@ -49,7 +49,7 @@ from requests import get
 from pandas import read_csv
 
 # Instantiate a local repo and define a schema
-repo = Repo('file://db')
+repo = Repo('file:///db')
 schema = Schema(**{
     'date_reported': 'timestamp*',
     'new_cases': 'int',
