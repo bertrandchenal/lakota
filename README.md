@@ -40,6 +40,14 @@ print(df)
 # 2 2020-01-03    3.0
 ```
 
+Note that thanks to the schema definition, data type conversion is
+made automatically: The input `df` contains strings in the timestamp
+column (and integers in the value column) that will be properly casted
+before being saved.
+
+The schema also defines which column(s) is the index of the series
+thanks to the `*` in the type definition.
+
 
 # Cookbook
 
