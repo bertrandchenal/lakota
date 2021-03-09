@@ -1,4 +1,5 @@
 from collections import defaultdict, namedtuple
+from datetime import datetime
 from itertools import chain
 from random import random
 from time import sleep
@@ -79,6 +80,8 @@ class Changelog:
         Create a list of all the active revisions
         """
         if before is not None:
+            if isinstance(before, datetime):
+                before = hextime(before.timestamp())
             return self._log(before)
         if self._log_cache is None:
             self._log_cache = list(self._log())

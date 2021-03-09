@@ -320,7 +320,6 @@ def read(args):
     else:
         columns = args.columns
     before = strpt(args.before)
-    before = before and hextime(before.timestamp())
     query = series[columns][args.greater_than : args.less_than] @ {
         "limit": args.limit,
         "offset": args.offset,
@@ -635,6 +634,8 @@ def serve(args):
     repo_map = {}
     for item in args.repo_map:
         name, *uris = item.split()
+        if not uris:
+            raise ValueError("Missing uri in repo-map argument")
         repo_map[name] = uris
     server.run(repo_map, args.web_uri, debug=args.verbose)
 

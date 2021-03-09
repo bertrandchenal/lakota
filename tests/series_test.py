@@ -1,3 +1,4 @@
+from datetime import datetime
 from random import shuffle
 from time import sleep
 
@@ -247,6 +248,12 @@ def test_rev_filter(series):
 
     # Read initial commit
     old_frm = series.frame(before=last_rev.epoch)
+    assert old_frm == orig_frm
+
+    # Pass an actual timestamp instead of hextime
+    ts = int(last_rev.epoch, base=16)
+    ts = datetime.fromtimestamp(ts / 1000)
+    old_frm = series.frame(before=ts)
     assert old_frm == orig_frm
 
 
