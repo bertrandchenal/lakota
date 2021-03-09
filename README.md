@@ -70,7 +70,7 @@ clct = repo.create_collection(schema, 'covid')
 for key, sub_df in df.groupby(['who_region', 'country']):
     sub_df = sub_df.sort_values(by='date_reported')
     who_region, country = key
-    series = clct / {who_region}_{country}'
+    series = clct / f'{who_region}_{country}'
     series.write(sub_df)
 ```
 
@@ -104,7 +104,7 @@ print(df)
 # Caching
 
 Caching can be enabled by instantiating a Repo object combining
-several locations with a `+`:
+several locations:
 
 ``` python
 import os
@@ -132,7 +132,7 @@ series.write({
 
 
 # Use memory as cache
-cached_repo = Repo('memory://+/tmp/remote_repo')
+cached_repo = Repo(['memory://', '/tmp/remote_repo'])
 series = cached_repo / 'temperature' / 'Brussels'
 print(series.df())
 # ->
