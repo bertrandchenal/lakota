@@ -71,4 +71,3 @@ storages.
 - The lakota changelog provides both versioning and indexing
 - Ability to edit an existing array without full rewrite
 
-

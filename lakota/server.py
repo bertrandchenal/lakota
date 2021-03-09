@@ -74,7 +74,6 @@ def pod(repo, action, relpath=None):
         description: Relative path
     """
     relpath = request.args.get("path")
-
     if action == "ls":
         try:
             relpath = "." if relpath is None else relpath
