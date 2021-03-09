@@ -7,7 +7,7 @@ collection, how to read historical data and how to remove past
 revisions.
 
 
-```
+```python
 from lakota import Repo, Schema
 
 ts_schema = Schema(timestamp="timestamp*", value="float")
