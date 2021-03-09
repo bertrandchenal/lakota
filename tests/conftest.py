@@ -30,10 +30,10 @@ def http_server():
     # Start http server
     with TemporaryDirectory() as tdir:
         proc = Popen(
-            ["lakota", "-r", tdir, "serve", http_uri],
+            ["lakota", "serve", "-w", http_uri, f"/ {tdir}"],
             stderr=DEVNULL,
             stdout=DEVNULL,
-        )  # TODO launch only one process and clear repo between tests (same with moto)
+        )
         time.sleep(1)
         with proc:
             yield lambda: http_reset(tdir)
