@@ -124,6 +124,11 @@ def pod(repo, action, relpath=None):
         return 'Action "{action}" not supported', 404
 
 
+def index(prefixes):
+    items = "\n".join(f"<li><a href={p}>{p}</a></li>" for p in prefixes)
+    return f"<h4>Available endpoints:</h4><ul>{items}</ul>"
+
+
 def run(repo_map, web_uri=None, debug=False):
     parts = urlsplit(web_uri)
     if not parts.scheme == "http":
@@ -133,8 +138,13 @@ def run(repo_map, web_uri=None, debug=False):
 
     # Instanciate app and blueprint. Run app
     app = Flask("Lakota Repository")
+    prefixes = []
     for name, uri in repo_map.items():
         prefix = parts.path + "/" + name.strip("/")
         repo = Repo(uri)
         app.register_blueprint(pod_bp, url_prefix=prefix, url_defaults={"repo": repo})
+        prefixes.append(prefix)
+
+    # Add index page
+    app.route("/")(lambda: index(prefixes))
     app.run(parts.hostname, debug=debug, port=parts.port)
