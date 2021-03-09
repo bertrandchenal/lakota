@@ -36,7 +36,7 @@ is also a chokepoint:
 
 S3 (and S3 clones) strong points:
 
-- Stores files
+- High durability garantee
 - Scale horizontally
 - Handle massive datasets
 - Simple and ubiquitous API supported by different solutions and providers
@@ -45,7 +45,6 @@ S3 (and S3 clones) strong points:
 
 But:
 
-- Stores files
 - No concurrency control
 - No history of changes
 - No indexing beside file path
@@ -67,9 +66,9 @@ Lakota organise reads and writes through a changelog inspired by Git
 concurrency control and ease of synchronisation across different
 storages.
 
-- Supports S3 but local filesystem and in-memory storage
+- Supports S3 but also local filesystem and in-memory storage
 - Compress numerical arrays thanks to [numcodecs](https://numcodecs.readthedocs.io)
 - The lakota changelog provides both versioning and indexing
-- Able to edit an existing array without full rewrite
+- Ability to edit an existing array without full rewrite
 
 
