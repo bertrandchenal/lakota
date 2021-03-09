@@ -1,7 +1,7 @@
 
 # Multiple writes, revision history and squash with context manager
 
-This example is identical to [](multi_write.md) except that we use the
+This example is identical to [multi_write.md](multi_write.md) except that we use the
 `Collection.multi` context manager in order to group multi writes into
 one revision.
 
