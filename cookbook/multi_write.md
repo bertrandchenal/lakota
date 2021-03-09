@@ -15,7 +15,6 @@ repo = Repo() # in-memory repo
 clct = repo.create_collection(ts_schema, "temperature")
 
 # Let's accumulate different writes
-
 for city in ('Brussels', 'Paris', 'London'):
     for i in range(1, 10):
         series = clct.series(city)
@@ -29,7 +28,7 @@ for city in ('Brussels', 'Paris', 'London'):
 
 df = clct.series('Brussels').df()
 print(df)
-
+# ->
 #     timestamp  value
 # 0  2020-01-01    1.0
 # 1  2020-01-02    2.0
@@ -48,9 +47,9 @@ print(df)
 # 14 2020-01-15    9.0
 
 
-# We see the different revisions
+# We access the different revisions
 print(clct.changelog.log())
-
+# ->
 # [<Revision 0000000000-0000000000000000000000000000000000000000.178163e84e3-bb63d6e7f413c5bde452bdb0d081053511bcb009 >,
 # ... 25 intermediate revisions ...
 # <Revision 178163e84f5-3cfcabd67503222d157f0cb4f81d79aa0df142d6.178163e84f6-8a717abd1b24878c28adf44f531c33c96ebd3ed1 *>]
@@ -60,7 +59,7 @@ print(clct.changelog.log())
 past_revision = clct.changelog.log()[5]
 print(past_revision)
 print(clct.series('Brussels').df(before=past_revision.epoch))
-
+# ->
 #     timestamp  value
 # 0  2020-01-01    1.0
 # 1  2020-01-02    2.0
