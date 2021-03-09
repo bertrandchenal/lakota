@@ -43,7 +43,8 @@ print(df)
 
 # Cookbook
 
-See the [cookbook](cookbook folder) for more examples.
+See the [cookbook folder](https://github.com/bertrandchenal/lakota/tree/master/cookbook/)
+for more examples.
 
 
 # Roadmap / Ideas
