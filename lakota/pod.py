@@ -55,7 +55,7 @@ class POD:
     @classmethod
     def from_uri(cls, uri=None, **fs_kwargs):
         # multi-uri -> CachePOD
-        if isinstance(uri, (tuple, list)):
+        if uri and isinstance(uri, (tuple, list)):
             if len(uri) > 1:
                 return CachePOD(
                     local=POD.from_uri(uri[0], **fs_kwargs),
@@ -65,7 +65,7 @@ class POD:
                 return POD.from_uri(uri[0], **fs_kwargs)
 
         # Define protocal and path
-        parts = urlsplit(uri)
+        parts = urlsplit(uri or "")
         scheme, path = parts.scheme, parts.path
         kwargs = parse_qs(parts.query)
         if not scheme:
