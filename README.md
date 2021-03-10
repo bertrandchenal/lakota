@@ -49,9 +49,9 @@ The schema also defines which column(s) is the index of the series
 thanks to the `*` in the type definition.
 
 
-# Cookbook
+# Examples
 
-See the [cookbook folder](https://github.com/bertrandchenal/lakota/tree/master/cookbook/)
+See the [examples folder](https://github.com/bertrandchenal/lakota/tree/master/examples/)
 for more examples.
 
 
