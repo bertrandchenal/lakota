@@ -3,7 +3,6 @@ from time import sleep
 import pytest
 from numpy import arange
 
-from lakota.changelog import phi
 from lakota.repo import Repo, Schema
 
 schema = Schema(timestamp="timestamp*", value="float")
@@ -175,28 +174,45 @@ def test_merge_concurrent():
     bxl_c = temperature_c / "Brussels"
     assert all(bxl_c.df()["value"] == [0, 1, 1, 1])
 
-    return  # TODO The following still fails !
-
     # Concurrent writes, second turn (each series is still blind to
     # the other, so each will commit on its branch) We squash to make
-    # sure the merge works (if not it will fail on non-closed update
-    # error in Commit.update)
-    for pos, srs in enumerate((bxl_b, bxl_a)):
-        srs.write(mk_frm(pos + 1))
-        sleep(0.01)  # make sure the order is preserved
+    # sure the merge works (if not it will fail on "Non-closed updates
+    # not supported" in Commit.update)
+    for pos, srs in enumerate((bxl_b, bxl_a)):  # Reversed !
+        srs.write(mk_frm(pos + 10))
+        sleep(0.01)
         srs.collection.squash(pack=True, trim=False)
 
     # Second merge
+    temperature_c.squash()
     temperature_c.pull(temperature_a)
     temperature_c.pull(temperature_b)
     revs = temperature_c.merge()
-    assert len(revs) == 4
+    assert len(revs) == 3
 
-    bxl_c = temperature_c / "Brussels"
-    import pdb
-
-    pdb.set_trace()
-    assert all(bxl_c.df()["value"] == [0, 1, 1, 1])
+    expected = {
+        "timestamp": [
+            "1970-01-01 00:00:00",
+            "1970-01-01 00:00:01",
+            "1970-01-01 00:00:02",
+            "1970-01-01 00:00:03",
+            "1970-01-01 00:00:10",
+            "1970-01-01 00:00:11",
+            "1970-01-01 00:00:12",
+            "1970-01-01 00:00:13",
+        ],
+        "value": [
+            0.0,
+            1.0,  # Here b won over a (last created branch win)
+            1.0,
+            1.0,
+            10.0,  # Here again: last commit of the newest branch (even if writes where reversed)
+            10.0,
+            10.0,
+            11.0,
+        ],
+    }
+    assert bxl_c.frame() == expected
 
 
 def test_delete():
