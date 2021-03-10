@@ -222,7 +222,7 @@ class Collection:
         step = 500_000
         all_labels = self.ls()
         # TODO run in parallel
-        with self.multi(root=True) as batch:
+        with self.multi() as batch:
             for label in all_labels:
                 logger.info('SQUASH label "%s"', label)
                 # Re-write each series
