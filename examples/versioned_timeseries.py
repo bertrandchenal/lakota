@@ -1,16 +1,15 @@
-from lakota import Registry, Schema
+from lakota import Repo, Schema
 
 # TODO use a KVSeries instead (it solve the problem explained at the bottom)
 
 ts_schema = Schema(
-    """
-timestamp timestamp*
-pubtime timestamp*
-value float
-"""
+    timestamp="timestamp*",
+    pubtime="timestamp*",
+    value="float",
 )
-reg = Registry()
-series = reg.create(ts_schema, "my-timeseries", raise_if_exists=False)
+repo = Repo()
+clc = repo.create_collection(ts_schema, "my-collection")
+srs = clc / "my_series"
 
 # First insertion
 df = {
@@ -36,7 +35,7 @@ df = {
     ],
     "value": [1, 2, 3, 4, 1, 2, 3, 4],
 }
-series.write(df)
+srs.write(df)
 
 # Append some data
 df2 = {
@@ -62,9 +61,9 @@ df2 = {
     ],
     "value": [10, 20, 30, 40, 10, 20, 30, 40],
 }
-series.write(df2)
+srs.write(df2)
 
-df = series[:].df()
+df = srs.df()
 print(df)
 # ->
 #     timestamp    pubtime  value
@@ -97,8 +96,8 @@ df3 = {
     ],
     "value": [10, 20, 30, 40],
 }
-series.write(df3)
-print(series.df())
+srs.write(df3)
+print(srs.df())
 # ->
 #    timestamp    pubtime  value
 # 0 2020-01-01 2020-01-01    1.0
