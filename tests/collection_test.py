@@ -54,15 +54,16 @@ def test_multi_create():
     assert list(temperature) == ["Brussels", "Paris"]
 
 
-@pytest.mark.parametrize("fast", [True, False])
-def test_squash(fast):
+@pytest.mark.parametrize("pack", [True, False])
+@pytest.mark.parametrize("trim", [True, False])
+def test_squash(pack, trim):
     repo = Repo()
     other_frame = {
         "timestamp": [4, 5, 6],
         "value": [4, 5, 6],
     }
     temperature = repo.create_collection(schema, "temperature")
-    revs = temperature.squash(fast=fast)
+    revs = temperature.squash(pack=pack, trim=trim)
     assert revs == []
 
     # We need two writes in order to have something to squash
@@ -75,14 +76,20 @@ def test_squash(fast):
     assert len(prev_commits) == 2
 
     # Squash
-    if fast:
-        temperature.squash(fast=True)
+    if not pack:
+        temperature.squash(pack=pack, trim=trim)
     else:
-        (new_commit,) = temperature.squash(fast=False)
-        # Non-fast commit are based on root
+        (new_commit,) = temperature.squash(pack=pack, trim=trim)
+        # Pack commit are based on root
         assert new_commit.parent == phi
 
-    assert len(list(temperature.changelog)) == 1
+    expected = {
+        (True, True): 1,
+        (False, True): 1,
+        (True, False): 3,
+        (False, False): 2,
+    }[pack, trim]
+    assert len(list(temperature.changelog)) == expected
 
     temp_bru.write(frame)
     temp_ory = temperature / "Paris"
@@ -90,15 +97,17 @@ def test_squash(fast):
     temp_ory.write(other_frame)
 
     # Squash collection
-    temperature.squash(fast=fast)
-    assert len(list(temperature.changelog)) == 1
+    temperature.squash(pack=pack, trim=trim)
+    expected = {
+        (True, True): 1,
+        (False, True): 1,
+        (True, False): 7,
+        (False, False): 4,
+    }[pack, trim]
+    assert len(list(temperature.changelog)) == expected
 
     # Read data back
     assert list(temperature) == ["Brussels", "Paris"]
-    assert len(list(temperature.changelog.log())) == 1
-
-
-# TODO implement partial squash (to keep recent history), and change frame or other_frame to have an overlap, and make sure the correct one "wins"
 
 
 def test_merge():
@@ -127,6 +136,11 @@ def test_merge():
     # Check no data is lost
     fr = bxl.frame()
     assert all(fr["value"] == arange(20))
+
+    # Double should be is a no-op but it looks like commit encoding is
+    # not stable (because of msgpck). Most of the time it's ok, sometimes it fails
+    revs = temperature.merge()
+    # assert revs == []
 
 
 def test_delete():

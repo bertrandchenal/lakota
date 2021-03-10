@@ -5,7 +5,7 @@ from random import random
 from time import sleep
 
 from .commit import Commit
-from .utils import hexdigest, hexhash_len, hextime, tail
+from .utils import hexdigest, hexhash_len, hextime
 
 zero_hextime = "0" * 11
 zero_hash = "0" * hexhash_len
@@ -67,10 +67,10 @@ class Changelog:
         yield from self.pod.ls(missing_ok=True)
 
     def leaf(self, before=None):
-        revisions = tail(self.log(before=before), 1)
+        revisions = self.log(before=before)
         if not revisions:
             return None
-        return revisions[0]
+        return revisions[-1]
 
     def leafs(self):
         return [rev for rev in self.log() if rev.is_leaf]
@@ -82,7 +82,7 @@ class Changelog:
         if before is not None:
             if isinstance(before, datetime):
                 before = hextime(before.timestamp())
-            return self._log(before)
+            return list(self._log(before))
         if self._log_cache is None:
             self._log_cache = list(self._log())
         return self._log_cache
@@ -100,8 +100,8 @@ class Changelog:
 
         # `revision` is sorted low to high (because filled based on
         # `sorted(self)`, so `queue` is sorted too (high to low). So
-        # the last revision to be yield is the last child of the
-        # newest branch (aka oldest parent)
+        # the last revision to be yielded is the last child of the
+        # first branch (aka oldest parent)
         parent_revs = [r for r in revisions if r not in all_children]
         first_gen = list(chain.from_iterable(revisions[p] for p in parent_revs))
         queue = list(reversed(first_gen))

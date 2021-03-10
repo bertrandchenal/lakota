@@ -319,11 +319,11 @@ def read(args):
         reduce = True
     else:
         columns = args.columns
-    before = strpt(args.before)
+
     query = series[columns][args.greater_than : args.less_than] @ {
         "limit": args.limit,
         "offset": args.offset,
-        "before": before,
+        "before": args.before,
     }
     if args.paginate:
         frames = query.paginate(args.paginate)
@@ -555,14 +555,16 @@ def squash(args):
     """
     repo = get_repo(args)
     labels = repo.ls() if args.all else args.labels
+    trim = args.trim_before if args.trim and args.trim_before else args.trim
+
     if labels:
         for label in labels:
             collection = get_collection(repo, label)
             if not collection:
                 exit(f'Collection "{label}" not found')
-            collection.squash()
+            collection.squash(pack=args.pack, trim=trim)
     if args.all or not args.labels:
-        repo.registry.squash()
+        repo.registry.squash(pack=args.pack, trim=trim)
 
 
 def push(args):
@@ -655,6 +657,22 @@ def print_help(parser, args):
     parser.parse_args([args.help_cmd, "-h"])
 
 
+def bool_like(v):
+    v = v.lower()
+    if v in ("yes", "true", "t", "y", "1"):
+        return True
+    elif v in ("no", "false", "f", "n", "0"):
+        return False
+    raise argparse.ArgumentTypeError("Boolean value expected.")
+
+
+def datetime_like(v):
+    try:
+        return strpt(v)
+    except:
+        raise argparse.ArgumentTypeError("Datetime-like value expected.")
+
+
 def run():
 
     # top-level parser
@@ -682,7 +700,7 @@ def run():
     parser_read.add_argument("--limit", "-l", type=int, default=None)
     parser_read.add_argument("--offset", "-o", type=int, default=None)
     parser_read.add_argument("--paginate", "-p", type=int, default=None)
-    parser_read.add_argument("--before", "-B", default=None)
+    parser_read.add_argument("--before", "-B", default=None, type=datetime_like)
     parser_read.add_argument("--mask", "-m", type=str, default=None)
     parser_read.add_argument(
         "--greater-than",
@@ -734,6 +752,22 @@ def run():
     # Add squash command
     parser_squash = subparsers.add_parser("squash")
     parser_squash.add_argument("labels", nargs="*")
+    parser_squash.add_argument(
+        "-t", "--trim", default=True, type=bool_like, help="Delete history"
+    )
+    parser_squash.add_argument(
+        "-b",
+        "--trim-before",
+        type=datetime_like,
+        help="Delete revisions older than given date",
+    )
+    parser_squash.add_argument(
+        "-p",
+        "--pack",
+        default=True,
+        type=bool_like,
+        help="Create a new revision (aka defragment by re-writing all the series",
+    )
     parser_squash.add_argument(
         "-a", "--all", action="store_true", help="Squash everything"
     )

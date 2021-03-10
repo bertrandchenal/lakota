@@ -47,6 +47,7 @@ clct.squash()
 import threading
 from collections import defaultdict
 from contextlib import contextmanager
+from datetime import datetime
 from itertools import chain
 
 from .changelog import Changelog, phi
@@ -142,7 +143,9 @@ class Collection:
         if not heads:
             heads = [r for r in revisions if r.is_leaf]
 
-        if len(heads) < 2:
+        # We may have multiple revision pointing to the same child
+        # (aka a previous commit). No need to merge again.
+        if len(set(r.digests.child for r in heads)) < 2:
             return []
 
         # Reorganise revision as child->parents dict
@@ -186,17 +189,33 @@ class Collection:
             queue.extend(parents)
             yield rev
 
-    def squash(self, fast=False):
+    def squash(self, pack=True, trim=True):
         """
-        Remove all past revisions, collapse history into one or few large
+        Remove past revisions, collapse history into one or few large
         frames. Returns newly created revisions.
+
+        If `pack` is False, no new revision is created. If set to
+        True, the new revisions created are a complete rewrite of the
+        collection, the goal being to defragment the multiple arrays
+        constituting the different series.
+
+        If `trim` is True, all revisions except the last one are
+        removed.  If set to False, the full history is kept. If set to
+        a datetime, all the revision older than the given value will be
+        deleted, keeping the recent history.
         """
-        if fast:
+
+        # Read existing revisions
+        if trim:
+            before = trim if isinstance(trim, datetime) else None
+            revs = self.changelog.log(before=before)
+        else:
+            revs = []
+
+        if not pack:
             # Simply remove older commit
-            leaf = self.changelog.leaf()
-            if leaf:
-                self.changelog.pod.clear(leaf.path)
-                self.changelog.refresh()
+            self.changelog.pod.rm_many([r.path for r in revs[:-1]])
+            self.changelog.refresh()
             return []
 
         # Rewrite each series, based on `step` size arrays
@@ -211,16 +230,13 @@ class Collection:
                 for frm in series.paginate(step):
                     series.write(frm)
 
-        if batch.revs:
-            revs = batch.revs
-        else:
-            leaf = self.changelog.leaf()
-            if leaf is None:
-                # Empty collection
-                return []
-            revs = [leaf]
-        skip = [r.path for r in revs]
-        self.changelog.pod.clear(*skip)
+        # Remove old revisions
+        to_remove = [r.path for r in revs]
+        if not batch.revs:
+            # No new revision created, keep the last one
+            to_remove = to_remove[:-1]
+        self.changelog.pod.rm_many(to_remove)
+
         self.changelog.refresh()
         return batch.revs
 
@@ -253,7 +269,7 @@ class Batch:
     def __init__(self, collection, root=False):
         self.collection = collection
         self._ci_info = []
-        self.revs = None
+        self.revs = []
         self.root = root
 
     def append(self, label, start, stop, all_dig, frame_len, embedded):

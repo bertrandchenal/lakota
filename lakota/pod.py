@@ -118,11 +118,9 @@ class POD:
     def __truediv__(self, relpath):
         return self.cd(relpath)
 
-    def clear(self, *skip):
-        for key in self.ls():
-            if skip and key in skip:
-                continue
-            self.rm(key, recursive=True)
+    def rm_many(self, pathes, recursive=False):
+        for path in pathes:
+            self.rm(path, recursive=recursive)
 
     def walk(self, max_depth=None):
         if max_depth == 0:
@@ -401,7 +399,7 @@ class MemPOD(POD):
         parent_folder = self.store.get(parent_path)
         if parent_folder:
             # Note: Parent my not exists in the middle of a
-            # reccursive deletion
+            # recursive deletion
             parent_folder.rm(path[-1])
 
     def read(self, relpath, mode="rb"):

@@ -75,7 +75,7 @@ def test_write_delete_recursive(pod):
     assert pod.ls() == []
 
 
-def test_write_clear(pod):
+def test_write_rm_many(pod):
     assert pod.ls() == []
     data = bytes.fromhex("DEADBEEF")
 
@@ -86,13 +86,14 @@ def test_write_clear(pod):
     assert len(pod.ls()) == 2
     assert len(pod.ls("ham")) == 2
     assert len(pod.ls("ham/spam")) == 1
-    pod.clear()
-    assert (
-        pod.ls(
-            missing_ok=True  # moto_server delete the bucket when all keys are removed
-        )
-        == []
+    pod.rm_many(["ham/spam/key"])
+    assert pod.ls("ham/spam") == []
+
+    pod.rm_many(["ham", "key"], recursive=True)
+    res = pod.ls(
+        missing_ok=True,  # moto_server delete the bucket when all keys are removed
     )
+    assert res == []
 
 
 def test_walk(pod):
