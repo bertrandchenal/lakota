@@ -181,14 +181,12 @@ def test_merge_concurrent():
     for pos, srs in enumerate((bxl_b, bxl_a)):  # Reversed !
         srs.write(mk_frm(pos + 10))
         sleep(0.01)
-        srs.collection.squash(pack=True, trim=False)
 
     # Second merge
-    temperature_c.squash()
     temperature_c.pull(temperature_a)
     temperature_c.pull(temperature_b)
     revs = temperature_c.merge()
-    assert len(revs) == 3
+    assert len(revs) == 3  # 3 because a and c never pulled
 
     expected = {
         "timestamp": [

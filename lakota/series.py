@@ -1,5 +1,6 @@
 from numpy import issubdtype
 
+from .batch import Batch
 from .changelog import phi
 from .commit import Commit
 from .frame import Frame
@@ -38,16 +39,20 @@ class Series:
         stop=None,
         before=None,
         closed="l",
+        from_ci=None,
     ):
         """
         Find matching segments
         """
-        leaf_rev = self.changelog.leaf(before=before)
-        if not leaf_rev:
-            return
 
-        leaf_ci = leaf_rev.commit(self.collection)
-        return leaf_ci.segments(self.label, self.pod, start, stop, closed=closed)
+        if not from_ci:
+            # Find leaf commit
+            leaf_rev = self.changelog.leaf(before=before)
+            if not leaf_rev:
+                return
+            from_ci = leaf_rev.commit(self.collection)
+
+        return from_ci.segments(self.label, self.pod, start, stop, closed=closed)
 
     def period(self, rev):
         """
@@ -126,7 +131,10 @@ class Series:
         batch = self.collection.batch
         if batch:
             ci_info = (self.label, start, stop, all_dig, len(frame), embedded)
-            batch.append(*ci_info)
+            if isinstance(batch, Batch):
+                batch.append(*ci_info)
+            else:
+                return ci_info
             return
         self.commit(start, stop, all_dig, len(frame), root=root, embedded=embedded)
 
