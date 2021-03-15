@@ -57,5 +57,4 @@ for more examples.
 
 # Roadmap / Ideas
 
-- Selective suppression of past revisions
 - Shallow clone
