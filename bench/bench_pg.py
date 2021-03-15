@@ -1,3 +1,29 @@
+# In this example, we create a simple timeseries containing 5M lines
+# (5_259_457 exactly) and write it on a Postgresql table and in a Lakota
+# series (on the local disk).
+
+
+# **Result printed by this code**
+
+# $ python bench/bench_pg.py
+# write pg 83.74s
+# write lk 375.67ms
+# read pg 10.03s
+# read lk 193.10ms
+
+
+# **Dataset size**
+
+# $ psql test -c "SELECT pg_size_pretty(pg_database_size('test'))"
+#  pg_size_pretty
+# ----------------
+#  382 MB
+# (1 row)
+
+#  du -hs .lakota/
+# 2.0M    .lakota/
+
+
 import pandas
 import psycopg2
 from numpy import arange, sin
@@ -38,16 +64,14 @@ def read_lk():
     repo = Repo("test-db")
     collection = repo / "test"
     series = collection / "test"
-    frm = series.frame()
-    print(len(frm))
+    return series.frame()
 
 
 def read_pg():
     conn = psycopg2.connect("postgresql:///test")
     cursor = conn.cursor()
     cursor.execute("select * from test")
-    data = list(cursor)
-    print(len(data))
+    return list(cursor)
 
 
 ts = pandas.date_range("1970-01-01", "2020-01-01", freq="5min")
@@ -68,19 +92,3 @@ with timeit("read pg"):
     read_pg()
 with timeit("read lk"):
     read_lk()
-
-# $ p bench/bench_pg.py
-# write pg 83.74s
-# write lk 375.67ms
-# 5259457
-# read pg 10.03s
-# 5259457
-# read lk 193.10ms
-
-# $ psql test -c "SELECT pg_size_pretty(pg_database_size('test'))"
-#  pg_size_pretty
-# ----------------
-#  382 MB
-# (1 row)
-#  du -hs .lakota/
-# 2.0M    .lakota/
