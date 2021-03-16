@@ -1,6 +1,6 @@
 from collections import defaultdict, namedtuple
 from datetime import datetime
-from itertools import chain
+from itertools import chain, takewhile
 from random import random
 from time import sleep
 
@@ -79,15 +79,16 @@ class Changelog:
         """
         Create a list of all the active revisions
         """
+        if self._log_cache is None:
+            self._log_cache = list(self._log())
         if before is not None:
             if isinstance(before, datetime):
                 before = hextime(before.timestamp())
-            return list(self._log(before))
-        if self._log_cache is None:
-            self._log_cache = list(self._log())
+            cond = lambda rev: rev.epoch < before
+            return list(takewhile(cond, self._log_cache))
         return self._log_cache
 
-    def _log(self, before=None):
+    def _log(self):
         # Extract parent->children relations
         revisions = defaultdict(list)
         all_children = set()
@@ -114,10 +115,7 @@ class Changelog:
             children = revisions[rev.child]
             rev.is_leaf = not children
             queue.extend(reversed(children))
-
             # Yield
-            if before is not None and rev.epoch >= before:
-                break
             yield rev
 
     def pull(self, remote):
