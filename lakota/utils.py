@@ -5,7 +5,7 @@ from collections import deque
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timedelta
 from enum import Flag
 from hashlib import sha1
 from itertools import islice
@@ -80,6 +80,18 @@ def drange(start, end, delta, right_closed=False):
     start = strpt(start)
     end = strpt(end)
     return arange(start, end, delta).astype("M8[s]")
+
+
+def paginate(start, stop, **delta_kw):
+    step = start
+    delta = timedelta(**delta_kw)
+    assert delta.total_seconds() > 0, "Delta of zero length!"
+    while True:
+        next_step = step + delta
+        yield step, min(next_step, stop)
+        if next_step >= stop:
+            break
+        step = next_step
 
 
 def hashed_path(digest, depth=2):
