@@ -95,12 +95,12 @@ def test_squash(pack, trim):
     # Squash collection
     temperature.squash(pack=pack, trim=trim)
     expected = {
-        (True, True): 1,
-        (False, True): 1,
-        (True, False): 7,
-        (False, False): 4,
+        (True, True): [1],
+        (False, True): [1],
+        (True, False): [6, 7],  # Due to msgpck serialization instability
+        (False, False): [4],
     }[pack, trim]
-    assert len(list(temperature.changelog)) == expected
+    assert len(list(temperature.changelog)) in expected
 
     # Read data back
     assert list(temperature) == ["Brussels", "Paris"]

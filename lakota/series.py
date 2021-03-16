@@ -240,7 +240,7 @@ class Query:
         frm = self.frame(**kw)
         return frm.df()
 
-    def paginate(self, step=100_000, **kw):
+    def paginate(self, step=settings.page_len, **kw):
         if step <= 0:
             raise ValueError("step argument must be > 0")
         qr = self @ kw

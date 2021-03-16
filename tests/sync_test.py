@@ -86,11 +86,13 @@ def test_pull(threaded, large):
 
 @pytest.mark.parametrize("squash", [False, True])
 def test_label_delete_push(squash):
+    kv_schema = Schema.kv(timestamp="int*", value="float")
+
     labels = list("abcd")
     local_repo = Repo()
-    local_clct = local_repo.create_collection(schema, "a_collection")
+    local_clct = local_repo.create_collection(kv_schema, "a_collection")
     remote_repo = Repo()
-    remote_clct = remote_repo.create_collection(schema, "a_collection")
+    remote_clct = remote_repo.create_collection(kv_schema, "a_collection")
 
     # Write some data
     frm = {

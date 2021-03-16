@@ -54,7 +54,7 @@ from .batch import Batch
 from .changelog import Changelog
 from .commit import Commit
 from .series import KVSeries, Series
-from .utils import Pool, hashed_path, logger
+from .utils import Pool, hashed_path, logger, settings
 
 __all__ = ["Collection", "Batch"]
 
@@ -224,6 +224,7 @@ class Collection:
         a datetime, all the revision older than the given value will be
         deleted, keeping the recent history.
         """
+        logger.info('Squash collection "%s"', self.label)
 
         # Read existing revisions
         if trim:
@@ -239,15 +240,19 @@ class Collection:
             return []
 
         # Rewrite each series, based on `step` size arrays
-        step = 500_000
         all_labels = self.ls()
+        leaf = self.changelog.leaf()
+        commit = leaf and leaf.commit(self)
         # TODO run in parallel
         with self.multi() as batch:
             for label in all_labels:
-                logger.info('SQUASH label "%s"', label)
-                # Re-write each series
+                logger.info('Squash series "%s"', label)
+                # Re-write each series. We use _find_squash_start to
+                # fast-forward in the series (we bet on the fact that
+                # most series are append-only)
+                start = self._find_squash_start(commit, label)
                 series = self / label
-                for frm in series.paginate(step):
+                for frm in series.paginate(start=start):
                     series.write(frm)
 
         # Remove old revisions
@@ -259,6 +264,23 @@ class Collection:
 
         self.changelog.refresh()
         return batch.revs
+
+    def _find_squash_start(self, commit, label):
+        """
+        Find the first "small" segment , and return its start values.
+        """
+        start = None
+        rows = list(commit.match(label))
+        if len(rows) < 4:
+            return rows[-1]["stop"]
+
+        total_len = sum(row["length"] for row in rows)
+        threshold = min(settings.page_len, total_len / 4)
+        for row in rows:
+            if row["length"] < threshold:
+                break
+            start = row["start"]
+        return start
 
     def digests(self):
         for rev in self.changelog.log():

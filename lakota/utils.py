@@ -33,9 +33,12 @@ class Settings:
     debug: bool
     verify_ssl: bool
     embed_max_size: int
+    page_len: int
 
 
-settings = Settings(threaded=True, verify_ssl=True, debug=False, embed_max_size=1024)
+settings = Settings(
+    threaded=True, verify_ssl=True, debug=False, embed_max_size=1024, page_len=500_000
+)
 
 
 def chunky(collection, size=100):

@@ -398,6 +398,11 @@ class Commit:
         )
         return f"<Commit {items}>"
 
+    def match(self, label):
+        (matches,) = where(self.label == label)
+        for pos in matches:
+            yield self.at(pos)
+
     def segments(self, label, pod, start=None, stop=None, closed="b"):
         closed = Closed[closed]
         # If start (or stop) is not set, and the left (right) side is
@@ -408,11 +413,11 @@ class Commit:
         if stop is None:
             closed = closed.set_right(Closed.RIGHT)
         res = []
-        (matches,) = where(self.label == label)
-        for pos in matches:
-            arr_start = tuple(arr[pos] for arr in self.start.values())
-            arr_stop = tuple(arr[pos] for arr in self.stop.values())
-            arr_closed = Closed[self.closed[pos]]
+
+        for row in self.match(label):
+            arr_start = row["start"]
+            arr_stop = row["stop"]
+            arr_closed = Closed[row["closed"]]
             if start:
                 if start > arr_stop:
                     # start is on the right of the array
@@ -435,11 +440,10 @@ class Commit:
                     arr_closed = arr_closed.set_right(closed)
                     arr_stop = stop
 
-            digest = [arr[pos] for arr in self.digest.values()]
             sgm = Segment(
                 self,
                 pod,
-                digest,
+                row["digest"],
                 start=arr_start,
                 stop=arr_stop,
                 closed=arr_closed,
