@@ -80,7 +80,7 @@ class Collection:
         return self.series(name)
 
     def __iter__(self):
-        return iter(self.ls())
+        return (self.series(n) for n in self.ls())
 
     def ls(self):
         rev = self.changelog.leaf()
@@ -246,13 +246,13 @@ class Collection:
         # TODO run in parallel
         with self.multi() as batch:
             for label in all_labels:
-                logger.info('Squash series "%s"', label)
+                logger.info('Squash series "%s/%s"', self.label, label)
                 # Re-write each series. We use _find_squash_start to
                 # fast-forward in the series (we bet on the fact that
                 # most series are append-only)
                 start = self._find_squash_start(commit, label)
                 series = self / label
-                for frm in series.paginate(start=start):
+                for frm in series.paginate(start=start, closed="r"):
                     series.write(frm)
 
         # Remove old revisions
@@ -269,18 +269,19 @@ class Collection:
         """
         Find the first "small" segment , and return its start values.
         """
-        start = None
         rows = list(commit.match(label))
         if len(rows) < 4:
             return rows[-1]["stop"]
 
+        # Define a minimal acceptable len
         total_len = sum(row["length"] for row in rows)
         threshold = min(settings.page_len, total_len / 4)
-        for row in rows:
+
+        for row in rows[:-1]:
+            # Stop at first small row
             if row["length"] < threshold:
-                break
-            start = row["start"]
-        return start
+                return row["start"]
+        return rows[-1]["stop"]
 
     def digests(self):
         for rev in self.changelog.log():
