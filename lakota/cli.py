@@ -251,7 +251,7 @@ from . import __version__
 from .pod import POD
 from .repo import Repo
 from .schema import Schema
-from .utils import hextime, logger, strpt, timeit
+from .utils import logger, strpt, timeit
 
 # Take default repo from env variable, fallback to .lakota in current dir
 default_repo = os.environ.get("LAKOTA_REPO", "file:///.lakota")
@@ -266,7 +266,7 @@ def get_collection(repo, label):
 
     if collection:
         return collection
-    match = [c for c in repo if c.startswith(label)]
+    match = [c for c in repo.ls() if c.startswith(label)]
     if len(match) == 1:
         return repo / match[0]
     exit(f'Collection "{label}" not found')
@@ -279,7 +279,7 @@ def get_series(repo, label):
     collection = get_collection(repo, c_label)
     if label in collection:
         return collection / s_label
-    match = [s for s in collection if s.startswith(s_label)]
+    match = [s for s in collection.ls() if s.startswith(s_label)]
     if len(match) == 1:
         return collection / match[0]
     exit(f"Series '{label}' not found")
@@ -433,7 +433,7 @@ def length(args):
         clc = get_collection(repo, label)
         if clc is None:
             exit(f'Collection "{label}" not found')
-        series = [clc / name for name in clc]
+        series = list(clc)
     print(sum(len(s) for s in series))
 
 
