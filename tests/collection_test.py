@@ -24,8 +24,8 @@ def test_create():
     temp_bru = temperature / "Brussels"
     assert temp_bru.frame() == frame
 
-    assert list(repo.ls()) == ["temperature"]
-    assert list(temperature.ls()) == ["Brussels"]
+    assert repo.ls() == ["temperature"]
+    assert temperature.ls() == ["Brussels"]
 
     # Test double creation
     repo.create_collection(schema, "temperature")
@@ -52,7 +52,7 @@ def test_multi_create():
     assert len(list(repo.collection_series.changelog.log())) == 1
     assert len(list(temperature.changelog.log())) == 2
 
-    assert list(temperature) == ["Brussels", "Paris"]
+    assert temperature.ls() == ["Brussels", "Paris"]
 
 
 @pytest.mark.parametrize("pack", [True, False])
@@ -82,7 +82,7 @@ def test_squash(pack, trim):
     expected = {
         (True, True): 1,
         (False, True): 1,
-        (True, False): 3,
+        (True, False): 2,
         (False, False): 2,
     }[pack, trim]
     assert len(list(temperature.changelog)) == expected
@@ -97,13 +97,13 @@ def test_squash(pack, trim):
     expected = {
         (True, True): [1],
         (False, True): [1],
-        (True, False): [6, 7],  # Due to msgpck serialization instability
+        (True, False): [4, 5],  # Due to msgpck serialization instability
         (False, False): [4],
     }[pack, trim]
     assert len(list(temperature.changelog)) in expected
 
     # Read data back
-    assert list(temperature) == ["Brussels", "Paris"]
+    assert temperature.ls() == ["Brussels", "Paris"]
 
 
 def test_merge():

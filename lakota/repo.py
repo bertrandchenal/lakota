@@ -110,7 +110,7 @@ class Repo:
         return [item.label for item in self.search()]
 
     def __iter__(self):
-        return iter(self.ls())
+        return self.search()
 
     def search(self, label=None, mode=None):
         if label:

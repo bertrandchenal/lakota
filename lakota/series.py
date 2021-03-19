@@ -51,7 +51,6 @@ class Series:
             if not leaf_rev:
                 return
             from_ci = leaf_rev.commit(self.collection)
-
         return from_ci.segments(self.label, self.pod, start, stop, closed=closed)
 
     def period(self, rev):

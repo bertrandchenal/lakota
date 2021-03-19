@@ -36,18 +36,18 @@ def test_create_collections(repo, squash):
     # Add 'a' (first), 'f' (last) and 'd' (middle)
     repo.create_collection(SCHEMA, "a")
     expected = list("abce")
-    assert list(repo) == expected
+    assert repo.ls() == expected
 
     repo.create_collection(SCHEMA, "f")
     expected = list("abcef")
-    assert list(repo) == expected
+    assert repo.ls() == expected
 
     if squash:
         repo.registry.squash()
 
     repo.create_collection(SCHEMA, "d")
     expected = list("abcdef")
-    assert list(repo) == expected
+    assert repo.ls() == expected
 
 
 @pytest.mark.parametrize("merge", [True, False])
@@ -86,17 +86,17 @@ def test_delete(repo, squash, once, to_delete):
         for label in LABELS:
             repo.create_collection(SCHEMA, label)
     expected = sorted(LABELS)
-    assert list(repo) == expected
+    assert repo.ls() == expected
 
     # Remove one or more label and check result
     repo.delete(*to_delete)
     if squash:
         repo.registry.squash()
     expected = [l for l in expected if l not in to_delete]
-    assert list(repo) == expected
+    assert repo.ls() == expected
     if squash:
         repo.registry.squash()
-    assert list(repo) == expected
+    assert repo.ls() == expected
 
 
 @pytest.mark.parametrize("merge", [True, False])
@@ -161,7 +161,7 @@ def test_gc(repo, large):
 
     # Read back data
     coll = repo / "a_collection"
-    assert list(coll.ls()) == ["label_a", "label_b"]
+    assert coll.ls() == ["label_a", "label_b"]
 
 
 def test_refresh():

@@ -107,8 +107,8 @@ def test_label_delete_push(squash):
     local_clct.push(remote_clct)
     if squash:
         remote_clct.squash()
-    assert list(local_clct) == labels
-    assert list(remote_clct) == labels
+    assert local_clct.ls() == labels
+    assert remote_clct.ls() == labels
 
     # Delete one local label and push again
     local_clct.delete("c")
@@ -120,8 +120,8 @@ def test_label_delete_push(squash):
     else:
         remote_clct.refresh()
 
-    assert list(remote_clct) == list("abd")
-    assert list(local_clct) == list("abd")
+    assert remote_clct.ls() == list("abd")
+    assert local_clct.ls() == list("abd")
 
     # Delete one remote label and pull
     sleep(0.1)  # Needed to avoid concurrent writes
@@ -131,8 +131,8 @@ def test_label_delete_push(squash):
         local_clct.squash()
     else:
         local_clct.refresh()
-    assert list(remote_clct) == list("ab")
-    assert list(local_clct) == list("ab")
+    assert remote_clct.ls() == list("ab")
+    assert local_clct.ls() == list("ab")
 
 
 def test_series_squash_stability():
