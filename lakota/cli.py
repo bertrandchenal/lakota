@@ -467,8 +467,8 @@ Date: {timestamp}"""
         starts = list(map(fmt, zip(*ci.start.values())))
         stops = list(map(fmt, zip(*ci.stop.values())))
         digests = list(map(fmt, zip(*ci.digest.values())))
-        rows = zip(ci.label, starts, stops, ci.length, digests)
-        print(tabulate(rows, headers="label start stop length digests".split()))
+        rows = zip(ci.label, starts, stops, ci.length, digests, ci.closed)
+        print(tabulate(rows, headers="label start stop length digests closed".split()))
         print()
 
 
