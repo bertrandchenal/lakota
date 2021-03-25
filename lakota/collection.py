@@ -270,7 +270,9 @@ class Collection:
         Find the first "small" segment , and return its start values.
         """
         rows = list(commit.match(label))
-        if len(rows) < 4:
+        if (
+            len(rows) < 4
+        ):  # TODO this should be a param (we should be able to force-squash)
             return rows[-1]["stop"]
 
         # Define a minimal acceptable len

@@ -166,7 +166,7 @@ class Series:
     def __len__(self):
         return len(Query(self, select=list(self.schema.idx)))
 
-    def paginate(self, step=100_000, **kw):
+    def paginate(self, step=settings.page_len, **kw):
         return Query(self).paginate(step=step, **kw)
 
     def frame(self, **kw):
@@ -315,6 +315,8 @@ class KVSeries(Series):
             }
         # Write result to db
         self.write(new_frm, start=start, stop=stop)
+
+    # TODO debug "ghost" labels (they don't appears in repo ls but collection.ls works)
 
     # def delete(self, *keys):
     #     if not keys:
