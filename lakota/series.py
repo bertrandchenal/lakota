@@ -135,7 +135,9 @@ class Series:
             else:
                 return ci_info
             return
-        self.commit(start, stop, all_dig, len(frame), root=root, embedded=embedded)
+        return self.commit(
+            start, stop, all_dig, len(frame), root=root, embedded=embedded
+        )
 
     def commit(self, start, stop, all_dig, length, root=False, embedded=None):
         # root force commit on phi
@@ -313,8 +315,10 @@ class KVSeries(Series):
                 "label": keep_keys,
                 "meta": keep_meta,
             }
+
         # Write result to db
-        self.write(new_frm, start=start, stop=stop)
+        revs = self.write(new_frm, start=start, stop=stop)
+        return revs
 
     # TODO debug "ghost" labels (they don't appears in repo ls but collection.ls works)
 

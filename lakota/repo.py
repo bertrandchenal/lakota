@@ -131,7 +131,7 @@ class Repo:
         return self.collection(name)
 
     def collection(self, label, from_frm=None, mode=None):
-        # TODO rename mode into namespace/package/pack ???
+        # TODO rename mode into namespace/package/pack/archive ???
         if mode is None:
             series = self.collection_series
         elif mode == "archive":

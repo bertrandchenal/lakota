@@ -247,10 +247,10 @@ class Interval:
 
 
 class Closed(Flag):
-    NONE = n = 0
-    RIGHT = r = 1
-    LEFT = l = 2
-    BOTH = b = 3
+    NONE = n = 0  # 00
+    RIGHT = r = 1  # 01
+    LEFT = l = 2  # 10
+    BOTH = b = 3  # 11
 
     @property
     def left(self):
@@ -264,11 +264,4 @@ class Closed(Flag):
         return (self & Closed.RIGHT) | (other & Closed.LEFT)
 
     def set_right(self, other):
-        return (self & Closed.LEFT) | (other & Closed.RIGHT)
-
-    def close_left(self, other):
-        return
-        return self.set_left(Closed.LEFT)
-
-    def close_right(self, other):
         return (self & Closed.LEFT) | (other & Closed.RIGHT)

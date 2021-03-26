@@ -94,9 +94,8 @@ def test_delete(repo, squash, once, to_delete):
         repo.registry.squash()
     expected = [l for l in expected if l not in to_delete]
     assert repo.ls() == expected
-    if squash:
-        repo.registry.squash()
-    assert repo.ls() == expected
+    for label in to_delete:
+        assert repo / label is None
 
 
 @pytest.mark.parametrize("merge", [True, False])

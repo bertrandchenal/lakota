@@ -425,20 +425,26 @@ class Commit:
                 elif not arr_closed.right and start == arr_stop:
                     # Same
                     continue
-                elif start >= arr_start:
-                    # closed "win" over arr_closed on the left
+                elif start > arr_start:
+                    # `closed` "win" over arr_closed on the left
                     arr_closed = arr_closed.set_left(closed)
                     arr_start = start
+                elif start == arr_start and arr_closed.left:
+                    # `closed` "win" only if array left is not already
+                    # open
+                    arr_closed = arr_closed.set_left(closed)
 
             if stop:
                 if stop < arr_start:
                     continue
                 elif not arr_closed.left and stop == arr_start:
                     continue
-                elif stop <= arr_stop:
+                elif stop < arr_stop:
                     # closed "win" over arr_closed on the right
                     arr_closed = arr_closed.set_right(closed)
                     arr_stop = stop
+                elif stop == arr_stop and arr_closed.right:
+                    arr_closed = arr_closed.set_right(closed)
 
             sgm = Segment(
                 self,
