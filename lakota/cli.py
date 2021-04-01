@@ -766,7 +766,7 @@ def run():
         "--pack",
         default=True,
         type=bool_like,
-        help="Create a new revision (aka defragment by re-writing all the series",
+        help="Create a new revision (aka defragment by re-writing all the series)",
     )
     parser_squash.add_argument(
         "-a", "--all", action="store_true", help="Squash everything"
