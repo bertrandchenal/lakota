@@ -16,10 +16,10 @@ repo = Repo("memory://")
 repo = Repo('some/local/path')
 repo = Repo('file://some/local/path')
 # From an S3 location
-repo = Repo('s3://my_bucket')
+repo = Repo('s3:///my_bucket')
 # Use a list of uri to enable caching
-repo = Repo(['memory://', 's3://my_bucket'])
-repo = Repo(['file:///tmp/local_cache', 's3://my_bucket'])
+repo = Repo(['memory://', 's3:///my_bucket'])
+repo = Repo(['file:///tmp/local_cache', 's3:///my_bucket'])
 ```
 
 S3 authentication is handled by
@@ -29,14 +29,14 @@ configuration files or in environment variables. If it's not possible,
 you can still pass them as arguments:
 
 ```python
-pod = POD.from_uri('s3://bucket_name', key=key, secret=secret, token=token)
+pod = POD.from_uri('s3:///bucket_name', key=key, secret=secret, token=token)
 repo = Repo(pod=pod)
 ```
 
 Similarly, you can use a compatible service through the `endpoint_url` parameter:
 
 ```python
-pod = POD.from_uri('s3://bucket_name', endpoint_url='http://127.0.0.1:5300')
+pod = POD.from_uri('s3:///bucket_name', endpoint_url='http://127.0.0.1:5300')
 repo = Repo(pod=pod)
 ```
 
