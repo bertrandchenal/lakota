@@ -83,7 +83,7 @@ face some limitations:
 In some use cases, Lakota provides an efficient alternative to REST
 API: Think about situations when a database host a collection of
 timeseries and a backend application is used to present a REST API in
-front of it (usually returning large json payload).
+front of it.
 
 In those situations, the main pain points will be about serialization:
 the backend has to de-serialize the data coming from the database and
