@@ -62,7 +62,8 @@ for more examples.
 Coming from a DBMS like Postgresql, Lakota gives you simple horizontal
 scaling (thanks to S3, but Minio also provides clustering), while
 keeping some concurrency control. It is also much faster for large
-writes but much slower for small writes.
+writes (but much slower for small writes) and usually comes with a
+[disk usage 10x to 100x smaller](https://github.com/bertrandchenal/lakota/blob/master/bench/bench_pg.py).
 
 ## Filesystem
 
