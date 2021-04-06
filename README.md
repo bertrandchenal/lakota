@@ -70,8 +70,7 @@ The fastest way to save a timeseries is to write a csv or parquet
 file. And it's dead simple!
 
 While this is indeed a good solution for static data, you will quickly
-face some limitations in situation where the data is updated
-periodically:
+face some limitations if the data is updated periodically:
 
 - A large series will generate an impractically large file. The
   solution is to chunk the series into a handful of files. How to size
