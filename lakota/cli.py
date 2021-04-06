@@ -447,7 +447,12 @@ def rev(args):
     """
     repo = get_repo(args)
     if args.label:
-        collection = get_collection(repo, args.label)
+        if "/" in args.label:
+            series = get_series(repo, args.label)
+            collection = series.collection
+        else:
+            series = None
+            collection = get_collection(repo, args.label)
         if collection is None:
             exit(f"Collection '{args.label}' not found")
     else:
@@ -464,11 +469,19 @@ Date: {timestamp}"""
         if not args.extended:
             continue
         ci = rev.commit(collection)
+        if series:
+            ci = ci.mask(ci.label == series.label)
         starts = list(map(fmt, zip(*ci.start.values())))
         stops = list(map(fmt, zip(*ci.stop.values())))
-        digests = list(map(fmt, zip(*ci.digest.values())))
-        rows = zip(ci.label, starts, stops, ci.length, digests, ci.closed)
-        print(tabulate(rows, headers="label start stop length digests closed".split()))
+        headers = ["label", "start", "stop", "length", "closed"]
+        columns = [ci.label, starts, stops, ci.length, ci.closed]
+        if args.extended > 1:
+            digests = list(map(fmt, zip(*ci.digest.values())))
+            headers.append("digests")
+            columns.append(digests)
+
+        rows = zip(*columns)
+        print(tabulate(rows, headers=headers))
         print()
 
 
@@ -740,7 +753,7 @@ def run():
     parser_rev = subparsers.add_parser("rev")
     parser_rev.add_argument("label", nargs="?")
     parser_rev.add_argument(
-        "-e", "--extended", action="store_true", help="Extended output"
+        "-e", "--extended", action="count", default=0, help="Extended output"
     )
     parser_rev.set_defaults(func=rev)
 
