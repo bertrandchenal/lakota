@@ -66,12 +66,17 @@ writes but much slower for small writes.
 
 ## Filesystem
 
-While you can easily create a similar feature set by saving your
-timeseries as a collection of csv files (or parquet), you will quickly
-face some limitations:
+The fastest way to save a timeseries is to write a csv or parquet
+file. And it's dead simple!
 
-- How to chunk the files? If the files are to big or too small, the
-  performance will suffer. What if a timeseries grows dramatically?
+While this is indeed a good solution for static data, you will quickly
+face some limitations in sitation where the data is updated
+periodically:
+
+- A large series will generate an impractically large file. The
+  solution is to chunk the series into a handful of files. How to size
+  those? If the chunks are to big or too small, the performance will
+  suffer. What if a timeseries grows dramatically?
 - How to apply a partial update? Is it better to re-write a full chunk
   or keep an extra file to track updates?
 - How to prevent or mitigate concurrent writes?
@@ -85,7 +90,7 @@ API: Think about situations when a database host a collection of
 timeseries and a backend application is used to present a REST API in
 front of it.
 
-In those situations, the main pain points will be about serialization:
+In those situations, the main pain point will be about serialization:
 the backend has to de-serialize the data coming from the database and
 then serialize it again into json. It can quickly become slow and
 memory intensive.
@@ -94,10 +99,10 @@ Moreover, data-streaming over a REST api is not easy to implement
 (something databases and database driver supports). So, if not
 forbidden, large queries will at best jeopardize the performances and
 a worst will result in a deny of service of the application server
-itself.
+itself by eating most of the host memory.
 
 Lakota sidesteps those two issues because it consumes directly the
-chunks of data, without any intermediate conversions and benefits from
+chunks of data without any intermediate conversions and benefits from
 the builtin compression and caching.
 
 
