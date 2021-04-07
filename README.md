@@ -8,7 +8,24 @@ or in memory.
 
 Documentation: https://bertrandchenal.github.io/lakota/
 
-# Quickstart
+## Install
+
+Lakota requires Python 3.7 or later, the `s3fs` module is required if
+you want to access datasets on S3.
+
+```
+pip install lakota s3fs
+```
+
+Python 3.6 should also work with the addition of the `dataclasses`
+module and an older version of `s3fs`:
+
+```
+pip install dataclasses lakota "s3fs<0.5"
+```
+
+
+## Quickstart
 
 The following script will create a timeseries on a repository backed
 by a local folder and read it back.
@@ -49,15 +66,15 @@ The schema also defines which column(s) is the index of the series
 thanks to the `*` in the type definition.
 
 
-# Examples
+## Examples
 
 See the [examples folder](https://github.com/bertrandchenal/lakota/tree/master/examples/)
 for more examples.
 
 
-# Compared to ...
+## Compared to ...
 
-## DBMS
+### DBMS
 
 Coming from a DBMS like Postgresql, Lakota gives you simple horizontal
 scaling (thanks to S3, but Minio also provides clustering), while
@@ -65,7 +82,7 @@ keeping some concurrency control. It is also much faster for large
 writes (but much slower for small writes) and usually comes with a
 [disk usage 10x to 100x smaller](https://github.com/bertrandchenal/lakota/blob/master/bench/bench_pg.py).
 
-## Filesystem
+### Filesystem
 
 The fastest way to save a timeseries is to write a csv or parquet
 file. And it's dead simple!
@@ -83,7 +100,7 @@ face some limitations if the data is updated periodically:
 - What about: caching, change detection, file integrity, etc.
 
 
-## REST API
+### REST API
 
 In some use cases, Lakota provides an efficient alternative to REST
 API: Think about situations when a database host a collection of
@@ -106,6 +123,6 @@ chunks of data without any intermediate conversions and benefits from
 the builtin compression and caching.
 
 
-# Roadmap / Ideas
+## Roadmap / Ideas
 
 - Shallow clone
