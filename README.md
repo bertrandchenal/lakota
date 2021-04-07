@@ -8,6 +8,23 @@ or in memory.
 
 Documentation: https://bertrandchenal.github.io/lakota/
 
+# Install
+
+Lakota requires Python 3.7 or later, the `s3fs` module is required if
+you want to access datasets on S3.
+
+```
+pip install lakota s3fs
+```
+
+Python 3.6 should also work with the addition of the `dataclasses`
+module and an older version of `s3fs`:
+
+```
+pip install dataclasses lakota "s3fs<0.5"
+```
+
+
 # Quickstart
 
 The following script will create a timeseries on a repository backed

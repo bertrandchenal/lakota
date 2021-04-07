@@ -1,4 +1,3 @@
-aws-wsgi
 flask
 black
 dask[distributed]
