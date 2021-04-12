@@ -209,20 +209,23 @@ class Collection:
             queue.extend(parents)
             yield rev
 
-    def squash(self, pack=True, trim=True):
+    def squash(self, trim=True, max_chunk=settings.squash_max_chunk):
         """
-        Remove past revisions, collapse history into one or few large
+        Remove past revisions, collapse each series into one or few large
         frames. Returns newly created revisions.
-
-        If `pack` is False, no new revision is created. If set to
-        True, the new revisions created are a complete rewrite of the
-        collection, the goal being to defragment the multiple arrays
-        constituting the different series.
 
         If `trim` is True, all revisions except the last one are
         removed.  If set to False, the full history is kept. If set to
         a datetime, all the revision older than the given value will be
         deleted, keeping the recent history.
+
+        The `max_chunk` parameter defines a limit over which the
+        method will rewrite a series. If a given series comprise a
+        small number of chunk (aka less than `max_chunk`) it will be
+        kept as is and no rewrite will be attempted.
+
+        If `max_chunk` is less or equal to zero, no new revision is
+        created.
         """
         logger.info('Squash collection "%s"', self.label)
 
@@ -233,7 +236,7 @@ class Collection:
         else:
             revs = []
 
-        if not pack:
+        if max_chunk <= 0:
             # Simply remove older commit
             self.changelog.pod.rm_many([r.path for r in revs[:-1]])
             self.changelog.refresh()
@@ -250,10 +253,12 @@ class Collection:
                 # Re-write each series. We use _find_squash_start to
                 # fast-forward in the series (we bet on the fact that
                 # most series are append-only)
-                start = self._find_squash_start(commit, label)
+                start, closed = self._find_squash_start(commit, label, max_chunk)
                 series = self / label
-                for frm in series.paginate(start=start, closed="r"):
-                    series.write(frm)
+                prev_stop = None
+                for frm in series.paginate(start=start, closed=closed):
+                    series.write(frm, start=prev_stop)  # Make sure write are contiguous
+                    prev_stop = frm.stop()
 
         # Remove old revisions
         to_remove = [r.path for r in revs]
@@ -265,25 +270,24 @@ class Collection:
         self.changelog.refresh()
         return batch.revs
 
-    def _find_squash_start(self, commit, label):
+    def _find_squash_start(self, commit, label, max_chunk):
         """
         Find the first "small" segment , and return its start values.
         """
+        assert max_chunk > 0, "Parameter 'max_chunk' must be bigger than 0"
         rows = list(commit.match(label))
-        if (
-            len(rows) < 4
-        ):  # TODO this should be a param (we should be able to force-squash)
-            return rows[-1]["stop"]
+        if len(rows) <= max_chunk:
+            return rows[-1]["stop"], "r"
 
         # Define a minimal acceptable len
         total_len = sum(row["length"] for row in rows)
-        threshold = min(settings.page_len, total_len / 4)
+        threshold = min(settings.page_len, total_len / (max_chunk + 1))
 
         for row in rows[:-1]:
             # Stop at first small row
             if row["length"] < threshold:
-                return row["start"]
-        return rows[-1]["stop"]
+                return row["start"], "b"
+        return rows[-1]["stop"], "r"
 
     def digests(self):
         for rev in self.changelog.log():

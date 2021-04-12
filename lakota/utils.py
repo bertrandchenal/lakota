@@ -34,10 +34,16 @@ class Settings:
     verify_ssl: bool
     embed_max_size: int
     page_len: int
+    squash_max_chunk: int
 
 
 settings = Settings(
-    threaded=True, verify_ssl=True, debug=False, embed_max_size=1024, page_len=500_000
+    threaded=True,
+    verify_ssl=True,
+    debug=False,
+    embed_max_size=1024,
+    page_len=500_000,
+    squash_max_chunk=4,
 )
 
 

@@ -4,6 +4,7 @@ import pytest
 from numpy import arange
 
 from lakota.repo import Repo, Schema
+from lakota.utils import settings
 
 schema = Schema(timestamp="timestamp*", value="float")
 frame = {
@@ -55,16 +56,16 @@ def test_multi_create():
     assert temperature.ls() == ["Brussels", "Paris"]
 
 
-@pytest.mark.parametrize("pack", [True, False])
+@pytest.mark.parametrize("max_chunk", [0, settings.squash_max_chunk])
 @pytest.mark.parametrize("trim", [True, False])
-def test_squash(pack, trim):
+def test_squash(trim, max_chunk):
     repo = Repo()
     other_frame = {
         "timestamp": [4, 5, 6],
         "value": [4, 5, 6],
     }
     temperature = repo.create_collection(schema, "temperature")
-    revs = temperature.squash(pack=pack, trim=trim)
+    revs = temperature.squash(trim, max_chunk)
     assert revs == []
 
     # We need two writes in order to have something to squash
@@ -77,14 +78,14 @@ def test_squash(pack, trim):
     assert len(prev_commits) == 2
 
     # Squash
-    temperature.squash(pack=pack, trim=trim)
+    temperature.squash(trim, max_chunk)
 
     expected = {
-        (True, True): 1,
-        (False, True): 1,
-        (True, False): 2,
-        (False, False): 2,
-    }[pack, trim]
+        (True, settings.squash_max_chunk): 1,
+        (True, 0): 1,
+        (False, settings.squash_max_chunk): 2,
+        (False, 0): 2,
+    }[trim, max_chunk]
     assert len(list(temperature.changelog)) == expected
 
     temp_bru.write(frame)
@@ -93,17 +94,43 @@ def test_squash(pack, trim):
     temp_ory.write(other_frame)
 
     # Squash collection
-    temperature.squash(pack=pack, trim=trim)
+    temperature.squash(trim, max_chunk)
     expected = {
-        (True, True): [1],
-        (False, True): [1],
-        (True, False): [4, 5],  # Due to msgpck serialization instability
-        (False, False): [4],
-    }[pack, trim]
-    assert len(list(temperature.changelog)) in expected
+        (True, settings.squash_max_chunk): 1,
+        (True, 0): 1,
+        (False, settings.squash_max_chunk): settings.squash_max_chunk,
+        (False, 0): 4,
+    }[trim, max_chunk]
+    assert len(list(temperature.changelog)) == expected
 
     # Read data back
     assert temperature.ls() == ["Brussels", "Paris"]
+
+
+@pytest.mark.parametrize(
+    "frame_len", [10, settings.page_len - 7, settings.page_len / 2]
+)
+@pytest.mark.parametrize("nb_chunk", [1, 4, 8])
+def test_squash_max_chunk(nb_chunk, frame_len):
+    repo = Repo()
+    new_frame = lambda i: {
+        "timestamp": arange(i * frame_len, (i + 1) * frame_len),
+        "value": arange(frame_len),
+    }
+    temperature = repo.create_collection(schema, "temperature")
+    series = temperature / "Brussels"
+    for i in range(0, nb_chunk):
+        series.write(new_frame(i))
+    temperature.squash(trim=True, max_chunk=4)
+
+    if nb_chunk <= 4:
+        assert len(series.segments()) == nb_chunk
+    elif frame_len == 10:
+        assert len(series.segments()) == 1
+    elif frame_len == settings.page_len / 2:
+        assert len(series.segments()) == 4
+    else:
+        assert len(series.segments()) == 8
 
 
 def test_merge():

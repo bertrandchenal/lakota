@@ -218,7 +218,7 @@ class Commit:
         keep_digests = (
             set(chain.from_iterable(self.digest.values())) & self.embedded.keys()
         )
-        embedded = {d: self.embedded[d] for d in keep_digests}
+        embedded = {d: self.embedded[d] for d in sorted(keep_digests)}
         data["embedded"] = embedded
         return msgpck.encode([data])
 
@@ -445,7 +445,6 @@ class Commit:
                     arr_stop = stop
                 elif stop == arr_stop and arr_closed.right:
                     arr_closed = arr_closed.set_right(closed)
-
             sgm = Segment(
                 self,
                 pod,
