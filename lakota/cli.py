@@ -469,7 +469,7 @@ Date: {timestamp}"""
         if not args.extended:
             continue
         ci = rev.commit(collection)
-        if series:
+        if series is not None:
             ci = ci.mask(ci.label == series.label)
         starts = list(map(fmt, zip(*ci.start.values())))
         stops = list(map(fmt, zip(*ci.stop.values())))
@@ -575,9 +575,9 @@ def squash(args):
             collection = get_collection(repo, label)
             if not collection:
                 exit(f'Collection "{label}" not found')
-            collection.squash(pack=args.pack, trim=trim)
+            collection.squash(trim=trim)
     if args.all or not args.labels:
-        repo.registry.squash(pack=args.pack, trim=trim)
+        repo.registry.squash(trim=trim)
 
 
 def push(args):
@@ -594,7 +594,7 @@ def push(args):
     """
     repo = get_repo(args)
     remote_repo = Repo(args.remote)
-    repo.push(remote_repo, *args.labels)
+    repo.push(remote_repo, *args.labels, shallow=args.shallow)
 
 
 def pull(args):
@@ -603,7 +603,7 @@ def pull(args):
     """
     repo = get_repo(args)
     remote_reg = Repo(args.remote)
-    repo.pull(remote_reg, *args.labels)
+    repo.pull(remote_reg, *args.labels, shallow=args.shallow)
 
 
 def delete(args):
@@ -775,13 +775,6 @@ def run():
         help="Delete revisions older than given date",
     )
     parser_squash.add_argument(
-        "-p",
-        "--pack",
-        default=True,
-        type=bool_like,
-        help="Create a new revision (aka defragment by re-writing all the series)",
-    )
-    parser_squash.add_argument(
         "-a", "--all", action="store_true", help="Squash everything"
     )
     parser_squash.set_defaults(func=squash)
@@ -790,12 +783,24 @@ def run():
     parser_push = subparsers.add_parser("push")
     parser_push.add_argument("remote")
     parser_push.add_argument("labels", nargs="*")
+    parser_push.add_argument(
+        "-s",
+        "--shallow",
+        action="store_true",
+        help="Shallow push (send only last revision)",
+    )
     parser_push.set_defaults(func=push)
 
     # Add pull command
     parser_pull = subparsers.add_parser("pull")
     parser_pull.add_argument("remote")
     parser_pull.add_argument("labels", nargs="*")
+    parser_pull.add_argument(
+        "-s",
+        "--shallow",
+        action="store_true",
+        help="Shallow pull (fetch only last revision)",
+    )
     parser_pull.set_defaults(func=pull)
 
     # Add create command

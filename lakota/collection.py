@@ -115,17 +115,20 @@ class Collection:
     def refresh(self):
         self.changelog.refresh()
 
-    def push(self, remote, *labels):
-        return remote.pull(self, *labels)
+    def push(self, remote, shallow=False):
+        return remote.pull(self, shallow=shallow)
 
-    def pull(self, remote):
+    def pull(self, remote, shallow=False):
         """
         Pull remote series into self
         """
         assert isinstance(remote, Collection), "A Collection instance is required"
 
         local_digs = set(self.digests())
-        remote_digs = set(remote.digests())
+        if shallow:
+            remote_digs = set(remote.digests(remote.changelog.leafs()))
+        else:
+            remote_digs = set(remote.digests())
         sync = lambda path: self.pod.write(path, remote.pod.read(path))
         with Pool() as pool:
             for dig in remote_digs:
@@ -135,7 +138,7 @@ class Collection:
                 path = folder / filename
                 pool.submit(sync, path)
 
-        self.changelog.pull(remote.changelog)
+        self.changelog.pull(remote.changelog, shallow=shallow)
 
     def merge(self, *heads):
         revisions = self.changelog.log()
@@ -289,8 +292,10 @@ class Collection:
                 return row["start"], "b"
         return rows[-1]["stop"], "r"
 
-    def digests(self):
-        for rev in self.changelog.log():
+    def digests(self, revisions=None):
+        if revisions is None:
+            revisions = self.changelog.log()
+        for rev in revisions:
             ci = rev.commit(self)
             digs = set(chain.from_iterable(ci.digest.values()))
             # return only digest not already embedded in the commit

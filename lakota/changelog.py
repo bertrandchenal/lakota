@@ -118,16 +118,17 @@ class Changelog:
             # Yield
             yield rev
 
-    def pull(self, remote):
+    def pull(self, remote, shallow=False):
         new_paths = []
-        local_digests = set(Revision.from_path(self, p).digests for p in self)
-        for remote_path in remote:
-            remote_rev = Revision.from_path(remote, remote_path)
+        local_digests = set(r.digests for r in self.log())
+        remote_revs = remote.leafs() if shallow else remote.log()
+        for remote_rev in remote_revs:
             if remote_rev.digests in local_digests:
                 continue
-            new_paths.append(remote_path)
-            payload = remote.pod.read(remote_path)
-            self.pod.write(remote_path, payload)
+            path = remote_rev.path
+            new_paths.append(path)
+            payload = remote.pod.read(path)
+            self.pod.write(path, payload)
         self.refresh()
         return new_paths
 

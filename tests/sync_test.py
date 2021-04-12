@@ -2,10 +2,11 @@ from datetime import timedelta
 from time import sleep
 
 import pytest
+from numpy import arange
 
 from lakota import Frame, Repo, Schema
 from lakota.changelog import Revision
-from lakota.utils import drange
+from lakota.utils import drange, settings
 
 schema = Schema(timestamp="int*", value="float")
 
@@ -168,3 +169,29 @@ def test_series_squash_stability():
         if "." in f
     )
     assert local_digests == remote_digests
+
+
+@pytest.mark.parametrize("shallow", [False, True])
+@pytest.mark.parametrize("direction", ["push", "pull"])
+@pytest.mark.parametrize("size", [10, settings.page_len])
+def test_series_shallow_pull(size, direction, shallow):
+    label = "LABEL"
+    local_repo = Repo()
+    remote_repo = Repo()
+    local_coll = local_repo.create_collection(schema, "a_collection")
+    series = local_coll / label
+
+    series.write({"timestamp": arange(size), "value": arange(size)})
+    series.write({"timestamp": arange(size), "value": arange(size) * 2})
+
+    if direction == "pull":
+        remote_repo.pull(local_repo, shallow=shallow)
+    else:
+        local_repo.push(remote_repo, shallow=shallow)
+
+    remote_clc = remote_repo / "a_collection"
+    assert len(remote_clc.changelog.log()) == (1 if shallow else 2)
+
+    remote_series = remote_clc / label
+    expected = series.frame()
+    assert remote_series.frame() == expected

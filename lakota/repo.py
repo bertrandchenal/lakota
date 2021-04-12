@@ -229,7 +229,7 @@ class Repo:
     def refresh(self):
         self.registry.refresh()
 
-    def push(self, remote, *labels):
+    def push(self, remote, *labels, shallow=False):
         """
         Push local revisions (and related segments) to `remote` Repo.
         `remote`
@@ -238,9 +238,9 @@ class Repo:
         `labels`
         : The collections to push. If not given, all collections are pushed
         """
-        return remote.pull(self, *labels)
+        return remote.pull(self, *labels, shallow=shallow)
 
-    def pull(self, remote, *labels):
+    def pull(self, remote, *labels, shallow=False):
         """
         Pull revisions from `remote` Repo (and related segments).
         `remote`
@@ -252,7 +252,7 @@ class Repo:
 
         assert isinstance(remote, Repo), "A Repo instance is required"
         # Pull registry
-        self.registry.pull(remote.registry)
+        self.registry.pull(remote.registry, shallow=shallow)
         # Extract frames
         local_cache = {l.label: l for l in self.search()}
         remote_cache = {r.label: r for r in remote.search()}
@@ -271,7 +271,7 @@ class Repo:
                         "incompatible meta-info."
                     )
                     raise ValueError(msg)
-            l_clct.pull(r_clct)
+            l_clct.pull(r_clct, shallow=shallow)
 
     def merge(self):
         """

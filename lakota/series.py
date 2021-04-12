@@ -1,5 +1,3 @@
-from numpy import issubdtype
-
 from .batch import Batch
 from .changelog import phi
 from .commit import Commit
@@ -106,6 +104,13 @@ class Series:
                     raise ValueError("Length mismatch")
                 data = self.schema[name].codec.encode(arr)
                 digest = hexdigest(data)
+                # XXX digest base on actual content is more robust
+                # from numpy import issubdtype, ascontiguousarray
+                # if issubdtype(arr.dtype, 'M'):
+                #     digest = hexdigest(arr.astype(int))
+                # else:
+                #     digest = hexdigest(ascontiguousarray(arr))
+
                 all_dig.append(digest)
                 if (
                     len(data) < settings.embed_max_size
@@ -319,8 +324,6 @@ class KVSeries(Series):
         # Write result to db
         revs = self.write(new_frm, start=start, stop=stop)
         return revs
-
-    # TODO debug "ghost" labels (they don't appears in repo ls but collection.ls works)
 
     # def delete(self, *keys):
     #     if not keys:
