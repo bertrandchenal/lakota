@@ -158,14 +158,24 @@ class Commit:
         self.embedded = embedded or {}
 
     @classmethod
-    def one(cls, schema, label, start, stop, digest, length, closed="b", embedded=None):
-        assert closed in ("l", "r", "n", "b")
+    def one(
+        cls,
+        schema,
+        label,
+        start,
+        stop,
+        digest,
+        length,
+        closed=Closed.BOTH,
+        embedded=None,
+    ):
+        closed = Closed.cast(closed)
         label = asarray([label])
         start = dict(zip(schema.idx, (asarray([s]) for s in start)))
         stop = dict(zip(schema.idx, (asarray([s]) for s in stop)))
         digest = dict(zip(schema, (asarray([d], dtype="U") for d in digest)))
         length = [length]
-        closed = [closed]
+        closed = [closed.short]
         return Commit(schema, label, start, stop, digest, length, closed, embedded)
 
     @classmethod
@@ -251,7 +261,7 @@ class Commit:
         return res
 
     def update(self, label, start, stop, digest, length, closed="b", embedded=None):
-        assert closed == "b", "Non-closed updates not supported"
+        closed = Closed.cast(closed)
         if not start <= stop:
             raise ValueError(f"Invalid range {start} -> {stop}")
         inner = Commit.one(
@@ -265,7 +275,7 @@ class Commit:
 
         first = (self.at(0)["label"], self.at(0)["start"])
         last = (self.at(-1)["label"], self.at(-1)["stop"])
-        if (label, start) <= first and (label, stop) >= last:
+        if (label, start) < first and (label, stop) > last:
             return inner
 
         start_pos, stop_pos = self.split(label, start, stop)
@@ -288,10 +298,16 @@ class Commit:
         ):
             # We hit the right of an existing row
             start_row["stop"] = start
-            # XXX adapt behaviour if current update is not closed==both
-            start_row["closed"] = "l" if start_row["closed"] in ("l", "b") else "n"
+            # If closed is open/close on left, start_row become the
+            # opposite on right:
+            start_row["closed"] = Closed[start_row["closed"]].set_right(
+                closed.flip.left
+            )
 
-            if start_row["start"] == start_row["stop"]:
+            if (
+                start_row["start"] == start_row["stop"]
+                and start_row["closed"] != Closed.BOTH
+            ):
                 # Ignore star_row
                 head = self.head(start_pos)
             else:
@@ -302,6 +318,7 @@ class Commit:
             # when start_row["start"] == start_row["stop"],
             # start_row stop and start are both "overshadowed" by
             # new commit
+
         if head is None:
             head = self.head(start_pos)
 
@@ -321,10 +338,14 @@ class Commit:
         if label == stop_row["label"] and stop_row["start"] <= stop <= stop_row["stop"]:
             # We hit the left of an existing row
             stop_row["start"] = stop
-            # XXX adapt behavior if current update is not closed==b
-            stop_row["closed"] = "r" if stop_row["closed"] in ("r", "b") else "n"
+            # If closed is open/close on right, stop_row become the
+            # opposite on left:
+            stop_row["closed"] = Closed[stop_row["closed"]].set_left(closed.flip.right)
 
-            if stop_row["start"] == stop_row["stop"]:
+            if (
+                stop_row["start"] == stop_row["stop"]
+                and start_row["closed"] != Closed.BOTH
+            ):
                 # Ignore stop_row
                 tail = self.tail(stop_pos)
             else:
@@ -403,15 +424,16 @@ class Commit:
         for pos in matches:
             yield self.at(pos)
 
-    def segments(self, label, pod, start=None, stop=None, closed="b"):
-        closed = Closed[closed]
+    def segments(self, label, pod, start=None, stop=None, closed=Closed.BOTH):
+        closed = Closed.cast(closed)
+
         # If start (or stop) is not set, and the left (right) side is
         # not closed, we ignore the very first (last) item, which
         # makes no sense
         if start is None:
-            closed = closed.set_left(Closed.LEFT)
+            closed = closed.set_left(True)
         if stop is None:
-            closed = closed.set_right(Closed.RIGHT)
+            closed = closed.set_right(True)
         res = []
 
         for row in self.match(label):
@@ -427,12 +449,12 @@ class Commit:
                     continue
                 elif start > arr_start:
                     # `closed` "win" over arr_closed on the left
-                    arr_closed = arr_closed.set_left(closed)
+                    arr_closed = arr_closed.set_left(closed.left)
                     arr_start = start
                 elif start == arr_start and arr_closed.left:
                     # `closed` "win" only if array left is not already
                     # open
-                    arr_closed = arr_closed.set_left(closed)
+                    arr_closed = arr_closed.set_left(closed.left)
 
             if stop:
                 if stop < arr_start:
@@ -441,10 +463,10 @@ class Commit:
                     continue
                 elif stop < arr_stop:
                     # closed "win" over arr_closed on the right
-                    arr_closed = arr_closed.set_right(closed)
+                    arr_closed = arr_closed.set_right(closed.right)
                     arr_stop = stop
                 elif stop == arr_stop and arr_closed.right:
-                    arr_closed = arr_closed.set_right(closed)
+                    arr_closed = arr_closed.set_right(closed.right)
             sgm = Segment(
                 self,
                 pod,

@@ -121,7 +121,7 @@ class Repo:
             series = self.registry.series("archive")
         else:
             series = self.collection_series
-        qr = series[start:stop] @ {"closed": "b"}
+        qr = series[start:stop] @ {"closed": "BOTH"}
 
         frm = qr.frame()
         for l in frm["label"]:
@@ -140,9 +140,9 @@ class Repo:
             raise ValueError(f'Unexpected mode: "{mode}"')
 
         if from_frm:
-            frm = from_frm.slice(*from_frm.index_slice([label], [label], closed="b"))
+            frm = from_frm.slice(*from_frm.index_slice([label], [label], closed="BOTH"))
         else:
-            frm = series.frame(start=label, stop=label, closed="b")
+            frm = series.frame(start=label, stop=label, closed="BOTH")
 
         if frm.empty:
             return None

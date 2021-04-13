@@ -196,6 +196,129 @@ def test_adjacent_write(series, how):
         assert all(frm_copy["value"] == [5.5, 6.6])
 
 
+def test_write_open_left(series):
+    # Append
+    frm = {
+        "timestamp": [1589455906, 1589455907],
+        "value": [6.6, 7.7],
+    }
+    series.write(
+        frm,
+        start=1589455905,  # last value of series
+        closed="r",
+    )
+    expected = [1589455903, 1589455904, 1589455905, 1589455906, 1589455907]
+    assert all(series.frame(select="timestamp")["timestamp"] == expected)
+
+    # Append again, hide part of previous write
+    frm = {
+        "timestamp": [1589455907],
+        "value": [7],
+    }
+    series.write(
+        frm,
+        start=1589455905,  # last value of initial series
+        closed="r",
+    )
+    res = series.frame()
+    assert all(
+        res["timestamp"]
+        == [1589455903, 1589455904, 1589455905, 1589455907]  # 1589455906 is missing
+    )
+
+    assert all(res["value"] == [3.3, 4.4, 5.5, 7])
+
+    # partial read
+    res = series.frame(start=1589455905, closed="r")
+    assert all(res["timestamp"] == [1589455907])
+    res = series.frame(start=1589455906, closed="b")
+    assert all(res["timestamp"] == [1589455907])
+
+
+def test_write_open_right(series):
+    # preprend
+    frm = {
+        "timestamp": [1589455901, 1589455902],
+        "value": [1.1, 2.2],
+    }
+    series.write(
+        frm,
+        stop=1589455903,  # first value of series
+        closed="l",
+    )
+    expected = [1589455901, 1589455902, 1589455903, 1589455904, 1589455905]
+    assert all(series.frame(select="timestamp")["timestamp"] == expected)
+
+    # Append again, hide part of previous write
+    frm = {
+        "timestamp": [1589455901],
+        "value": [1],
+    }
+    series.write(
+        frm,
+        stop=1589455903,  # last value of initial series
+        closed="l",
+    )
+    res = series.frame()
+    assert all(
+        res["timestamp"]
+        == [1589455901, 1589455903, 1589455904, 1589455905]  # 1589455902 is missing
+    )
+
+    assert all(res["value"] == [1, 3.3, 4.4, 5.5])
+
+    # partial read
+    res = series.frame(stop=1589455901, closed="l")
+    assert all(res["timestamp"] == [1589455901])
+    res = series.frame(stop=1589455902, closed="b")
+    assert all(res["timestamp"] == [1589455901])
+
+
+def test_write_open_center(series):
+    # insert
+    frm = {
+        "timestamp": [1589455904],
+        "value": [4],
+    }
+    series.write(
+        frm,
+        start=1589455903,
+        stop=1589455905,
+        closed="n",
+    )
+    frm = series.frame()
+    assert all(frm["timestamp"] == [1589455903, 1589455904, 1589455905])
+    assert all(frm["value"] == [3.3, 4, 5.5])
+
+    # center left
+    frm = {
+        "timestamp": [1589455903],
+        "value": [3],
+    }
+    series.write(
+        frm,
+        start=1589455902,
+        closed="r",
+    )
+    frm = series.frame()
+    assert all(frm["timestamp"] == [1589455903, 1589455904, 1589455905])
+    assert all(frm["value"] == [3, 4, 5.5])
+
+    # center right
+    frm = {
+        "timestamp": [1589455905],
+        "value": [5],
+    }
+    series.write(
+        frm,
+        stop=1589455906,
+        closed="l",
+    )
+    frm = series.frame()
+    assert all(frm["timestamp"] == [1589455903, 1589455904, 1589455905])
+    assert all(frm["value"] == [3, 4, 5])
+
+
 def test_column_types(repo):
     df = {str(dt): asarray([0], dtype=ALIASES[dt]) for dt in ALIASES}
 

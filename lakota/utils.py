@@ -258,6 +258,16 @@ class Closed(Flag):
     LEFT = l = 2  # 10
     BOTH = b = 3  # 11
 
+    @classmethod
+    def cast(cls, value):
+        if isinstance(value, cls):
+            return value
+        return Closed[value]
+
+    @property
+    def short(self):
+        return self.name[0].lower()
+
     @property
     def left(self):
         return bool(self & Closed.LEFT)
@@ -266,8 +276,12 @@ class Closed(Flag):
     def right(self):
         return bool(self & Closed.RIGHT)
 
-    def set_left(self, other):
-        return (self & Closed.RIGHT) | (other & Closed.LEFT)
+    @property
+    def flip(self):
+        return Closed.BOTH ^ self
 
-    def set_right(self, other):
-        return (self & Closed.LEFT) | (other & Closed.RIGHT)
+    def set_left(self, value):
+        return self | Closed.LEFT if value else self & Closed.RIGHT
+
+    def set_right(self, value):
+        return self | Closed.RIGHT if value else self & Closed.LEFT

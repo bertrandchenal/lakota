@@ -66,43 +66,27 @@ def test_closed():
     assert not none.right and right.right
 
     # Test set_left
-    assert left.set_left(left) == left
-    assert left.set_left(right) == none
-    assert left.set_left(both) == left
-    assert left.set_left(none) == none
+    assert left.set_left(True) == left
+    assert left.set_left(False) == none
 
-    assert right.set_left(left) == both
-    assert right.set_left(right) == right
-    assert right.set_left(both) == both
-    assert right.set_left(none) == right
+    assert right.set_left(True) == both
+    assert right.set_left(False) == right
 
-    assert none.set_left(left) == left
-    assert none.set_left(right) == none
-    assert none.set_left(both) == left
-    assert none.set_left(none) == none
+    assert none.set_left(True) == left
+    assert none.set_left(False) == none
 
-    assert both.set_left(left) == both
-    assert both.set_left(right) == right
-    assert both.set_left(both) == both
-    assert both.set_left(none) == right
+    assert both.set_left(True) == both
+    assert both.set_left(False) == right
 
     # Test set_right
-    assert left.set_right(left) == left
-    assert left.set_right(right) == both
-    assert left.set_right(both) == both
-    assert left.set_right(none) == left
+    assert left.set_right(False) == left
+    assert left.set_right(True) == both
 
-    assert right.set_right(left) == none
-    assert right.set_right(right) == right
-    assert right.set_right(both) == right
-    assert right.set_right(none) == none
+    assert right.set_right(False) == none
+    assert right.set_right(True) == right
 
-    assert none.set_right(left) == none
-    assert none.set_right(right) == right
-    assert none.set_right(both) == right
-    assert none.set_right(none) == none
+    assert none.set_right(False) == none
+    assert none.set_right(True) == right
 
-    assert both.set_right(left) == left
-    assert both.set_right(right) == both
-    assert both.set_right(both) == both
-    assert both.set_right(none) == left
+    assert both.set_right(False) == left
+    assert both.set_right(True) == both

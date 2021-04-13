@@ -9,8 +9,8 @@ class Batch:
         self.revs = []
         self.root = root
 
-    def append(self, label, start, stop, all_dig, frame_len, embedded):
-        self._ci_info.append((label, start, stop, all_dig, frame_len, embedded))
+    def append(self, label, start, stop, all_dig, frame_len, closed, embedded):
+        self._ci_info.append((label, start, stop, all_dig, frame_len, closed, embedded))
 
     def extend(self, *other_batches):
         for b in other_batches:
@@ -28,7 +28,7 @@ class Batch:
         if leaf_rev:
             last_ci = leaf_rev.commit(self.collection)
         else:
-            label, start, stop, all_dig, length, embedded = next(all_ci_info)
+            label, start, stop, all_dig, length, closed, embedded = next(all_ci_info)
             last_ci = Commit.one(
                 self.collection.schema,
                 label,
@@ -36,11 +36,12 @@ class Batch:
                 stop,
                 all_dig,
                 length,
+                closed=closed,
                 embedded=embedded,
             )
-        for label, start, stop, all_dig, length, embedded in all_ci_info:
+        for label, start, stop, all_dig, length, closed, embedded in all_ci_info:
             last_ci = last_ci.update(
-                label, start, stop, all_dig, length, embedded=embedded
+                label, start, stop, all_dig, length, closed=closed, embedded=embedded
             )
 
         # Save it

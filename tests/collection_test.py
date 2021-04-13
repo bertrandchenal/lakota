@@ -93,8 +93,11 @@ def test_squash(trim, max_chunk):
     temp_ory.write(frame)
     temp_ory.write(other_frame)
 
+    expected_frm = temp_bru.frame()
     # Squash collection
     temperature.squash(trim, max_chunk)
+    assert temp_bru.frame() == expected_frm
+
     expected = {
         (True, settings.squash_max_chunk): 1,
         (True, 0): 1,
@@ -121,7 +124,9 @@ def test_squash_max_chunk(nb_chunk, frame_len):
     series = temperature / "Brussels"
     for i in range(0, nb_chunk):
         series.write(new_frame(i))
+    expected = series.frame()
     temperature.squash(trim=True, max_chunk=4)
+    assert series.frame() == expected
 
     if nb_chunk <= 4:
         assert len(series.segments()) == nb_chunk

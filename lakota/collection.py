@@ -260,7 +260,7 @@ class Collection:
                 series = self / label
                 prev_stop = None
                 for frm in series.paginate(start=start, closed=closed):
-                    series.write(frm, start=prev_stop)  # Make sure write are contiguous
+                    series.write(frm, start=prev_stop, closed="r" if prev_stop else "b")
                     prev_stop = frm.stop()
 
         # Remove old revisions
@@ -280,7 +280,7 @@ class Collection:
         assert max_chunk > 0, "Parameter 'max_chunk' must be bigger than 0"
         rows = list(commit.match(label))
         if len(rows) <= max_chunk:
-            return rows[-1]["stop"], "r"
+            return rows[-1]["stop"], "RIGHT"
 
         # Define a minimal acceptable len
         total_len = sum(row["length"] for row in rows)
@@ -289,8 +289,8 @@ class Collection:
         for row in rows[:-1]:
             # Stop at first small row
             if row["length"] < threshold:
-                return row["start"], "b"
-        return rows[-1]["stop"], "r"
+                return row["start"], "BOTH"
+        return rows[-1]["stop"], "RIGHT"
 
     def digests(self, revisions=None):
         if revisions is None:

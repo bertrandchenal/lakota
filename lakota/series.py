@@ -2,7 +2,7 @@ from .batch import Batch
 from .changelog import phi
 from .commit import Commit
 from .frame import Frame
-from .utils import Interval, Pool, hashed_path, hexdigest, settings
+from .utils import Closed, Interval, Pool, hashed_path, hexdigest, settings
 
 __all__ = ["Series", "KVSeries"]
 
@@ -36,7 +36,7 @@ class Series:
         start=None,
         stop=None,
         before=None,
-        closed="l",
+        closed="LEFT",
         from_ci=None,
     ):
         """
@@ -77,7 +77,7 @@ class Series:
         target = min_period * size
         return Interval.bisect(target)
 
-    def write(self, frame, start=None, stop=None, root=False):
+    def write(self, frame, start=None, stop=None, closed="b", root=False):
         # Each commit is like a frame. A row in this frame represent a
         # write (aka a segment) and contains one digest per series
         # column + 2*N extra columns that encode start-stop values (N
@@ -134,17 +134,25 @@ class Series:
         # Create new digest
         batch = self.collection.batch
         if batch:
-            ci_info = (self.label, start, stop, all_dig, len(frame), embedded)
+            ci_info = (self.label, start, stop, all_dig, len(frame), closed, embedded)
             if isinstance(batch, Batch):
                 batch.append(*ci_info)
             else:
                 return ci_info
             return
         return self.commit(
-            start, stop, all_dig, len(frame), root=root, embedded=embedded
+            start,
+            stop,
+            all_dig,
+            len(frame),
+            root=root,
+            closed=closed,
+            embedded=embedded,
         )
 
-    def commit(self, start, stop, all_dig, length, root=False, embedded=None):
+    def commit(
+        self, start, stop, all_dig, length, root=False, closed="b", embedded=None
+    ):
         # root force commit on phi
         leaf_rev = None if root else self.changelog.leaf()
 
@@ -152,12 +160,25 @@ class Series:
         if leaf_rev:
             leaf_ci = leaf_rev.commit(self.collection)
             new_ci = leaf_ci.update(
-                self.label, start, stop, all_dig, length, embedded=embedded
+                self.label,
+                start,
+                stop,
+                all_dig,
+                length,
+                closed=closed,
+                embedded=embedded,
             )
             # TODO early return if new_ci == leaf_ci
         else:
             new_ci = Commit.one(
-                self.schema, self.label, start, stop, all_dig, length, embedded=embedded
+                self.schema,
+                self.label,
+                start,
+                stop,
+                all_dig,
+                length,
+                closed=closed,
+                embedded=embedded,
             )
 
         payload = new_ci.encode()
@@ -187,20 +208,18 @@ class Query:
     def __init__(self, series, **kw):
         self.series = series
         self.params = {
-            "closed": "l",
+            "closed": "LEFT",
         }
         for k, v in kw.items():
             self.set_param(k, v)
 
     def set_param(self, key, value):
         if key == "closed":
-            if not value in ("l", "r", "b", "n"):
-                raise ValueError(f"Unsupported value {value} for closed")
-            self.params["closed"] = value
+            self.params["closed"] = Closed.cast(value)
         elif key in ("start", "stop"):
             self.params[key] = self.series.schema.deserialize(value)
         else:
-            if not key in ("limit", "offset", "before", "select"):
+            if not key in ("limit", "offset", "before", "select", "from_ci"):
                 raise ValueError(f"Unsupported parameter: {key}")
             self.params[key] = value
 
@@ -220,7 +239,7 @@ class Query:
         return Query(self.series, **params)
 
     def segments(self):
-        keys = ("start", "stop", "before", "closed")
+        keys = ("start", "stop", "before", "closed", "from_ci")
         kw = {k: self.params.get(k) for k in keys}
         segments = self.series.segments(**kw)
         return segments
@@ -256,8 +275,9 @@ class Query:
         pos = qr.params.get("offset") or 0
         while True:
             lmt = step if limit is None else min(step, limit)
+            offset = pos
             frm = Frame.from_segments(
-                qr.series.schema, segments, limit=lmt, offset=pos, select=select
+                qr.series.schema, segments, limit=lmt, offset=offset, select=select
             )
             if len(frm) == 0:
                 return
@@ -268,7 +288,7 @@ class Query:
 
 
 class KVSeries(Series):
-    def write(self, frame, start=None, stop=None, root=False):
+    def write(self, frame, start=None, stop=None, closed="b", root=False):
         if root or not (start is None is stop):
             return super().write(frame, start=start, stop=stop, root=root)
 
@@ -277,13 +297,13 @@ class KVSeries(Series):
 
         start = self.schema.row(frame, pos=0, full=False)
         stop = self.schema.row(frame, pos=-1, full=False)
-        segments = self.segments(start, stop, closed="b")
+        segments = self.segments(start, stop, closed="BOTH")
         db_frm = Frame.from_segments(  # TODO paginate
             self.schema, segments
         )  # Maybe paginate on large results
 
         if db_frm.empty:
-            return super().write(frame)
+            return super().write(frame, closed=closed)
 
         if db_frm == frame:
             # Nothing to do
@@ -295,7 +315,7 @@ class KVSeries(Series):
         non_idx = [c for c in self.schema if c not in self.schema.idx]
         reduce_kw.update({c: f"(first self.{c})" for c in non_idx})
         new_frm = new_frm.reduce(**reduce_kw)
-        return super().write(new_frm)
+        return super().write(new_frm)  # XXX pass closed ?
 
     def delete(self, *keys):
         # XXX we have 4 delete method (on series, kvseries, collection
@@ -308,7 +328,7 @@ class KVSeries(Series):
 
         # XXX use changelog pack ?
         start, stop = min(keys), max(keys)
-        frm = self[start:stop].frame(closed="b")
+        frm = self[start:stop].frame(closed="BOTH")
         # Keep only keys not given as argument
         # FIXME use frame.mask to filter it
         items = [(k, s) for k, s in zip(frm["label"], frm["meta"]) if k not in keys]
