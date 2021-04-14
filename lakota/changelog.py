@@ -5,7 +5,7 @@ from random import random
 from time import sleep
 
 from .commit import Commit
-from .utils import hexdigest, hexhash_len, hextime
+from .utils import Pool, hexdigest, hexhash_len, hextime
 
 zero_hextime = "0" * 11
 zero_hash = "0" * hexhash_len
@@ -122,13 +122,14 @@ class Changelog:
         new_paths = []
         local_digests = set(r.digests for r in self.log())
         remote_revs = remote.leafs() if shallow else remote.log()
-        for remote_rev in remote_revs:
-            if remote_rev.digests in local_digests:
-                continue
-            path = remote_rev.path
-            new_paths.append(path)
-            payload = remote.pod.read(path)
-            self.pod.write(path, payload)
+        with Pool() as pool:
+            for remote_rev in remote_revs:
+                if remote_rev.digests in local_digests:
+                    continue
+                path = remote_rev.path
+                new_paths.append(path)
+                payload = remote.pod.read(path)
+                pool.submit(self.pod.write, path, payload)
         self.refresh()
         return new_paths
 
