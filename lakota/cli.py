@@ -243,7 +243,7 @@ import json
 import os
 import sys
 from datetime import datetime
-from io import StringIO
+from io import BytesIO, StringIO
 from itertools import chain
 
 from tabulate import tabulate
@@ -367,16 +367,16 @@ def export(args):
             logger.warn('Collection "%s" not found', clc_name)
         pod = export_pod.cd(clc_name)
         logger.info('Export collection "%s"', clc_name)
-        export_collection(pod, clc)
+        schema = clc.schema.dumps()
+        pod.write("_schema.json", json.dumps(schema).encode())
+        for srs in clc:
+            # Read series
+            export_series(pod, srs, args.file_type)
 
 
-def export_collection(pod, collection):
-    schema = collection.schema.dumps()
-    pod.write("_schema.json", json.dumps(schema).encode())
-    for srs_name in collection.ls():
-        # Read series
-        srs = collection / srs_name
-        frm = srs.frame()
+def export_series(pod, series, file_type):
+    if file_type == "csv":
+        frm = series.frame()
         columns = list(frm)
         # Save series as csv in buff
         buff = StringIO()
@@ -386,7 +386,14 @@ def export_collection(pod, collection):
         writer.writerows(rows)
         # Write generated content in pod
         buff.seek(0)
-        pod.write(f"{srs_name}.csv", buff.read().encode())
+        pod.write(f"{series.label}.csv", buff.read().encode())
+
+    elif file_type == "parquet":
+        df = series.df()
+        data = df.to_parquet(compression="brotli")
+        pod.write(f"{series.label}.parquet", data)
+    else:
+        exit(f'Unsupported file type "{file_type}"')
 
 
 def import_(args):
@@ -401,18 +408,20 @@ def import_(args):
             schema = Schema.loads(json.loads(json_schema))
             clc = repo.create_collection(schema, clc_name)
         logger.info('Import collection "%s"', clc_name)
-        import_collection(pod, clc)
+        for file_name in pod.ls():
+            if file_name.startswith("_"):
+                continue
+            import_series(pod, clc, file_name, args.file_type)
 
 
-def import_collection(pod, collection):
+def import_series(from_pod, collection, file_name, file_type):
+    if not file_type in ("csv", "parquet"):
+        exit(f'Invalid file_type "{file_type}"')
+
+    stem, ext = file_name.rsplit(".", 1)
     column_names = sorted(collection.schema)
-    for file_name in pod.ls():
-        if file_name.startswith("_"):
-            continue
-        # Read file
-        stem, ext = file_name.rsplit(".", 1)
-        assert ext == "csv"
-        buff = StringIO(pod.read(file_name).decode())
+    if ext == file_type == "csv":
+        buff = StringIO(from_pod.read(file_name).decode())
         reader = csv.reader(buff)
         headers = next(reader)
         assert sorted(headers) == column_names
@@ -420,6 +429,15 @@ def import_collection(pod, collection):
         frm = dict(zip(headers, columns))
         srs = collection / stem
         srs.write(frm)
+
+    elif ext == file_type == "parquet":
+        from pandas import read_parquet
+
+        buff = BytesIO(from_pod.read(file_name))
+        df = read_parquet(buff)
+        assert sorted(df.columns) == column_names
+        srs = collection / stem
+        srs.write(df)
 
 
 def length(args):
@@ -739,14 +757,20 @@ def run():
     parser_export = subparsers.add_parser("export")
     parser_export.add_argument("uri", help="Where to save the export")
     parser_export.add_argument(
-        "--collection", "-c", nargs="*", help="Export only the given collestion(s)"
+        "--collection", "-c", nargs="*", help="Export only the given collection(s)"
+    )
+    parser_export.add_argument(
+        "--file-type", "-T", default="csv", help="File type: csv (default) or parquet "
     )
     parser_export.set_defaults(func=export)
 
     parser_import = subparsers.add_parser("import")
     parser_import.add_argument("uri", help="From where to import collections")
     parser_import.add_argument(
-        "--collection", "-c", nargs="*", help="Import only the given collestion(s)"
+        "--file-type", "-T", default="csv", help="File type: csv (default) or parquet"
+    )
+    parser_import.add_argument(
+        "--collection", "-c", nargs="*", help="Import only the given collection(s)"
     )
     parser_import.set_defaults(func=import_)
 
