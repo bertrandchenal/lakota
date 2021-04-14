@@ -47,7 +47,13 @@ class Codec:
         # Apply codecs
         for codec_name in self.codec_names:
             codec = registry.codec_registry[codec_name]
-            arr = codec().encode(arr)
+            kw = {}
+            if codec_name == "blosc":
+                kw = {
+                    "cname": "zstd",
+                    "shuffle": codec.BITSHUFFLE,
+                }
+            arr = codec(**kw).encode(arr)
         return arr
 
     def decode(self, arr):
@@ -102,7 +108,7 @@ class SchemaColumn:
     def cast_scalar(self, value):
         return dtype(self.codec.dt).type(value)
 
-    def dump(self):
+    def dumps(self):
         return {
             "dt": str(self.codec.dt),
             "codecs": self.codec.codec_names,
@@ -176,8 +182,8 @@ class Schema:
             return Schema.kv(**columns)
         return Schema(**columns)
 
-    def dump(self):
-        columns = {c.name: c.dump() for c in self.columns.values()}
+    def dumps(self):
+        columns = {c.name: c.dumps() for c in self.columns.values()}
         return {"kind": self.kind, "columns": columns}
 
     def __iter__(self):

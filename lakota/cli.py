@@ -239,6 +239,7 @@ timestamp,value
 
 import argparse
 import csv
+import json
 import os
 import sys
 from datetime import datetime
@@ -370,6 +371,8 @@ def export(args):
 
 
 def export_collection(pod, collection):
+    schema = collection.schema.dumps()
+    pod.write("_schema.json", json.dumps(schema).encode())
     for srs_name in collection.ls():
         # Read series
         srs = collection / srs_name
@@ -392,10 +395,11 @@ def import_(args):
     names = args.collection or import_pod.ls()
     for clc_name in names:
         clc = repo / clc_name
-        if clc is None:
-            logger.warn('Collection "%s" not found', clc_name)
-            continue
         pod = import_pod.cd(clc_name)
+        if clc is None:
+            json_schema = pod.read("_schema.json").decode()
+            schema = Schema.loads(json.loads(json_schema))
+            clc = repo.create_collection(schema, clc_name)
         logger.info('Import collection "%s"', clc_name)
         import_collection(pod, clc)
 
@@ -403,6 +407,8 @@ def import_(args):
 def import_collection(pod, collection):
     column_names = sorted(collection.schema)
     for file_name in pod.ls():
+        if file_name.startswith("_"):
+            continue
         # Read file
         stem, ext = file_name.rsplit(".", 1)
         assert ext == "csv"
@@ -731,14 +737,14 @@ def run():
 
     # Add export command
     parser_export = subparsers.add_parser("export")
-    parser_export.add_argument("uri")
+    parser_export.add_argument("uri", help="Where to save the export")
     parser_export.add_argument(
         "--collection", "-c", nargs="*", help="Export only the given collestion(s)"
     )
     parser_export.set_defaults(func=export)
 
     parser_import = subparsers.add_parser("import")
-    parser_import.add_argument("uri")
+    parser_import.add_argument("uri", help="From where to import collections")
     parser_import.add_argument(
         "--collection", "-c", nargs="*", help="Import only the given collestion(s)"
     )

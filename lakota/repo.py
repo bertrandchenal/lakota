@@ -164,7 +164,7 @@ class Repo:
             schema, Schema
         ), "The schema parameter must be an instance of lakota.Schema"
         meta = []
-        schema_dump = schema.dump()
+        schema_dump = schema.dumps()
 
         # TODO assert collection does not already exists!
 
