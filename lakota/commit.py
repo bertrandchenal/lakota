@@ -300,9 +300,7 @@ class Commit:
             start_row["stop"] = start
             # If closed is open/close on left, start_row become the
             # opposite on right:
-            start_row["closed"] = Closed[start_row["closed"]].set_right(
-                closed.flip.left
-            )
+            start_row["closed"] = Closed[start_row["closed"]].set_right(not closed.left)
 
             if (
                 start_row["start"] == start_row["stop"]
@@ -340,7 +338,7 @@ class Commit:
             stop_row["start"] = stop
             # If closed is open/close on right, stop_row become the
             # opposite on left:
-            stop_row["closed"] = Closed[stop_row["closed"]].set_left(closed.flip.right)
+            stop_row["closed"] = Closed[stop_row["closed"]].set_left(not closed.right)
 
             if (
                 stop_row["start"] == stop_row["stop"]

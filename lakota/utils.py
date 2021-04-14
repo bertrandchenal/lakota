@@ -276,10 +276,6 @@ class Closed(Flag):
     def right(self):
         return bool(self & Closed.RIGHT)
 
-    @property
-    def flip(self):
-        return Closed.BOTH ^ self
-
     def set_left(self, value):
         return self | Closed.LEFT if value else self & Closed.RIGHT
 
