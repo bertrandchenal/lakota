@@ -157,7 +157,7 @@ class Pool:
     Threadpoolexecutor wrapper to simplify it's usage
     """
 
-    _pool = ThreadPoolExecutor(4)
+    _pool = ThreadPoolExecutor(16)
 
     def __init__(self):
         self.futures = []
