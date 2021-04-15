@@ -10,6 +10,7 @@ from enum import Flag
 from hashlib import sha1
 from itertools import islice
 from pathlib import PurePosixPath
+from threading import Lock
 from time import perf_counter, time
 
 from numpy import arange
@@ -154,27 +155,38 @@ def memoize(fn):
 
 class Pool:
     """
-    Threadpoolexecutor wrapper to simplify it's usage
+    Threadpoolexecutor wrapper to simplify its usage
     """
 
+    _lock = Lock()
     _pool = ThreadPoolExecutor(16)
 
     def __init__(self):
+        self.threaded = False
         self.futures = []
         self.results = []
 
     def __enter__(self):
+        if not settings.threaded:
+            return self
+        # Get lock and update self.threaded
+        locked = Pool._lock.acquire(blocking=False)
+        self.threaded = locked
         return self
 
     def submit(self, fn, *a, **kw):
-        if settings.threaded:
+        if self.threaded:
             self.futures.append(self._pool.submit(fn, *a, **kw))
         else:
             self.results.append(fn(*a, **kw))
 
     def __exit__(self, type, value, traceback):
-        if settings.threaded:
+        if self.threaded:
             self.results = [fut.result() for fut in self.futures]
+        # Release lock
+        if self.threaded:
+            Pool._lock.release()
+            self.threaded = False
 
 
 def profile_object(*roots):

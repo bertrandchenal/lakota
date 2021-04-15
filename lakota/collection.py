@@ -44,11 +44,11 @@ clct.squash()
 ```
 """
 
-import threading
 from collections import defaultdict
 from contextlib import contextmanager
 from datetime import datetime
 from itertools import chain
+from threading import Lock
 
 from .batch import Batch
 from .changelog import Changelog
@@ -66,8 +66,8 @@ class Collection:
         self.schema = schema
         self.label = label
         self.changelog = Changelog(self.pod / path)
-        self._local = threading.local()
-        self._local.batch = None
+        self.batch = None
+        self._batch_lock = Lock()
 
     def series(self, label):
         label = label.strip()
@@ -245,23 +245,13 @@ class Collection:
             self.changelog.refresh()
             return []
 
-        # Rewrite each series, based on `step` size arrays
-        all_labels = self.ls()
+        # Rewrite each series
         leaf = self.changelog.leaf()
         commit = leaf and leaf.commit(self)
-        # TODO run in parallel
         with self.multi() as batch:
-            for label in all_labels:
-                logger.info('Squash series "%s/%s"', self.label, label)
-                # Re-write each series. We use _find_squash_start to
-                # fast-forward in the series (we bet on the fact that
-                # most series are append-only)
-                start, closed = self._find_squash_start(commit, label, max_chunk)
-                series = self / label
-                prev_stop = None
-                for frm in series.paginate(start=start, closed=closed):
-                    series.write(frm, start=prev_stop, closed="r" if prev_stop else "b")
-                    prev_stop = frm.stop()
+            with Pool() as pool:
+                for series in self:
+                    pool.submit(self._squash_series, series, commit, max_chunk)
 
         # Remove old revisions
         to_remove = [r.path for r in revs]
@@ -273,12 +263,23 @@ class Collection:
         self.changelog.refresh()
         return batch.revs
 
-    def _find_squash_start(self, commit, label, max_chunk):
+    def _squash_series(self, series, commit, max_chunk):
+        logger.info('Squash series "%s/%s"', self.label, series.label)
+        # Re-write series. We use _find_squash_start to fast-forward
+        # in the series (we bet on the fact that most series are
+        # append-only)
+        start, closed = self._find_squash_start(commit, series, max_chunk)
+        prev_stop = None
+        for frm in series.paginate(start=start, closed=closed):
+            series.write(frm, start=prev_stop, closed="r" if prev_stop else "b")
+            prev_stop = frm.stop()
+
+    def _find_squash_start(self, commit, series, max_chunk):
         """
         Find the first "small" segment , and return its start values.
         """
         assert max_chunk > 0, "Parameter 'max_chunk' must be bigger than 0"
-        rows = list(commit.match(label))
+        rows = list(commit.match(series.label))
         if len(rows) <= max_chunk:
             return rows[-1]["stop"], "RIGHT"
 
@@ -304,16 +305,9 @@ class Collection:
 
     @contextmanager
     def multi(self, root=None):
-        b = Batch(self, root)
-        self.batch = b
-        yield b
-        b.flush()
-        self.batch = None
-
-    @property
-    def batch(self):
-        return self._local.batch
-
-    @batch.setter
-    def batch(self, b):
-        self._local.batch = b
+        with self._batch_lock:
+            b = Batch(self, root)
+            self.batch = b
+            yield b
+            b.flush()
+            self.batch = None

@@ -134,7 +134,7 @@ from numpy import asarray, concatenate, isin, repeat, where
 
 from .frame import Frame
 from .schema import Codec, Schema
-from .utils import Closed, hashed_path
+from .utils import Closed, Pool, hashed_path
 
 __all__ = ["Commit", "Segment"]
 
