@@ -121,8 +121,3 @@ itself by eating most of the host memory.
 Lakota sidesteps those two issues because it consumes directly the
 chunks of data without any intermediate conversions and benefits from
 the builtin compression and caching.
-
-
-## Roadmap / Ideas
-
-- Shallow clone
