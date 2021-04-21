@@ -1,3 +1,5 @@
+from numpy import ascontiguousarray, dtype, issubdtype
+
 from .batch import Batch
 from .changelog import phi
 from .commit import Commit
@@ -97,21 +99,25 @@ class Series:
         embedded = {}
         with Pool() as pool:
             for name in self.schema:
+                # Cast array & check len
                 arr = self.schema[name].cast(frame[name])
                 if arr_length is None:
                     arr_length = len(arr)
                 elif len(arr) != arr_length:
                     raise ValueError("Length mismatch")
+                # Encode content
                 data = self.schema[name].codec.encode(arr)
-                digest = hexdigest(data)
-                # XXX digest base on actual content is more robust
-                # from numpy import issubdtype, ascontiguousarray
-                # if issubdtype(arr.dtype, 'M'):
-                #     digest = hexdigest(arr.astype(int))
-                # else:
-                #     digest = hexdigest(ascontiguousarray(arr))
-
+                # Create digest (based on actual array for simple
+                # type, based on encoded content for O and U)
+                codec = self.schema[name].codec
+                if issubdtype(codec.dt, "M"):
+                    digest = hexdigest(ascontiguousarray(arr.view("i8")))
+                elif codec.dt in (dtype("O"), dtype("U")):
+                    digest = hexdigest(data)
+                else:
+                    digest = hexdigest(ascontiguousarray(arr))
                 all_dig.append(digest)
+
                 if (
                     len(data) < settings.embed_max_size
                 ):  # every small array gets embedded
