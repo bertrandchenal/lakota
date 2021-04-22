@@ -339,9 +339,9 @@ class MemPOD(POD):
 
     def write(self, relpath, data, mode="rb"):
         if self.isfile(relpath):
-            logger.debug("SKIP-WRITE %s %s", self.path, relpath)
+            logger.debug("SKIP-WRITE memory://%s %s", self.path, relpath)
             return
-        logger.debug("WRITE %s %s", self.parts, relpath)
+        logger.debug("WRITE memory://%s %s", "/".join(self.parts), relpath)
 
         current_path = tuple()
         relpath = self.split(relpath)
@@ -357,7 +357,9 @@ class MemPOD(POD):
                 current_file = self.store.get(current_path)
                 if current_file is not None:
                     assert isinstance(current_file, File)
-                    logger.debug("SKIP-WRITE memory://%s %s", self.path, relpath)
+                    logger.debug(
+                        "SKIP-WRITE memory://%s %s", self.path, "/".join(relpath)
+                    )
                 else:
                     self.store.set(current_path, File(data))
             else:
@@ -403,6 +405,7 @@ class MemPOD(POD):
             parent_folder.rm(path[-1])
 
     def read(self, relpath, mode="rb"):
+        logger.debug("READ memory://%s %s", "/".join(self.parts), relpath)
         path = self.parts + self.split(relpath)
         item = self.store.get(path)
         if not isinstance(item, File):
