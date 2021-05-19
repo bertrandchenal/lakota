@@ -273,12 +273,12 @@ def get_collection(repo, label):
     exit(f'Collection "{label}" not found')
 
 
-def get_series(repo, label):
+def get_series(repo, label, auto_create=False):
     if not "/" in label:
         exit(f'Label argument should have the form "collection/series"')
     c_label, s_label = label.split("/", 1)
     collection = get_collection(repo, c_label)
-    if label in collection:
+    if auto_create or label in collection:
         return collection / s_label
     match = [s for s in collection.ls() if s.startswith(s_label)]
     if len(match) == 1:
@@ -481,7 +481,7 @@ def rev(args):
             exit(f"Collection '{args.label}' not found")
     else:
         collection = repo.collection_series
-
+        series = None
     fmt = lambda a: " / ".join(map(str, a))
     for rev in collection.changelog.log():
         timestamp = str(datetime.fromtimestamp(int(rev.epoch, 16) / 1000))
@@ -563,7 +563,7 @@ def write(args):
     ```
     """
     repo = get_repo(args)
-    series = get_series(repo, args.label)
+    series = get_series(repo, args.label, auto_create=True)
     reader = csv.reader(sys.stdin)
     columns = zip(*reader)
     schema = series.schema
