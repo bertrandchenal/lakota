@@ -1,5 +1,4 @@
 """
-
 The `Repo` class manage the organisation of a storage location. It
 provides creation and deletion of collections, synchronization with
 remote repositories and garbage collection.
