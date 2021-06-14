@@ -31,7 +31,8 @@ def test_create():
     # Test double creation
     repo.create_collection(schema, "temperature")
     assert sorted(repo.ls()) == ["temperature"]
-    assert len(list(repo.collection_series.changelog)) == 1
+    collection_series = repo.registry / "default"
+    assert len(list(collection_series.changelog)) == 1
     repo.create_collection(schema, "temperature", "wind")
     assert sorted(repo.ls()) == ["temperature", "wind"]
 
@@ -50,7 +51,8 @@ def test_multi_create():
     assert temp_bru.frame() == frame
     assert temp_ory.frame() == frame_ory
 
-    assert len(list(repo.collection_series.changelog.log())) == 1
+    collection_series = repo.registry / "default"
+    assert len(list(collection_series.changelog.log())) == 1
     assert len(list(temperature.changelog.log())) == 2
 
     assert temperature.ls() == ["Brussels", "Paris"]

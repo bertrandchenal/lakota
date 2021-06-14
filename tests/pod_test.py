@@ -1,6 +1,6 @@
 import pytest
 
-from lakota.pod import S3POD, CachePOD, FilePOD, MemPOD
+from lakota.pod import POD, S3POD, CachePOD, FilePOD, MemPOD
 
 
 def test_cd(pod):
@@ -114,3 +114,10 @@ def test_walk(pod):
     assert sorted(sub_pod.walk(max_depth=10)) == ["baz"]
     assert sorted(sub_pod.walk(max_depth=3)) == ["baz"]
     assert sorted(sub_pod.walk(max_depth=2)) == ["baz"]
+
+
+def test_s3_with_secret():
+    pod = POD.from_uri("s3:///some/bucket?key=key&secret=secret&token=token")
+    assert isinstance(pod, S3POD)
+    assert str(pod.path) == "some/bucket"
+    assert pod.fs.key == "key"
