@@ -15,7 +15,17 @@ class S3POD(POD):
 
     protocol = "s3"
 
-    def __init__(self, path, netloc=None, profile=None, verify=True, fs=None):
+    def __init__(
+        self,
+        path,
+        netloc=None,
+        profile=None,
+        verify=True,
+        fs=None,
+        key=None,
+        secret=None,
+        token=None,
+    ):
         # TODO document use of param: endpoint_url='http://127.0.0.1:5300'
         self.path = path
         if fs:
@@ -29,6 +39,9 @@ class S3POD(POD):
                 client_kwargs["endpoint_url"] = f"http://{netloc}"
             self.fs = s3fs.S3FileSystem(
                 anon=False,
+                key=key,
+                secret=secret,
+                token=token,
                 client_kwargs=client_kwargs,
                 profile=profile,
             )

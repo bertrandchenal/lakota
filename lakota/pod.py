@@ -94,7 +94,18 @@ class POD:
                 )
             profile = kwargs.get("profile", [None])[0]
             verify = kwargs.get("verify", [""])[0].lower() != "false"
-            return S3POD(path, netloc=parts.netloc, profile=profile, verify=verify)
+            key = kwargs.get("key", [""])[0]
+            secret = kwargs.get("secret", [""])[0]
+            token = kwargs.get("token", [""])[0]
+            return S3POD(
+                path,
+                netloc=parts.netloc,
+                profile=profile,
+                verify=verify,
+                key=key,
+                secret=secret,
+                token=token,
+            )
         elif scheme == "ssh":
             raise NotImplementedError("SSH support not implemented yet")
         elif scheme in ("http", "https"):
