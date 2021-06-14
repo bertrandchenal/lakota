@@ -72,7 +72,7 @@ class Collection:
     def series(self, label):
         label = label.strip()
         if len(label) == 0:
-            raise ValueError(f"Invalid label")
+            raise ValueError(f"Invalid label: '{label}'")
         cls = KVSeries if self.schema.kind == "kv" else Series
         return cls(label, self)
 
