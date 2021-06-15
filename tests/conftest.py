@@ -13,8 +13,8 @@ from moto import mock_s3
 from lakota import POD
 from lakota.utils import settings
 
-http_uri = f"http://127.0.0.1:8081/some_prefix/test_repo"
-s3_netloc = f"127.0.0.1:8082"
+http_uri = "http://127.0.0.1:8081/some_prefix/test_repo"
+s3_netloc = "127.0.0.1:8082"
 
 
 def http_reset(path):

@@ -1,5 +1,7 @@
+from datetime import datetime
+
 import pytest
-from numpy import array, asarray
+from numpy import array, asarray, datetime64
 from pandas import DataFrame
 
 from lakota import Frame, Repo, Schema
@@ -234,22 +236,42 @@ def test_sort():
     assert frm.is_sorted() == True
 
 
-def test_rowdict(frame_values):
-    frm = Frame(base_schema, frame_values)
-    rows = list(zip(*frame_values.values()))
-    for pos, idx in enumerate(frm["category"]):
-        rd = frm.rowdict(idx)
-        assert tuple(rd.values()) == rows[pos]
-        assert list(rd.keys()) == ["category", "value"]
+def test_frame_record():
+    schema = Schema(timestamp="timestamp*", float_val="float", int_val="int")
+    values = {
+        "timestamp": [1589455901, 1589455902, 1589455903, 1589455904],
+        "float_val": [1, 2, 3, 4],
+        "int_val": [1, 2, 3, 4],
+    }
+    frm = Frame(schema, values)
 
+    records = list(frm.records(map_dtype="default"))
+    assert len(records) == len(frm)
+    assert records[0] == {
+        "timestamp": datetime(2020, 5, 14, 11, 31, 41),
+        "float_val": 1.0,
+        "int_val": 1,
+    }
+    assert records[-1] == {
+        "timestamp": datetime(2020, 5, 14, 11, 31, 44),
+        "float_val": 4.0,
+        "int_val": 4,
+    }
 
-def test_rows(frame_values):
-    frm = Frame(base_schema, frame_values)
-    expected = [
-        {"category": "a", "value": 1.1},
-        {"category": "b", "value": 2.2},
-        {"category": "c", "value": 3.3},
-        {"category": "d", "value": 4.4},
-        {"category": "e", "value": 5.5},
-    ]
-    assert list(frm.rows()) == expected
+    records = list(frm.records(map_dtype=None))
+    assert len(records) == len(frm)
+    assert records[0] == {
+        "timestamp": datetime64("2020-05-14T11:31:41"),
+        "float_val": 1.0,
+        "int_val": 1,
+    }
+    assert records[-1] == {
+        "timestamp": datetime64("2020-05-14T11:31:44"),
+        "float_val": 4.0,
+        "int_val": 4,
+    }
+
+    records = list(frm.records(map_dtype="epoch"))
+    assert len(records) == len(frm)
+    assert records[0] == {"timestamp": 1589455901, "float_val": 1.0, "int_val": 1}
+    assert records[-1] == {"timestamp": 1589455904, "float_val": 4.0, "int_val": 4}

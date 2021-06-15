@@ -157,16 +157,6 @@ class Frame:
     def empty(self):
         return len(self) == 0
 
-    def rowdict(self, *idx):
-        pos = self.index(self.schema.deserialize(idx), right=False)
-        values = self.schema.row(self, pos)
-        return dict(zip(self.schema.columns, values))
-
-    def rows(self):
-        for pos in range(len(self)):
-            values = self.schema.row(self, pos)
-            yield dict(zip(self.schema.columns, values))
-
     def index_slice(self, start=None, stop=None, closed="l"):
         """Slice between two index value. `closed` can be "l" (left, the
         default), "r" (right) "n" (none) or "b" (both).
@@ -223,7 +213,27 @@ class Frame:
         return len(values)
 
     def keys(self):
-        return iter(self.columns)
+        return list(self.columns)
+
+    def values(self, map_dtype=None):
+        """
+        Return iterator on frame columns. If given, `map_dtype` will also
+        convert the type of returned arrays (see `map_dtype` method on
+        `SchemaColumn`).
+        """
+        if not map_dtype:
+            return list(self.columns.values())
+        return [self.schema[k].map_dtype(self[k], style=map_dtype) for k in self.keys()]
+
+    def records(self, map_dtype="default"):
+        """
+        Return a list of dict. If `map_dtype` is set, the values of the
+        dicts will be typed based on selected style (see `map_dtype`
+        method on `SchemaColumn`)
+        """
+        keys = self.keys()
+        for vals in zip(*self.values(map_dtype=map_dtype)):
+            yield dict(zip(keys, vals))
 
     def start(self):
         return self.schema.row(self, pos=0, full=False)

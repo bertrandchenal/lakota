@@ -207,6 +207,7 @@ class Series:
         return Query(self, **kw).frame()
 
     def df(self, **kw):
+        # TODO implement order (to "tail" a series)! (or .start and .stop based on last rev)
         return Query(self, **kw).df()
 
 

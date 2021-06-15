@@ -1,5 +1,6 @@
 import shlex
 from dataclasses import dataclass
+from datetime import datetime
 
 from numcodecs import registry
 from numpy import asarray, ascontiguousarray, dtype, frombuffer, issubdtype, ndarray
@@ -14,6 +15,20 @@ ALIASES = {
 }
 
 __all__ = ["Schema"]
+
+# Provide conversion between numpy and python types
+DTYPE_MAP = {
+    "default": {
+        dtype("<M8[s]"): datetime,
+        dtype("float64"): float,
+        dtype("int64"): int,
+    },
+    "epoch": {
+        dtype("<M8[s]"): int,
+        dtype("float64"): float,
+        dtype("int64"): int,
+    },
+}
 
 
 class Codec:
@@ -105,6 +120,14 @@ class SchemaColumn:
             return arr
         return asarray(arr, dtype=self.codec.dt)
 
+    def map_dtype(self, arr, style="default"):
+        """
+        Return `arr` (based on numpy types) converted to python
+        type. `style` can be default or `epoch`.
+        """
+        mapping = DTYPE_MAP[style]
+        return arr.astype(mapping[self.codec.dt])
+
     def cast_scalar(self, value):
         return dtype(self.codec.dt).type(value)
 
@@ -187,6 +210,7 @@ class Schema:
         return {"kind": self.kind, "columns": columns}
 
     def __iter__(self):
+        # TODO return self.columns.values and add an ls method (to behave like repo.ls)
         return iter(self.columns.keys())
 
     def __repr__(self):
