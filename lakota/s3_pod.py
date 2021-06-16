@@ -39,9 +39,9 @@ class S3POD(POD):
                 client_kwargs["endpoint_url"] = f"http://{netloc}"
             self.fs = s3fs.S3FileSystem(
                 anon=False,
-                key=key,
-                secret=secret,
-                token=token,
+                key=key or None,
+                secret=secret or None,
+                token=token or None,
                 client_kwargs=client_kwargs,
                 profile=profile,
             )
