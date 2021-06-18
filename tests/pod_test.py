@@ -2,6 +2,8 @@ import pytest
 
 from lakota.pod import POD, S3POD, CachePOD, FilePOD, MemPOD
 
+deadbeef = bytes.fromhex("DEADBEEF")
+
 
 def test_cd(pod):
     pod2 = pod / "ham"
@@ -33,36 +35,31 @@ def test_simple_ls(pod):
 
 
 def test_read_write(pod):
-    data = bytes.fromhex("DEADBEEF")
     pod.write("key", data)
     assert pod.ls() == ["key"]
     res = pod.read("key")
-    assert res == data
+    assert res == deadbeef
 
 
 def test_multi_write(pod):
-    data = bytes.fromhex("DEADBEEF")
     # First write
-    res = pod.write("key", data)
-    assert res == len(data)
+    res = pod.write("key", deadbeef)
+    assert res == len(deadbeef)
     # second one
-    res = pod.write("key", data)
+    res = pod.write("key", deadbeef)
     assert res is None
 
 
 def test_write_delete(pod):
-    data = bytes.fromhex("DEADBEEF")
-
-    pod.write("key", data)
+    pod.write("key", deadbeef)
     pod.rm("key")
     assert pod.ls() == []
 
 
 def test_write_delete_recursive(pod):
-    data = bytes.fromhex("DEADBEEF")
     top_pod = pod.cd("top_dir")
 
-    top_pod.write("sub_dir/key", data)
+    top_pod.write("sub_dir/key", deadbeef)
     if isinstance(pod, MemPOD):
         with pytest.raises(FileNotFoundError):
             top_pod.rm(".")
@@ -77,11 +74,10 @@ def test_write_delete_recursive(pod):
 
 def test_write_rm_many(pod):
     assert pod.ls() == []
-    data = bytes.fromhex("DEADBEEF")
 
-    pod.write("key", data)
-    pod.write("ham/key", data)
-    pod.write("ham/spam/key", data)
+    pod.write("key", deadbeef)
+    pod.write("ham/key", deadbeef)
+    pod.write("ham/spam/key", deadbeef)
 
     assert len(pod.ls()) == 2
     assert len(pod.ls("ham")) == 2
@@ -121,3 +117,30 @@ def test_s3_with_secret():
     assert isinstance(pod, S3POD)
     assert str(pod.path) == "some/bucket"
     assert pod.fs.key == "key"
+
+
+def test_mempod_lru():
+    pod = MemPOD("/", lru_size=100 * len(deadbeef))
+
+    # Fill the pod until the selected limit
+    for i in range(1, 101):
+        pod.write(str(i), deadbeef)
+        # Pod by default will contain an empty root and the selected
+        # root ("/"). hence the `+2`
+        assert len(pod.store.kv) == i + 2
+
+    # Any extra write will trigger a discard of an "older" file
+    for i in range(101, 111):
+        pod.write(str(i), deadbeef)
+    assert len(pod.store.kv) == 102
+    assert pod.store._size
+
+    # Detect discarded files, makes sure newest files are still there
+    cnt = 0
+    for i in range(1, 110):
+        try:
+            pod.read(str(i))
+        except FileNotFoundError:
+            assert i < 101
+            cnt += 1
+    assert cnt == 10

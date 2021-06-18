@@ -257,11 +257,13 @@ class Store:
 
     def __init__(self, lru_size=None):
         self.kv = {tuple(): Folder()}
-        self._update_lock = Lock()
-        self._lru = set()
-        self._size = 0
-        self.lru_size = None
+        self._update_lock = Lock()  # Lock to serialize updates of
+        # self._size
+        self._lru = set()  # Pool of recent keys
+        self._size = 0  # Actual size
+        self.lru_size = None  # Max size
         if lru_size is not None and lru_size > 0:
+            # Enable LRU machinery
             self.lru_size = lru_size
 
     def get(self, key):
@@ -282,14 +284,9 @@ class Store:
         return self.kv.setdefault(key, value)
 
     def delete(self, key):
-        try:
-            item = self.kv.pop(key)
-            if isinstance(item, File):
-                self._update_size(-len(item.content))
-        except:
-            import pdb
-
-            pdb.set_trace()
+        item = self.kv.pop(key)
+        if isinstance(item, File):
+            self._update_size(-len(item.content))
 
     def _lru_add(self, path):
         if self.lru_size is None:
