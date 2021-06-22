@@ -18,24 +18,23 @@ def test_simple_ls(pod):
             pod.ls("A")
     assert pod.ls("B", missing_ok=True) == []
 
-    data = b"DEADBEEF"
     # Add file in a folder
-    pod.write("A/a", data)
+    pod.write("A/a", deadbeef)
     assert pod.ls() == ["A"]
     assert pod.ls("A") == ["a"]
 
     # Add top-level file
-    pod.write("B", data)
+    pod.write("B", deadbeef)
     assert sorted(pod.ls()) == ["A", "B"]
 
     # Add file in sub-pod
     sub_pod = pod.cd("C/D")
-    sub_pod.write("d", data)
+    sub_pod.write("d", deadbeef)
     assert sorted(pod.ls("C/D")) == ["d"]
 
 
 def test_read_write(pod):
-    pod.write("key", data)
+    pod.write("key", deadbeef)
     assert pod.ls() == ["key"]
     res = pod.read("key")
     assert res == deadbeef
@@ -120,27 +119,38 @@ def test_s3_with_secret():
 
 
 def test_mempod_lru():
-    pod = MemPOD("/", lru_size=100 * len(deadbeef))
+    lru_size = 100 * len(deadbeef)
+    pod = MemPOD("/", lru_size=lru_size)
 
     # Fill the pod until the selected limit
-    for i in range(1, 101):
+    for i in range(1, 51):
         pod.write(str(i), deadbeef)
         # Pod by default will contain an empty root and the selected
-        # root ("/"). hence the `+2`
-        assert len(pod.store.kv) == i + 2
+        # path ("/"). hence the `+2`
+        assert len(pod.store.front_kv) == i + 2
+        assert len(pod.store.back_kv) == 0
 
-    # Any extra write will trigger a discard of an "older" file
-    for i in range(101, 111):
+    # When the above loop is done, front_kv is full. The very next
+    # write will trigger the swap (because the size of the content of
+    # front reach lru_size // 2
+
+    for i in range(1, 110):
         pod.write(str(i), deadbeef)
-    assert len(pod.store.kv) == 102
-    assert pod.store._size
+    assert len(pod.store.front_kv) == 9  # aka 109 - 100
+    assert pod.store._size <= lru_size
 
     # Detect discarded files, makes sure newest files are still there
-    cnt = 0
-    for i in range(1, 110):
+    for i in range(1, 60):
         try:
             pod.read(str(i))
         except FileNotFoundError:
-            assert i < 101
-            cnt += 1
-    assert cnt == 10
+            assert i <= 51
+        else:
+            assert i > 50
+
+    # Pathological case: write a value bigger than the request lru_size
+    large_data = deadbeef * 100
+    pod.write("0", large_data)
+    # A swap was triggered, the data is already in back:
+    assert pod.store.back_kv["/", "0"]
+    assert pod.read("0") == large_data

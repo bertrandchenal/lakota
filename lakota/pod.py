@@ -18,9 +18,7 @@ It is mainly used through the `lakota.Repo` class.
 import io
 import os
 import shutil
-import sys
 from pathlib import Path, PurePosixPath
-from random import choice
 from threading import Lock
 from time import time
 from urllib.parse import parse_qs, urlsplit
@@ -256,67 +254,57 @@ class Store:
     """Utility class for MemPOD"""
 
     def __init__(self, lru_size=None):
-        self.kv = {tuple(): Folder()}
-        self._update_lock = Lock()  # Lock to serialize updates of
-        # self._size
-        self._lru = set()  # Pool of recent keys
+        self.front_kv = {tuple(): Folder()}
+        self.back_kv = {}
+        self._update_lock = Lock()  # Lock to serialize updates
         self._size = 0  # Actual size
-        self.lru_size = None  # Max size
-        if lru_size is not None and lru_size > 0:
-            # Enable LRU machinery
-            self.lru_size = lru_size
+        self.lru_size = lru_size if lru_size and lru_size > 0 else None
 
     def get(self, key):
-        item = self.kv.get(key)
+        item = self.front_kv.get(key)
+        if self.lru_size is None:
+            return item
+
+        if item is None:
+            # Percolate from back_kv
+            item = self.back_kv.get(key)
+            if item is not None:
+                self.front_kv[key] = item
         if isinstance(item, File):
             item.touch()
         return item
 
     def set(self, key, value):
         assert isinstance(value, (File, Folder))
-        self.kv[key] = value
-        if isinstance(value, File):
-            self._lru_add(key)
+        self.front_kv[key] = value
+        if self.lru_size is not None and isinstance(value, File):
             self._update_size(len(value.content))
 
     def setdefault(self, key, value):
-        assert isinstance(value, (File, Folder))
-        return self.kv.setdefault(key, value)
+        assert isinstance(value, Folder)
+        return self.front_kv.setdefault(key, value)
 
     def delete(self, key):
-        item = self.kv.pop(key)
+        item = self.front_kv.pop(key, None)
+        if self.lru_size is None:
+            return
+
+        self.back_kv.pop(key, None)
         if isinstance(item, File):
             self._update_size(-len(item.content))
 
-    def _lru_add(self, path):
-        if self.lru_size is None:
-            return
-        while len(self._lru) >= 20:
-            # remove random item
-            c = choice(list(self._lru))
-            self._lru.discard(c)
-        self._lru.add(path)
-
-    def _get_ts(self, k):
-        item = self.kv.get(k)
-        if item is None:
-            return sys.maxsize
-        return item.ts
-
-    def _lru_pop(self):
-        lru = sorted(self._lru, key=lambda k: self._get_ts(k))
-        path = lru[0]
-        self._lru.discard(path)
-        return path
+    def swap(self):
+        self.back_kv = self.front_kv
+        self.front_kv = {tuple(): Folder()}
+        self._size = 0
 
     def _update_size(self, value):
         self._size += value
         if value < 0 or self.lru_size is None:
             return
         with self._update_lock:
-            while self._size > self.lru_size:
-                oldest = self._lru_pop()
-                self.delete(oldest)
+            if self._size > self.lru_size // 2:
+                self.swap()
 
 
 class MemPOD(POD):
@@ -523,7 +511,7 @@ class SSHPOD(POD):
         return self.client.open(path, mode).read()
 
 
-# Tigger imports if related dependencies are present
+# Trigger imports if related dependencies are present
 if requests is not None:
     from .http_pod import HttpPOD
 if s3fs is not None:
