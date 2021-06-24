@@ -8,6 +8,7 @@ from numpy import asarray, ascontiguousarray, dtype, frombuffer, issubdtype, nda
 DTYPES = [dtype(s) for s in ("datetime64[s]", "int64", "float64", "U", "O")]
 
 ALIASES = {
+    "date": "M8[D]",
     "timestamp": "M8[s]",
     "float": "f8",
     "int": "i8",
@@ -35,12 +36,6 @@ class Codec:
     def __init__(self, dt, *codec_names):
         # Make sure dtype is valid
         dt = dtype(ALIASES.get(dt, dt))
-        for base_type in DTYPES:
-            if issubdtype(dt, base_type):
-                dt = base_type
-                break
-        else:
-            raise ValueError(f"Column type '{dt}' not supported")
         self.dt = dt
         # Build list of codecs
         if codec_names:

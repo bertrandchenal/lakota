@@ -329,7 +329,6 @@ def test_column_types(repo):
         series = clct / "-"
         series.write(df)
         frm = series.frame()
-
         for dt in ALIASES:
             assert all(frm[str(dt)] == df[str(dt)])
 
