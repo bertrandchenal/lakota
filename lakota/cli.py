@@ -757,7 +757,10 @@ def run():
     parser_export = subparsers.add_parser("export")
     parser_export.add_argument("uri", help="Where to save the export")
     parser_export.add_argument(
-        "--collection", "-c", nargs="*", help="Export only the given collection(s)"
+        "--collection",
+        "-c",
+        action="append",
+        help="Export only the given collection(s)",
     )
     parser_export.add_argument(
         "--file-type", "-T", default="csv", help="File type: csv (default) or parquet "
@@ -770,7 +773,10 @@ def run():
         "--file-type", "-T", default="csv", help="File type: csv (default) or parquet"
     )
     parser_import.add_argument(
-        "--collection", "-c", nargs="*", help="Import only the given collection(s)"
+        "--collection",
+        "-c",
+        action="append",
+        help="Import only the given collection(s)",
     )
     parser_import.set_defaults(func=import_)
 
