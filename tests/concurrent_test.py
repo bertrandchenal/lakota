@@ -1,3 +1,5 @@
+from time import sleep
+
 import numpy
 from dask.distributed import Client, LocalCluster
 from pandas import DataFrame, date_range
@@ -6,6 +8,7 @@ from lakota import POD, Frame, Repo, Schema
 from lakota.utils import timeit
 
 schema = Schema(timestamp="M8[s] *", value="int")
+years = list(range(2000, 2020))
 
 
 def insert(args):
@@ -21,7 +24,6 @@ def insert(args):
             "value": numpy.round(numpy.random.random(len(ts)) * 1000, decimals=0),
         }
     )
-
     sgm = Frame(schema, df)
     series.write(sgm)
     return len(sgm)
@@ -36,7 +38,6 @@ def test_insert(pod):
     token = pod.token
     cluster = LocalCluster(processes=False)
     client = Client(cluster)
-    years = list(range(2000, 2020))
     args = [(token, label, y) for y in years]
     with timeit(f"\nWRITE ({pod.protocol})"):
         fut = client.map(insert, args)
@@ -54,3 +55,37 @@ def test_insert(pod):
         assert len(df) == 1440
         df = series["2015-12-31":"2016-01-02"].df()
         assert len(df) == 2880
+
+
+def do_squash_and_gc(token):
+    pod = POD.from_token(token)
+    for i in range(10):
+        repo = Repo(pod=pod)
+        repo.gc()
+        sleep(0.05)
+
+
+def test_gc():
+    # Create pod, repo & collection
+    pod = POD.from_uri("memory://")
+    token = pod.token
+    label = "my_label"
+    repo = Repo(pod=pod)
+    clc = repo.create_collection(schema, "my_collection")
+    # Start cluster & schedule concurrent writes & gc
+    cluster = LocalCluster(processes=False)
+    client = Client(cluster)
+    args = [(token, label, y) for y in years]
+    insert_fut = client.map(insert, args)
+    gc_fut = client.submit(do_squash_and_gc, token)
+    assert sum(client.gather(insert_fut)) == 10_519_200
+    client.gather(gc_fut)
+    client.close()
+    cluster.close()
+    import pdb
+
+    pdb.set_trace()
+    # Read data back
+    clc.merge()
+    frm = clc.series("my_label").frame()
+    assert len(frm) == 10_519_200
