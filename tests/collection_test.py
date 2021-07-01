@@ -322,3 +322,6 @@ def test_multi_batch():
 
     assert temperature.series("Paris").frame().empty
     assert not temperature.series("Brussels").frame().empty
+
+
+## TODO test of schema update of existing collection

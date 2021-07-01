@@ -1,6 +1,16 @@
 from .changelog import phi
 from .commit import Commit
 
+# TODO batch should first do collection.repo.pod.read('arena') to know
+# where to write. Or instanciate an arena object that abstract those
+# concepts.  it should also raise an exception if elapsed time since
+# the first write gets too big.
+
+# NOTE that changelog is not affected, because it creates data that is
+# not impacted by gc
+
+__all__ = ["Batch"]
+
 
 class Batch:
     def __init__(self, collection, root=False):

@@ -56,7 +56,7 @@ from .commit import Commit
 from .series import KVSeries, Series
 from .utils import Pool, hashed_path, logger, settings
 
-__all__ = ["Collection", "Batch"]
+__all__ = ["Collection"]
 
 
 class Collection:
@@ -172,7 +172,10 @@ class Collection:
         first_ci, *other_ci = [h.commit(self) for h in heads]
         root_ci = root.commit(self) if root else []
         # Pile all rows for all other commit into the first one
-        self.batch = True
+        self.batch = True  # TODO use a real batch instance but adapt
+        # multi() to accept the list of heads as
+        # parent (and batch will use first parent as
+        # last_ci in flush)
         for ci in other_ci:
             for pos in range(len(ci)):
                 row = ci.at(pos)

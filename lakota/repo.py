@@ -76,6 +76,7 @@ nb_file_deleted = repo.gc()
 ```
 """
 
+from itertools import chain
 
 from .changelog import zero_hash
 from .collection import Collection
@@ -154,7 +155,7 @@ class Repo:
         meta = []
         schema_dump = schema.dumps()
 
-        # TODO assert collection does not already exists!
+        # TODO assert collection does not already exists! (and use raise_if_exists)
 
         series = self.registry.series(namespace)
         for label in labels:
@@ -294,26 +295,33 @@ class Repo:
         Loop on all series, collect all used digests, and delete obsolete
         ones.
         """
-        # XXX remove old revisions (anything before a pack commit)
-        # TODO tests concurrent execution of gc()
+        # Collect digests across folders
+        base_folders = self.pod.ls()
+        with Pool() as pool:
+            for folder in base_folders:
+                pool.submit(self._walk_folder, folder)
+        all_dig = set(chain(*pool.results))
+
+        # Collect digest from changelogs. Because revision (in
+        # changelog ) are written after the segments (in folders), we
+        # are sure to not delete data created concurrently.
+        self.refresh()
         active_digests = set(self.registry.digests())
         for namespace in self.registry.ls():
             for clct in self.search(namespace=namespace):
                 active_digests.update(clct.digests())
 
-        base_folders = self.pod.ls()
-        with Pool() as pool:
-            for folder in base_folders:
-                pool.submit(self._gc_folder, folder, active_digests)
-        count = sum(pool.results)
-        return count
+        # Delete files on fs not in changelogs
+        to_delete = all_dig - active_digests
+        for dig in to_delete:
+            path = hashed_path(dig)
+            print("RM", path)
+            self.pod.rm(path, missing_ok=True)
 
-    def _gc_folder(self, folder, active_digests):
-        count = 0
+    def _walk_folder(self, folder):
+        digs = []
         pod = self.pod.cd(folder)
         for filename in pod.walk(max_depth=2):
-            digest = folder + filename.replace("/", "")
-            if digest not in active_digests:
-                count += 1
-                pod.rm(filename, missing_ok=True)
-        return count
+            digs.append(folder + filename.replace("/", ""))
+
+        return digs
