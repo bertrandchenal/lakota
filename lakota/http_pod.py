@@ -66,7 +66,20 @@ class HttpPOD(POD):
             "missing_ok": "true" if missing_ok else "",
             "path": path,
         }
-        resp = self.session.post(self.base_uri + "rm", params, params=params)
+        resp = self.session.post(self.base_uri + "rm", params=params)
+        resp.raise_for_status()
+
+    def mv(self, from_path, to_path):
+        orig = str(self.path / from_path)
+        dest = str(self.path / to_path)
+        logger.debug(
+            "MOVE %s://%s to %s://%s", self.protocol, orig, self.protocol, dest
+        )
+        params = {
+            "from_path": orig,
+            "to_path": dest,
+        }
+        resp = self.session.post(self.base_uri + "mv", params=params)
         resp.raise_for_status()
 
     def walk(self, max_depth=None):

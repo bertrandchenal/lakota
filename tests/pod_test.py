@@ -91,6 +91,20 @@ def test_write_rm_many(pod):
     assert res == []
 
 
+def test_mv(pod):
+    assert pod.ls() == []
+    pod.write("key", deadbeef)
+
+    pod.mv("key", "ham/key")
+    assert pod.read("ham/key") == deadbeef
+
+    pod.mv("ham/key", "ham/spam/key")
+    assert pod.read("ham/spam/key") == deadbeef
+
+    assert pod.ls() == ["ham"]
+    assert pod.ls("ham/spam") == ["key"]
+
+
 def test_walk(pod):
     data = b""
     pod.write("ham/spam/foo", data)

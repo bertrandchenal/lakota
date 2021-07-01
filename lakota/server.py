@@ -99,6 +99,16 @@ def pod(repo, action, relpath=None):
             return 'Path "{relpath}" not found', 404
         return {"status": "ok"}
 
+    elif action == "mv":
+        from_path = request.args["from_path"]
+        to_path = request.args["to_path"]
+
+        try:
+            repo.pod.mv(from_path, to_path)
+        except FileNotFoundError:
+            return 'Path "{from_path}" not found', 404
+        return {"status": "ok"}
+
     elif action == "write":
         try:
             info = repo.pod.write(relpath, request.data)
