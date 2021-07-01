@@ -82,9 +82,6 @@ def test_gc():
     client.gather(gc_fut)
     client.close()
     cluster.close()
-    import pdb
-
-    pdb.set_trace()
     # Read data back
     clc.merge()
     frm = clc.series("my_label").frame()
