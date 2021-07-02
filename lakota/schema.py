@@ -121,7 +121,10 @@ class SchemaColumn:
         type. `style` can be default or `epoch`.
         """
         mapping = DTYPE_MAP[style]
-        return arr.astype(mapping[self.codec.dt])
+        dt = mapping.get(self.codec.dt)
+        if dt is None:
+            return arr
+        return arr.astype(dt)
 
     def cast_scalar(self, value):
         return dtype(self.codec.dt).type(value)
