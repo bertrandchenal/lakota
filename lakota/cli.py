@@ -659,8 +659,8 @@ def gc(args):
     ```
     """
     repo = get_repo(args)
-    cnt = repo.gc()
-    print(f"{cnt} segments deleted")
+    hard, _ = repo.gc()
+    print(f"{hard} segments deleted")
 
 
 def serve(args):
