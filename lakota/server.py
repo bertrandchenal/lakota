@@ -102,9 +102,10 @@ def pod(repo, action, relpath=None):
     elif action == "mv":
         from_path = request.args["from_path"]
         to_path = request.args["to_path"]
+        missing_ok = request.args.get("missing_ok", "").lower() == "true"
 
         try:
-            repo.pod.mv(from_path, to_path)
+            repo.pod.mv(from_path, to_path, missing_ok=missing_ok)
         except FileNotFoundError:
             return 'Path "{from_path}" not found', 404
         return {"status": "ok"}

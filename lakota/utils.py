@@ -36,6 +36,7 @@ class Settings:
     embed_max_size: int
     page_len: int
     squash_max_chunk: int
+    timeout: int
 
 
 settings = Settings(
@@ -44,7 +45,8 @@ settings = Settings(
     debug=False,
     embed_max_size=1024,
     page_len=500_000,
-    squash_max_chunk=4,
+    squash_max_chunk=4,  # Max number of small chunks in a series
+    timeout=600 * 1000,  # Max duration for a write batch (in ms)
 )
 
 

@@ -1,10 +1,11 @@
 from itertools import product
+from time import sleep
 
 import pytest
 
 from lakota import Repo, Schema
 from lakota.pod import MemPOD
-from lakota.utils import chunky
+from lakota.utils import chunky, settings
 
 LABELS = "zero one two three four five six seven eight nine".split()
 SCHEMA = Schema(timestamp="int *", value="float")
@@ -136,11 +137,11 @@ def test_label_regexp():
 def test_gc(repo, large):
     # Because we auto-embed small arrays in commit, we have to test
     # both small and big arrays.
-
+    labels = ["label_a", "label_b"]
     coll = repo.create_collection(SCHEMA, "a_collection")
     size = 100_000 if large else 10
 
-    for offset, label in enumerate(("label_a", "label_b")):
+    for offset, label in enumerate(labels):
         series = coll / label
         for i in range(offset, offset + 10):
             series.write(
@@ -154,13 +155,47 @@ def test_gc(repo, large):
     coll = repo / "a_collection"
     coll.merge()
 
-    # Launch garbage collection
-    count = repo.gc()
-    assert count == 0
+    # Launch garbage collection, no commit have beend deleted so there
+    # is nothing to collect
+    counts = repo.gc()
+    assert counts == (0, 0)
 
     # Read back data
     coll = repo / "a_collection"
-    assert coll.ls() == ["label_a", "label_b"]
+    assert coll.ls() == labels
+
+    if not large:
+        # Not need to test further as all data will be embedded in
+        # commits
+        return
+
+    # Squash collection (this delete older commits) & test again.
+    coll.squash()
+    hard, soft = repo.gc()
+    assert hard == 0
+    assert soft > 0
+    coll.refresh()
+    for label in labels:
+        frm = coll.series(label).frame()
+        assert len(frm) == 100009
+
+    # Default timestamp is 10min, so consecutive gc should be a noop
+    hard, soft = repo.gc()
+    assert hard == 0
+    assert soft == 0
+
+    # Set timeout to zero and sleep a bit, to force deletions
+    sleep(0.1)
+    _timeout = settings.timeout
+    settings.timeout = 0
+    hard, soft = repo.gc()
+    assert hard > 0
+    assert soft == 0
+    settings.timeout = _timeout
+
+    # Read back data
+    coll = repo / "a_collection"
+    assert coll.ls() == labels
 
 
 def test_refresh():

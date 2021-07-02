@@ -104,6 +104,11 @@ def test_mv(pod):
     assert pod.ls() == ["ham"]
     assert pod.ls("ham/spam") == ["key"]
 
+    with pytest.raises(FileNotFoundError):
+        pod.mv("spam", "ham/spam")
+
+    pod.mv("spam", "ham/spam", missing_ok=True)
+
 
 def test_walk(pod):
     data = b""

@@ -213,13 +213,16 @@ class FilePOD(POD):
                     return
                 raise
 
-    def mv(self, from_path, to_path):
+    def mv(self, from_path, to_path, missing_ok=False):
         orig = self.path / from_path
         dest = self.path / to_path
         logger.debug("MOVE %s to %s", orig, dest)
-        assert self.isfile(orig)
         dest.parent.mkdir(parents=True, exist_ok=True)
-        orig.rename(dest)
+        try:
+            orig.rename(dest)
+        except FileNotFoundError:
+            if not missing_ok:
+                raise
 
     @property
     def size(self):
@@ -416,9 +419,14 @@ class MemPOD(POD):
             raise FileNotFoundError(f'Path "{path}" not found')
         return item.content
 
-    def mv(self, from_path, to_path):
+    def mv(self, from_path, to_path, missing_ok=False):
         logger.debug("MOVE %s to %s", from_path, to_path)
-        data = self.read(from_path)
+        try:
+            data = self.read(from_path)
+        except FileNotFoundError:
+            if missing_ok:
+                return
+            raise
         self.write(to_path, data)
         self.rm(from_path)
 
@@ -479,8 +487,8 @@ class CachePOD(POD):
         except FileNotFoundError:
             pass
 
-    def mv(self, from_path, to_path):
-        self.remote.mv(from_path, to_path)
+    def mv(self, from_path, to_path, missing_ok=False):
+        self.remote.mv(from_path, to_path, missing_ok=missing_ok)
         try:
             self.local.mv(from_path, to_path)
         except FileNotFoundError:

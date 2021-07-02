@@ -91,8 +91,12 @@ class S3POD(POD):
                 return
             raise
 
-    def mv(self, from_path, to_path):
+    def mv(self, from_path, to_path, missing_ok=False):
         orig = str(self.path / from_path)
         dest = str(self.path / to_path)
         logger.debug("MOVE s3://%s to s3://%s", orig, dest)
-        self.fs.mv(orig, dest)
+        try:
+            self.fs.mv(orig, dest)
+        except FileNotFoundError:
+            if not missing_ok:
+                raise

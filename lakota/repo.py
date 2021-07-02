@@ -77,12 +77,13 @@ nb_file_deleted = repo.gc()
 """
 
 from itertools import chain
+from time import time
 
 from .changelog import zero_hash
 from .collection import Collection
 from .pod import POD
 from .schema import Schema
-from .utils import Pool, hashed_path, hexdigest, logger
+from .utils import Pool, hashed_path, hexdigest, hextime, logger, settings
 
 __all__ = ["Repo"]
 
@@ -295,6 +296,7 @@ class Repo:
         Loop on all series, collect all used digests, and delete obsolete
         ones.
         """
+        logger.info("Start GC")
         # Collect digests across folders
         base_folders = self.pod.ls()
         with Pool() as pool:
@@ -302,21 +304,54 @@ class Repo:
                 pool.submit(self._walk_folder, folder)
         all_dig = set(chain(*pool.results))
 
-        # Collect digest from changelogs. Because revision (in
-        # changelog ) are written after the segments (in folders), we
-        # are sure to not delete data created concurrently.
+        # Collect digest from changelogs. Because commits are written
+        # after the segments, we minimize chance to bury data created
+        # concurrently.
         self.refresh()
         active_digests = set(self.registry.digests())
         for namespace in self.registry.ls():
             for clct in self.search(namespace=namespace):
                 active_digests.update(clct.digests())
 
-        # Delete files on fs not in changelogs
-        to_delete = all_dig - active_digests
-        for dig in to_delete:
-            path = hashed_path(dig)
-            print("RM", path)
-            self.pod.rm(path, missing_ok=True)
+        nb_hard_del = 0
+        nb_soft_del = 0
+        current_ts_ext = f".{hextime()}"
+        deadline = hextime(time() - settings.timeout)
+        # Soft-Delete ("bury") files on fs not in changelogs
+        inactive = all_dig - active_digests
+        for dig in inactive:
+            if not "." in dig:
+                # Disable digest
+                folder, filename = hashed_path(dig)
+                path = str(folder / filename)
+                self.pod.mv(path, path + current_ts_ext, missing_ok=True)
+                nb_soft_del += 1
+                continue
+
+            # Inactive file, check timestamp & delete or re-enable it
+            dig, ext = dig.split(".")
+
+            if ext > deadline:
+                # ext contains a ts created recently, we can not act on it yet
+                continue
+
+            folder, filename = hashed_path(dig)
+            path = str(folder / filename)
+
+            if dig in active_digests:
+                # Re-enable by removing extension
+                self.pod.mv(path + f".{ext}", path, missing_ok=True)
+            else:
+                # Permanent deletion
+                self.pod.rm(path + f".{ext}", missing_ok=True)
+                nb_hard_del += 1
+
+        logger.info(
+            "End of GC (soft deletions: %s, hard deletions: %s)",
+            nb_hard_del,
+            nb_soft_del,
+        )
+        return nb_hard_del, nb_soft_del
 
     def _walk_folder(self, folder):
         digs = []

@@ -546,7 +546,15 @@ class Segment:
         data = self.commit.embedded.get(dig)
         if data is None:
             folder, filename = hashed_path(dig)
-            data = self.pod.cd(folder).read(filename)
+            sub_pod = self.pod.cd(folder)
+            try:
+                data = sub_pod.read(filename)
+            except FileNotFoundError:
+                for f in sub_pod.ls():
+                    # File is in soft-delete mode
+                    if f.startswith(filename):
+                        data = sub_pod.read(f)
+                        break
         arr = self.commit.schema[name].codec.decode(data)
         return arr[self.start_pos : self.stop_pos]
 

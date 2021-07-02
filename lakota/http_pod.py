@@ -69,7 +69,7 @@ class HttpPOD(POD):
         resp = self.session.post(self.base_uri + "rm", params=params)
         resp.raise_for_status()
 
-    def mv(self, from_path, to_path):
+    def mv(self, from_path, to_path, missing_ok=False):
         orig = str(self.path / from_path)
         dest = str(self.path / to_path)
         logger.debug(
@@ -78,9 +78,13 @@ class HttpPOD(POD):
         params = {
             "from_path": orig,
             "to_path": dest,
+            "missing_ok": "true" if missing_ok else "",
         }
         resp = self.session.post(self.base_uri + "mv", params=params)
-        resp.raise_for_status()
+        if resp.status_code == 404:
+            raise FileNotFoundError(f"{from_path} not found")
+        else:
+            resp.raise_for_status()
 
     def walk(self, max_depth=None):
         if max_depth == 0:
