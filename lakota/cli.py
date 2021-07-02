@@ -243,7 +243,6 @@ import json
 import os
 import sys
 from datetime import datetime
-from io import BytesIO, StringIO
 from itertools import chain
 
 from tabulate import tabulate
@@ -275,7 +274,7 @@ def get_collection(repo, label):
 
 def get_series(repo, label, auto_create=False):
     if not "/" in label:
-        exit(f'Label argument should have the form "collection/series"')
+        exit('Label argument should have the form "collection/series"')
     c_label, s_label = label.split("/", 1)
     collection = get_collection(repo, c_label)
     if auto_create or label in collection:
@@ -359,85 +358,12 @@ def read(args):
 
 def export(args):
     repo = get_repo(args)
-    export_pod = POD.from_uri(args.uri)
-    names = args.collection or repo.ls()
-    for clc_name in names:
-        clc = repo / clc_name
-        if clc is None:
-            logger.warn('Collection "%s" not found', clc_name)
-        pod = export_pod.cd(clc_name)
-        logger.info('Export collection "%s"', clc_name)
-        schema = clc.schema.dumps()
-        pod.write("_schema.json", json.dumps(schema).encode())
-        for srs in clc:
-            # Read series
-            export_series(pod, srs, args.file_type)
-
-
-def export_series(pod, series, file_type):
-    if file_type == "csv":
-        frm = series.frame()
-        columns = list(frm)
-        # Save series as csv in buff
-        buff = StringIO()
-        writer = csv.writer(buff)
-        writer.writerow(columns)
-        rows = zip(*(frm[c] for c in columns))
-        writer.writerows(rows)
-        # Write generated content in pod
-        buff.seek(0)
-        pod.write(f"{series.label}.csv", buff.read().encode())
-
-    elif file_type == "parquet":
-        df = series.df()
-        data = df.to_parquet(compression="brotli")
-        pod.write(f"{series.label}.parquet", data)
-    else:
-        exit(f'Unsupported file type "{file_type}"')
+    repo.export_collections(args.uri, args.collection, args.file_type)
 
 
 def import_(args):
     repo = get_repo(args)
-    import_pod = POD.from_uri(args.uri)
-    names = args.collection or import_pod.ls()
-    for clc_name in names:
-        clc = repo / clc_name
-        pod = import_pod.cd(clc_name)
-        if clc is None:
-            json_schema = pod.read("_schema.json").decode()
-            schema = Schema.loads(json.loads(json_schema))
-            clc = repo.create_collection(schema, clc_name)
-        logger.info('Import collection "%s"', clc_name)
-        for file_name in pod.ls():
-            if file_name.startswith("_"):
-                continue
-            import_series(pod, clc, file_name, args.file_type)
-
-
-def import_series(from_pod, collection, file_name, file_type):
-    if not file_type in ("csv", "parquet"):
-        exit(f'Invalid file_type "{file_type}"')
-
-    stem, ext = file_name.rsplit(".", 1)
-    column_names = sorted(collection.schema)
-    if ext == file_type == "csv":
-        buff = StringIO(from_pod.read(file_name).decode())
-        reader = csv.reader(buff)
-        headers = next(reader)
-        assert sorted(headers) == column_names
-        columns = zip(*reader)
-        frm = dict(zip(headers, columns))
-        srs = collection / stem
-        srs.write(frm)
-
-    elif ext == file_type == "parquet":
-        from pandas import read_parquet
-
-        buff = BytesIO(from_pod.read(file_name))
-        df = read_parquet(buff)
-        assert sorted(df.columns) == column_names
-        srs = collection / stem
-        srs.write(df)
+    repo.import_collections(args.uri, args.collection)
 
 
 def length(args):
@@ -769,9 +695,6 @@ def run():
 
     parser_import = subparsers.add_parser("import")
     parser_import.add_argument("uri", help="From where to import collections")
-    parser_import.add_argument(
-        "--file-type", "-T", default="csv", help="File type: csv (default) or parquet"
-    )
     parser_import.add_argument(
         "--collection",
         "-c",

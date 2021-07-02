@@ -76,6 +76,9 @@ nb_file_deleted = repo.gc()
 ```
 """
 
+import csv
+import json
+from io import BytesIO, StringIO
 from itertools import chain
 from time import time
 
@@ -360,3 +363,87 @@ class Repo:
             digs.append(folder + filename.replace("/", ""))
 
         return digs
+
+    def import_collections(self, src, collections=None):
+        """
+        Import collections from given `src`. It can url accepted by
+        `POD.from_uri` or a `POD` instance. `collections` is the list of
+        collections to load (all collection are loaded if not set).
+        """
+        if not isinstance(src, POD):
+            src = POD.from_uri(src)
+        names = collections or src.ls()
+        for clc_name in names:
+            clc = self / clc_name
+            pod = src.cd(clc_name)
+            if clc is None:
+                json_schema = pod.read("_schema.json").decode()
+                schema = Schema.loads(json.loads(json_schema))
+                clc = self.create_collection(schema, clc_name)
+            logger.info('Import collection "%s"', clc_name)
+            for file_name in pod.ls():
+                if file_name.startswith("_"):
+                    continue
+                self.import_series(pod, clc, file_name)
+
+    def import_series(self, from_pod, collection, filename):
+        stem, ext = filename.rsplit(".", 1)
+        column_names = sorted(collection.schema)
+        if ext == "csv":
+            buff = StringIO(from_pod.read(filename).decode())
+            reader = csv.reader(buff)
+            headers = next(reader)
+            assert sorted(headers) == column_names
+            columns = zip(*reader)
+            frm = dict(zip(headers, columns))
+            srs = collection / stem
+            srs.write(frm)
+
+        elif ext == "parquet":
+            from pandas import read_parquet
+
+            buff = BytesIO(from_pod.read(filename))
+            df = read_parquet(buff)
+            assert sorted(df.columns) == column_names
+            srs = collection / stem
+            srs.write(df)
+        else:
+            raise ValueError(f"Unable to load {filename}, extension not supported")
+
+    def export_collections(self, dest, collections=None, file_type="csv"):
+        if not isinstance(dest, POD):
+            dest = POD.from_uri(dest)
+
+        names = collections or self.ls()
+        for clc_name in names:
+            clc = self / clc_name
+            if clc is None:
+                logger.warn('Collection "%s" not found', clc_name)
+            pod = dest.cd(clc_name)
+            logger.info('Export collection "%s"', clc_name)
+            schema = clc.schema.dumps()
+            pod.write("_schema.json", json.dumps(schema).encode())
+            for srs in clc:
+                # Read series
+                self.export_series(pod, srs, file_type)
+
+    def export_series(self, pod, series, file_type):
+        if file_type == "csv":
+            frm = series.frame()
+            columns = list(frm)
+            # Save series as csv in buff
+            buff = StringIO()
+            writer = csv.writer(buff)
+            writer.writerow(columns)
+            rows = zip(*(frm[c] for c in columns))
+            writer.writerows(rows)
+            # Write generated content in pod
+            buff.seek(0)
+            pod.write(f"{series.label}.csv", buff.read().encode())
+
+        elif file_type == "parquet":
+            df = series.df()
+            data = df.to_parquet(compression="brotli")
+            pod.write(f"{series.label}.parquet", data)
+        else:
+            exit(f'Unsupported file type "{file_type}"')

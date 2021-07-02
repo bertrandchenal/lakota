@@ -232,3 +232,23 @@ def test_rename(repo):
     assert repo.ls() == ["B", "C", "D"]
     with pytest.raises(ValueError):
         repo.rename("B", "C")
+
+
+def test_import_export(repo):
+    clct = repo.create_collection(SCHEMA, "test_coll")
+    series = clct / "test_series"
+    series.write(
+        {
+            "timestamp": [1, 2, 3],
+            "value": [1, 2, 3],
+        }
+    )
+
+    tmp_pod = MemPOD(".")
+    repo.export_collections(tmp_pod)
+
+    repo_bis = Repo("memory://")
+    repo_bis.import_collections(tmp_pod)
+    frm = repo.collection("test_coll").series("test_series").frame()
+    frm_bis = repo_bis.collection("test_coll").series("test_series").frame()
+    assert frm == frm_bis
