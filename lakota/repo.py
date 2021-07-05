@@ -320,6 +320,7 @@ class Repo:
         nb_soft_del = 0
         current_ts_ext = f".{hextime()}"
         deadline = hextime(time() - settings.timeout)
+
         # Soft-Delete ("bury") files on fs not in changelogs
         inactive = all_dig - active_digests
         for dig in inactive:
@@ -350,7 +351,7 @@ class Repo:
                 nb_hard_del += 1
 
         logger.info(
-            "End of GC (soft deletions: %s, hard deletions: %s)",
+            "End of GC (hard deletions: %s, soft deletions: %s)",
             nb_hard_del,
             nb_soft_del,
         )
@@ -381,10 +382,11 @@ class Repo:
                 schema = Schema.loads(json.loads(json_schema))
                 clc = self.create_collection(schema, clc_name)
             logger.info('Import collection "%s"', clc_name)
-            for file_name in pod.ls():
-                if file_name.startswith("_"):
-                    continue
-                self.import_series(pod, clc, file_name)
+            with clc.multi():
+                for file_name in pod.ls():
+                    if file_name.startswith("_"):
+                        continue
+                    self.import_series(pod, clc, file_name)
 
     def import_series(self, from_pod, collection, filename):
         stem, ext = filename.rsplit(".", 1)

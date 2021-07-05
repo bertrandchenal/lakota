@@ -46,7 +46,7 @@ settings = Settings(
     embed_max_size=1024,
     page_len=500_000,
     squash_max_chunk=4,  # Max number of small chunks in a series
-    timeout=600 * 1000,  # Max duration for a write batch (in ms)
+    timeout=600,  # Max duration for a write batch (in seconds)
 )
 
 
