@@ -434,7 +434,9 @@ class Commit:
             closed = closed.set_right(True)
         res = []
 
-        for row in self.match(label):
+        for row in self.match(
+            label
+        ):  # XXX allow to pass condition instead of simple start-stop ?
             arr_start = row["start"]
             arr_stop = row["stop"]
             arr_closed = Closed[row["closed"]]

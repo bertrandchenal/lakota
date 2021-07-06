@@ -51,6 +51,21 @@ def test_create_collections(repo, squash):
     assert repo.ls() == expected
 
 
+@pytest.mark.parametrize("squash", [True, False])
+def test_double_create_collections(repo, squash):
+    """
+    Test double call to create_collection for a same label
+    """
+
+    repo.create_collection(SCHEMA, "a", "b")
+    with pytest.raises(ValueError):
+        repo.create_collection(SCHEMA, "b", "c")
+    assert repo.ls() == ["a", "b"]
+
+    repo.create_collection(SCHEMA, "b", "c", raise_if_exists=False)
+    assert repo.ls() == ["a", "b", "c"]
+
+
 @pytest.mark.parametrize("merge", [True, False])
 def test_create_labels_chunks(repo, merge):
     """

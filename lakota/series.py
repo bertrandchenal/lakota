@@ -130,8 +130,8 @@ class Series:
                 pool.submit(self.pod.cd(folder).write, filename, data)
 
         # Build commit info
-        start = start or frame.start()  # XXX Use numpy.quantile ?
-        stop = stop or frame.stop()
+        start = frame.start() if start is None else start
+        stop = frame.stop() if stop is None else stop
         if not isinstance(start, tuple):
             start = (start,)
         if not isinstance(stop, tuple):

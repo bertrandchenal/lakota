@@ -159,13 +159,17 @@ class Repo:
         meta = []
         schema_dump = schema.dumps()
 
-        # TODO assert collection does not already exists! (and use raise_if_exists)
-
         series = self.registry.series(namespace)
+        current_labels = series.frame(
+            start=min(labels), stop=max(labels), closed="BOTH", select="label"
+        )["label"]
+
         for label in labels:
             label = label.strip()
             if len(label) == 0:
                 raise ValueError(f"Invalid label: {label}")
+            if label in current_labels and raise_if_exists:
+                raise ValueError(f"Collection with label '{label}' already exists")
 
             key = label.encode()
             # Use digest to create collection folder (based on mode and label)
