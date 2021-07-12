@@ -29,11 +29,14 @@ def test_create():
     assert temperature.ls() == ["Brussels"]
 
     # Test double creation
-    repo.create_collection(schema, "temperature")
+    with pytest.raises(ValueError):
+        repo.create_collection(schema, "temperature")
+
+    repo.create_collection(schema, "temperature", raise_if_exists=False)
     assert sorted(repo.ls()) == ["temperature"]
     collection_series = repo.registry / "default"
     assert len(list(collection_series.changelog)) == 1
-    repo.create_collection(schema, "temperature", "wind")
+    repo.create_collection(schema, "temperature", "wind", raise_if_exists=False)
     assert sorted(repo.ls()) == ["temperature", "wind"]
 
 

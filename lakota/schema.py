@@ -1,6 +1,6 @@
 import shlex
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import date, datetime
 
 from numcodecs import registry
 from numpy import asarray, ascontiguousarray, dtype, frombuffer, issubdtype, ndarray
@@ -20,12 +20,14 @@ __all__ = ["Schema"]
 # Provide conversion between numpy and python types
 DTYPE_MAP = {
     "default": {
-        dtype("<M8[s]"): datetime,
+        dtype("M8[D]"): date,
+        dtype("M8[s]"): datetime,
         dtype("float64"): float,
         dtype("int64"): int,
     },
     "epoch": {
-        dtype("<M8[s]"): int,
+        dtype("M8[D]"): ["M8[s]", int],
+        dtype("M8[s]"): int,
         dtype("float64"): float,
         dtype("int64"): int,
     },
@@ -121,10 +123,13 @@ class SchemaColumn:
         type. `style` can be default or `epoch`.
         """
         mapping = DTYPE_MAP[style]
-        dt = mapping.get(self.codec.dt)
-        if dt is None:
+        dts = mapping.get(self.codec.dt)
+        if dts is None:
             return arr
-        return arr.astype(dt)
+        dts = dts if isinstance(dts, (list, tuple)) else [dts]
+        for dt in dts:
+            arr = arr.astype(dt)
+        return arr
 
     def cast_scalar(self, value):
         return dtype(self.codec.dt).type(value)

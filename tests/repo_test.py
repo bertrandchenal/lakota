@@ -31,7 +31,7 @@ def test_create_collections(repo, squash):
         assert collection.label == label
 
     # Test double creation
-    repo.create_collection(SCHEMA, *base_labels)
+    repo.create_collection(SCHEMA, *base_labels, raise_if_exists=False)
     assert sorted(repo.ls()) == sorted(base_labels)
 
     # Add 'a' (first), 'f' (last) and 'd' (middle)
@@ -138,7 +138,7 @@ def test_label_regexp():
     ok = ["abc", "abc-abc-123", "abc_abc-123.45", "abc+abc", "$", "é"]
     for label in ok:
         repo.create_collection(SCHEMA, label)
-        repo.create_collection(SCHEMA, label.upper())
+        repo.create_collection(SCHEMA, label.upper(), raise_if_exists=False)
 
     not_ok = ["", "\t", "\n"]
     for label in not_ok:

@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import date, datetime
 
 import pytest
 from numpy import array, asarray, datetime64
@@ -237,9 +237,12 @@ def test_sort():
 
 
 def test_frame_record():
-    schema = Schema(timestamp="timestamp*", float_val="float", int_val="int")
+    schema = Schema(
+        timestamp="timestamp*", date="date", float_val="float", int_val="int"
+    )
     values = {
         "timestamp": [1589455901, 1589455902, 1589455903, 1589455904],
+        "date": [1, 2, 3, 4],
         "float_val": [1, 2, 3, 4],
         "int_val": [1, 2, 3, 4],
     }
@@ -249,11 +252,13 @@ def test_frame_record():
     assert len(records) == len(frm)
     assert records[0] == {
         "timestamp": datetime(2020, 5, 14, 11, 31, 41),
+        "date": date(1970, 1, 2),
         "float_val": 1.0,
         "int_val": 1,
     }
     assert records[-1] == {
         "timestamp": datetime(2020, 5, 14, 11, 31, 44),
+        "date": date(1970, 1, 5),
         "float_val": 4.0,
         "int_val": 4,
     }
@@ -262,16 +267,28 @@ def test_frame_record():
     assert len(records) == len(frm)
     assert records[0] == {
         "timestamp": datetime64("2020-05-14T11:31:41"),
+        "date": datetime64("1970-01-02"),
         "float_val": 1.0,
         "int_val": 1,
     }
     assert records[-1] == {
         "timestamp": datetime64("2020-05-14T11:31:44"),
+        "date": datetime64("1970-01-05"),
         "float_val": 4.0,
         "int_val": 4,
     }
 
     records = list(frm.records(map_dtype="epoch"))
     assert len(records) == len(frm)
-    assert records[0] == {"timestamp": 1589455901, "float_val": 1.0, "int_val": 1}
-    assert records[-1] == {"timestamp": 1589455904, "float_val": 4.0, "int_val": 4}
+    assert records[0] == {
+        "timestamp": 1589455901,
+        "date": 86400,
+        "float_val": 1.0,
+        "int_val": 1,
+    }
+    assert records[-1] == {
+        "timestamp": 1589455904,
+        "date": 345600,
+        "float_val": 4.0,
+        "int_val": 4,
+    }

@@ -57,7 +57,9 @@ def test_pull(threaded, large):
     local_repo = Repo()
     local_coll = local_repo.create_collection(schema, c_label)
     local_coll.pull(remote_coll)
-    lseries = other_repo.create_collection(schema, c_label) / s_label
+    lseries = (
+        other_repo.create_collection(schema, c_label, raise_if_exists=False) / s_label
+    )
     assert oseries.frame() == expected
 
     # Test with existing series with existing data
