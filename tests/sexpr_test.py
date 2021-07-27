@@ -56,6 +56,9 @@ def test_numpy_fun():
     assert all(res[0] == [1, 2])
     assert all(res[1] == [2, 2])
 
+    res = AST.parse("(char.lower arr)").eval({"arr": ["HAM", "Spam"]})
+    assert all(res == ["ham", "spam"])
+
 
 def test_with_frame():
     frm = Frame(schema, values)

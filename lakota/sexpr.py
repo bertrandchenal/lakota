@@ -140,9 +140,13 @@ class Token:
             return env.get(self.value)
         except KeyError:
             pass
+
         # Eval numpy function
-        fn = getattr(numpy, self.value, None)
-        if fn:
+        fn = numpy
+        for v in self.value.split("."):
+            fn = getattr(fn, v, None)
+
+        if fn and callable(fn):
             return fn
 
         raise ValueError(f'Unexpected token: "{self.value}"')
