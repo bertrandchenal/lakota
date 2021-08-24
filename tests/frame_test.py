@@ -235,6 +235,21 @@ def test_sort():
     assert all(frm["value"] == [2, 3, 1])
     assert frm.is_sorted() == True
 
+    # Sort on custom columns
+    category = ["a", "c", "a"]
+    value = [3, 2, 1]
+    frm = Frame(
+        base_schema,
+        {
+            "category": category,
+            "value": value,
+        },
+    )
+    frm = frm.sorted("value")
+    assert all(frm["value"] == [1, 2, 3])
+    frm = frm.sorted("category", "value")
+    assert all(frm["value"] == [1, 3, 2])
+
 
 def test_frame_record():
     schema = Schema(

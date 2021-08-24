@@ -77,9 +77,9 @@ class Frame:
             raise ModuleNotFoundError("No module named 'pandas'")
         return DataFrame({c: self[c] for c in self.schema.columns if c in self.columns})
 
-    def argsort(self):
-        idx_cols = list(self.schema.idx)
-        arr = rec.fromarrays([self[n] for n in idx_cols], names=idx_cols)
+    def argsort(self, *sort_columns):
+        sort_columns = sort_columns or list(self.schema.idx)
+        arr = rec.fromarrays([self[n] for n in sort_columns], names=sort_columns)
         # Mergesort is faster on pre-sorted arrays
         return argsort(arr, kind="mergesort")
 
@@ -121,8 +121,8 @@ class Frame:
         # Create frame and sort it
         return Frame(schema, cols).sorted()
 
-    def sorted(self):
-        return self.mask(self.argsort())
+    def sorted(self, *sort_columns):
+        return self.mask(self.argsort(*sort_columns))
 
     def mask(self, mask, env=None):
         # if mask is a string, eval it first
