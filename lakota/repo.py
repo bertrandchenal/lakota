@@ -72,8 +72,22 @@ those can be deleted to recover storage space. It is simply done with
 the `gc` method, which returns the number of deleted files.
 
 ```python
-nb_file_deleted = repo.gc()
+nb_hard_delete, nb_soft_delete = repo.gc()
 ```
+
+Garbage collection is done in two-phases. On the first invocation,
+dangling files are renamed, this is the soft-deletion. It is done by
+adding the current time (returned by `lakota.utils.hextime`) as a
+suffix, so `d3/9e/df960b6150e84bd82d5afaf2791a9b210030` will become
+`d3/9e/df960b6150e84bd82d5afaf2791a9b210030.17b7d6ef91c`.
+
+Any following read on that file will fails but it automatically
+triggers a search for a similarly named file containing a suffix.
+
+On the next invocation, the garbage collection will reconsider those
+files with a suffix, and if the time represented by the suffix is
+older than a given deadline (defined by `timeout` in
+`lakota.utils.Settings` ), it will be definitively deleted.
 """
 
 import csv

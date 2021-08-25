@@ -30,24 +30,16 @@ logger = logging.getLogger("lakota")
 # Global settings
 @dataclass
 class Settings:
-    threaded: bool
-    debug: bool
-    verify_ssl: bool
-    embed_max_size: int
-    page_len: int
-    squash_max_chunk: int
-    timeout: int
+    threaded: bool = True
+    debug: bool = False
+    verify_ssl: bool = True
+    embed_max_size: int = 1024
+    page_len: int = 500_000
+    squash_max_chunk: int = 4  # Max number of small chunks in a series
+    timeout: int = 600  # Max duration for a write batch (in seconds)
 
 
-settings = Settings(
-    threaded=True,
-    verify_ssl=True,
-    debug=False,
-    embed_max_size=1024,
-    page_len=500_000,
-    squash_max_chunk=4,  # Max number of small chunks in a series
-    timeout=600,  # Max duration for a write batch (in seconds)
-)
+settings = Settings()
 
 
 def chunky(collection, size=100):
@@ -69,8 +61,13 @@ def hexdigest(*data):
 def hextime(timestamp=None):
     """
     hex representation of current UTC time (rounded to millisecond)
+
+    >>> from lakota.utils import hextime
+    >>> hextime()
+    '17b7d8a8691'
+    >>>
     """
-    timestamp = timestamp or time()
+    timestamp = time() if timestamp is None else timestamp
     return hex(int(timestamp * 1000))[2:]
 
 
