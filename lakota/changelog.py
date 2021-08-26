@@ -100,9 +100,9 @@ class Changelog:
             revisions[parent].append(Revision(self, parent, child))
 
         # `revision` is sorted low to high (because filled based on
-        # `sorted(self)`, so `queue` is sorted too (high to low). So
-        # the last revision to be yielded is the last child of the
-        # first branch (aka oldest parent)
+        # `sorted(self)`, so `queue` is sorted too (high to low). This
+        # means the last revision to be yielded is the last child of
+        # the first branch (aka oldest parent)
         parent_revs = [r for r in revisions if r not in all_children]
         first_gen = list(chain.from_iterable(revisions[p] for p in parent_revs))
         queue = list(reversed(first_gen))

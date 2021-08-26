@@ -68,7 +68,10 @@ def hextime(timestamp=None):
     >>>
     """
     timestamp = time() if timestamp is None else timestamp
-    return hex(int(timestamp * 1000))[2:]
+    hex_ts = hex(
+        int(timestamp * 1000)
+    )  # get rid of sub-milisecond digits & convert fo hex
+    return hex_ts[2:].rjust(11, "0")  # remove the "0x" prefix and add zeroes on front
 
 
 def encoder(*items):
