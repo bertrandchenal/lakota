@@ -46,7 +46,7 @@ clct.squash()
 
 from collections import defaultdict
 from contextlib import contextmanager
-from datetime import datetime
+from datetime import datetime, timedelta
 from itertools import chain
 from threading import Lock
 
@@ -215,15 +215,16 @@ class Collection:
             queue.extend(parents)
             yield rev
 
-    def squash(self, trim=True, max_chunk=settings.squash_max_chunk):
+    def squash(self, trim=None, max_chunk=settings.squash_max_chunk):
         """
         Remove past revisions, collapse each series into one or few large
         frames. Returns newly created revisions.
 
-        If `trim` is True, all revisions except the last one are
+        If `trim` is None (the default), all revisions older than
+        twice the timeout (see `settings.timeout` in `utils.py`) are
         removed.  If set to False, the full history is kept. If set to
-        a datetime, all the revision older than the given value will be
-        deleted, keeping the recent history.
+        a datetime, all the revisions older than the given value will
+        be deleted, keeping the recent history.
 
         The `max_chunk` parameter defines a limit over which the
         method will rewrite a series. If a given series comprise a
@@ -236,9 +237,10 @@ class Collection:
         logger.info('Squash collection "%s"', self.label)
 
         # Read existing revisions
+        if trim is None:
+            trim = datetime.now() - timedelta(seconds=settings.timeout) * 2
         if trim:
-            before = trim if isinstance(trim, datetime) else None
-            revs = self.changelog.log(before=before)
+            revs = self.changelog.log(before=trim)
         else:
             revs = []
 

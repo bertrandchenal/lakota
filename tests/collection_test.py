@@ -1,3 +1,4 @@
+from datetime import datetime, timedelta
 from time import sleep
 
 import pytest
@@ -62,8 +63,11 @@ def test_multi_create():
 
 
 @pytest.mark.parametrize("max_chunk", [0, settings.squash_max_chunk])
-@pytest.mark.parametrize("trim", [True, False])
-def test_squash(trim, max_chunk):
+@pytest.mark.parametrize("must_trim", [True, False])
+def test_squash(must_trim, max_chunk):
+    # We force full trim by providing a date in the future
+    trim = datetime.now() + timedelta(hours=1) if must_trim is True else False
+
     repo = Repo()
     other_frame = {
         "timestamp": [4, 5, 6],
@@ -90,7 +94,7 @@ def test_squash(trim, max_chunk):
         (True, 0): 1,
         (False, settings.squash_max_chunk): 2,
         (False, 0): 2,
-    }[trim, max_chunk]
+    }[must_trim, max_chunk]
     assert len(list(temperature.changelog)) == expected
 
     temp_bru.write(frame)
@@ -108,7 +112,7 @@ def test_squash(trim, max_chunk):
         (True, 0): 1,
         (False, settings.squash_max_chunk): settings.squash_max_chunk,
         (False, 0): 4,
-    }[trim, max_chunk]
+    }[must_trim, max_chunk]
     assert len(list(temperature.changelog)) == expected
 
     # Read data back
