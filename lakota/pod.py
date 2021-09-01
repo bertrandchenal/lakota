@@ -460,6 +460,13 @@ class CachePOD(POD):
     def ls(self, relpath=".", missing_ok=False):
         return self.remote.ls(relpath, missing_ok=missing_ok)
 
+        # More (too) aggressive implementation:
+        # res = self.local.ls(relpath, missing_ok=missing_ok)
+        # if not res:
+        #     print('REMOTE!')
+        #     res = self.remote.ls(relpath, missing_ok=missing_ok)
+        # return res
+
     def read(self, relpath, mode="rb"):
         try:
             return self.local.read(relpath, mode=mode)
