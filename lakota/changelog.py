@@ -138,6 +138,8 @@ RevDigest = namedtuple("RevDigest", ["parent", "child"])
 
 
 class Revision:
+    # This could be implemented as a dataclass (__init__ contains no
+    # logic)
     def __init__(self, changelog, parent, child):
         self.changelog = changelog
         self.parent = parent
