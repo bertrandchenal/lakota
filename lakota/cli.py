@@ -741,7 +741,9 @@ def run():
     # Add push command
     parser_push = subparsers.add_parser("push")
     parser_push.add_argument("remote")
-    parser_push.add_argument("labels", nargs="*")
+    parser_push.add_argument(
+        "labels", nargs="*", help="Collection to push (all if not set)"
+    )
     parser_push.add_argument(
         "-s",
         "--shallow",
@@ -753,7 +755,9 @@ def run():
     # Add pull command
     parser_pull = subparsers.add_parser("pull")
     parser_pull.add_argument("remote")
-    parser_pull.add_argument("labels", nargs="*")
+    parser_pull.add_argument(
+        "labels", nargs="*", help="Collection to pull (all if not set)"
+    )
     parser_pull.add_argument(
         "-s",
         "--shallow",
