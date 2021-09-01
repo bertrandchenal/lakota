@@ -4,7 +4,7 @@ import s3fs
 import urllib3
 
 from .pod import POD
-from .utils import logger
+from .utils import logger, settings
 
 
 def silence_insecure_warning():
@@ -44,6 +44,8 @@ class S3POD(POD):
                 token=token or None,
                 client_kwargs=client_kwargs,
                 profile=profile,
+                use_listings_cache=False,
+                default_cache_type="none",
             )
 
         super().__init__()
