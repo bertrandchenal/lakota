@@ -4,7 +4,7 @@ import s3fs
 import urllib3
 
 from .pod import POD
-from .utils import logger, settings
+from .utils import logger
 
 
 def silence_insecure_warning():

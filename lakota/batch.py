@@ -27,6 +27,8 @@ class Batch:
             self._ci_info.extend(b._ci_info)
 
     def flush(self):
+        # TODO abort flush if timeout is reached !
+
         if len(self._ci_info) == 0:
             return
 
