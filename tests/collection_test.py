@@ -134,7 +134,8 @@ def test_squash_max_chunk(nb_chunk, frame_len):
     for i in range(0, nb_chunk):
         series.write(new_frame(i))
     expected = series.frame()
-    temperature.squash(trim=True, max_chunk=4)
+    trim = datetime.now() + timedelta(hours=1)  # Future value to force full deletion
+    temperature.squash(trim=trim, max_chunk=4)
     assert series.frame() == expected
 
     if nb_chunk <= 4:

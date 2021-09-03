@@ -66,7 +66,6 @@ def test_write_delete_recursive(pod):
         with pytest.raises(OSError):
             top_pod.rm(".")
     # not test for S3, it seems that recurssion is implied
-
     top_pod.rm(".", recursive=True)
     assert pod.ls() == []
 

@@ -62,11 +62,11 @@ def moto_server():
 
 
 params = [
-    "file",
+    # "file",
     "s3",
-    "memory",
-    "memory+s3",
-    "http",
+    # "memory",
+    # "memory+s3",
+    # "http",
 ]  # TODO "ssh"
 
 
