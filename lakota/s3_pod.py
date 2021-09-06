@@ -1,7 +1,8 @@
 from pathlib import Path
 
-import s3fs
+import boto3
 import urllib3
+from botocore.exceptions import ClientError
 
 from .pod import POD
 from .utils import logger
@@ -21,84 +22,158 @@ class S3POD(POD):
         netloc=None,
         profile=None,
         verify=True,
-        fs=None,
+        client=None,
         key=None,
         secret=None,
         token=None,
     ):
-        # TODO document use of param: endpoint_url='http://127.0.0.1:5300'
-        self.path = path
-        if fs:
-            self.fs = fs
+        """
+        `path` must contains bucket name and sub-path in the bucket
+        (separated by a `/`). `verify` set to False will disable ssl
+        verifications. Please note that boto3 will also use
+        "REQUESTS_CA_BUNDLE" env variable.
+        """
+        bucket, *parts = path.parts
+        self.path = Path(*parts)
+        self.bucket = Path(bucket)
+        if client:
+            self.client = client
         else:
+            # TODO support for https on custom endpoints
+            # TODO document use of param: endpoint_url='http://127.0.0.1:5300'
             if not verify:
                 silence_insecure_warning()
-            client_kwargs = {"verify": verify}
-            if netloc:
-                # TODO support for https
-                client_kwargs["endpoint_url"] = f"http://{netloc}"
-            self.fs = s3fs.S3FileSystem(
-                anon=False,
-                key=key or None,
-                secret=secret or None,
-                token=token or None,
-                client_kwargs=client_kwargs,
-                profile=profile,
-                use_listings_cache=False,
-                default_cache_type="none",
+            endpoint_url = f"http://{netloc}" if netloc else None
+            session = boto3.session.Session(
+                aws_access_key_id=key,
+                aws_secret_access_key=secret,
+                profile_name=profile,
             )
-
+            self.client = session.client(
+                "s3", verify=verify, aws_session_token=token, endpoint_url=endpoint_url
+            )
         super().__init__()
 
     def cd(self, *others):
         path = self.path.joinpath(*others)
-        return S3POD(path, fs=self.fs)
+        return S3POD(self.bucket / path, client=self.client)
 
-    def ls(self, relpath=".", missing_ok=False):
-        logger.debug("LIST s3://%s %s", self.path, relpath)
-        path = self.path / relpath
-        try:
-            return [Path(p).name for p in self.fs.ls(path)]
-        except FileNotFoundError:
-            if missing_ok:
-                return []
-            raise
+    def ls(self, relpath=".", missing_ok=False, limit=None):
+        logger.debug("LIST s3:///%s/%s %s", self.bucket, self.path, relpath)
+        paginator = self.client.get_paginator("list_objects")
+        prefix = str(self.path / relpath)
+        prefix = "" if prefix in (".", "") else prefix + "/"
+        cut = len(prefix)
+        options = {
+            "Bucket": str(self.bucket),
+            "Prefix": prefix,
+            "Delimiter": "/",
+        }
+        if limit is not None:
+            options["PaginationConfig"] = {"MaxItems": limit}
+
+        page_iterator = paginator.paginate(**options)
+        names = []
+        for page in page_iterator:
+            # Extract pseudo-folder names
+            common_prefixes = page.get("CommonPrefixes", [])
+            names.extend(item["Prefix"][cut:].rstrip("/") for item in common_prefixes)
+            # Extract keys (filenames)
+            contents = page.get("Contents", [])
+            names.extend(item["Key"][cut:] for item in contents)
+        return names
 
     def read(self, relpath, mode="rb"):
-        logger.debug("READ s3://%s %s", self.path, relpath)
-        path = str(self.path / relpath)
-        return self.fs.open(path, mode).read()
+        logger.debug("READ s3:///%s/%s %s", self.bucket, self.path, relpath)
+        key = str(self.path / relpath)
+        try:
+            resp = self.client.get_object(Bucket=str(self.bucket), Key=key)
+        except ClientError as err:
+            if err.response["Error"]["Code"] == "NoSuchKey":
+                raise FileNotFoundError(f'Key "{relpath}" not found')
+
+        return resp["Body"].read()
 
     def write(self, relpath, data, mode="wb"):
         if self.isfile(relpath):
-            logger.debug("SKIP-WRITE s3://%s %s", self.path, relpath)
+            logger.debug("SKIP-WRITE s3:///%s/%s %s", self.bucket, self.path, relpath)
             return
-        logger.debug("WRITE s3://%s %s", self.path, relpath)
-        path = str(self.path / relpath)
-        return self.fs.open(path, mode).write(data)
+        logger.debug("WRITE s3:///%s%s %s", self.bucket, self.path, relpath)
+        key = str(self.path / relpath)
+        response = self.client.put_object(
+            Bucket=str(self.bucket),
+            Body=data,
+            Key=key,
+        )
+        assert response["ResponseMetadata"]["HTTPStatusCode"] == 200
+        return len(data)
 
     def isdir(self, relpath):
-        return self.fs.isdir(self.path / relpath)
+        return len(self.ls(relpath, limit=1)) > 0
 
     def isfile(self, relpath):
-        return self.fs.isfile(self.path / relpath)
+        key = str(self.path / relpath)
+        try:
+            _ = self.client.get_object(Bucket=str(self.bucket), Key=key)
+        except ClientError as err:
+            if err.response["Error"]["Code"] == "NoSuchKey":
+                return False
+            # Other kind of error, reraise
+            raise
+        return True
 
     def rm(self, relpath=".", recursive=False, missing_ok=False):
-        logger.debug("REMOVE s3://%s %s", self.path, relpath)
-        path = str(self.path / relpath)
+        logger.debug("REMOVE s3://%s/%s %s", self.bucket, self.path, relpath)
+        prefix = str(self.path / relpath)
+        if recursive:
+            prefix = "" if prefix in (".", "") else prefix + "/"
+            resp = self.client.list_objects_v2(Bucket=str(self.bucket), Prefix=prefix)
+            keys = [item["Key"] for item in resp.get("Contents", [])]
+        else:
+            keys = [prefix]
         try:
-            return self.fs.rm(path, recursive=recursive)
-        except FileNotFoundError:
-            if missing_ok:
-                return
-            raise
+            _ = self.client.delete_objects(
+                Bucket=str(self.bucket),
+                Delete={
+                    "Objects": [{"Key": k} for k in keys],
+                    "Quiet": True,
+                },
+            )
+            # TODO check for error in response
+        except ClientError as err:
+            if err.response["Error"]["Code"] != "MalformedXML":
+                raise
+            # As of version 2.2.6, Moto doesn't support correctly
+            # delete_objects() calls, we fall back to delete_object()
+            for key in keys:
+                self.client.delete_object(
+                    Bucket=str(self.bucket),
+                    Key=key,
+                )
+
+        # XXX implement missing_ok
 
     def mv(self, from_path, to_path, missing_ok=False):
         orig = str(self.path / from_path)
         dest = str(self.path / to_path)
-        logger.debug("MOVE s3://%s to s3://%s", orig, dest)
+        logger.debug(
+            "MOVE s3://%s/%s to s3://%s/%s", self.bucket, orig, self.bucket, dest
+        )
         try:
-            self.fs.mv(orig, dest)
-        except FileNotFoundError:
-            if not missing_ok:
-                raise
+            # Copy to dest
+            self.client.copy(
+                {"Bucket": str(self.bucket), "Key": orig},
+                str(self.bucket),
+                dest,
+            )
+            # Delete orig
+            self.client.delete_object(
+                Bucket=str(self.bucket),
+                Key=orig,
+            )
+        except ClientError as err:
+            if err.response["Error"]["Code"] == "404":
+                if missing_ok:
+                    return
+                raise FileNotFoundError(f'Path "{orig}" not found')
+            raise

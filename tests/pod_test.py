@@ -12,7 +12,7 @@ def test_cd(pod):
 
 def test_simple_ls(pod):
     if not isinstance(pod, (S3POD, CachePOD)):
-        # Note: s3fs does not complain when listing a non-existing
+        # Note: s3 does not complain when listing a non-existing
         # path (only if the bucket is missing)
         with pytest.raises(FileNotFoundError):
             pod.ls("A")
@@ -59,13 +59,16 @@ def test_write_delete_recursive(pod):
     top_pod = pod.cd("top_dir")
 
     top_pod.write("sub_dir/key", deadbeef)
+    top_pod.write("sub_dir2/sub_dir3/key", deadbeef)
     if isinstance(pod, MemPOD):
         with pytest.raises(FileNotFoundError):
             top_pod.rm(".")
     elif isinstance(pod, FilePOD):
         with pytest.raises(OSError):
             top_pod.rm(".")
-    # not test for S3, it seems that recurssion is implied
+    # XXX test on exception for S3
+    top_pod.rm("sub_dir2", recursive=True)
+    assert pod.ls("top_dir") == ["sub_dir"]
 
     top_pod.rm(".", recursive=True)
     assert pod.ls() == []
@@ -84,11 +87,12 @@ def test_write_rm_many(pod):
     pod.rm_many(["ham/spam/key"])
     assert pod.ls("ham/spam") == []
 
-    pod.rm_many(["ham", "key"], recursive=True)
+    pod.write("foo/key", deadbeef)
+    pod.rm_many(["ham", "foo"], recursive=True)
     res = pod.ls(
         missing_ok=True,  # moto_server delete the bucket when all keys are removed
     )
-    assert res == []
+    assert res == ["key"]
 
 
 def test_mv(pod):
@@ -128,13 +132,6 @@ def test_walk(pod):
     assert sorted(sub_pod.walk(max_depth=10)) == ["baz"]
     assert sorted(sub_pod.walk(max_depth=3)) == ["baz"]
     assert sorted(sub_pod.walk(max_depth=2)) == ["baz"]
-
-
-def test_s3_with_secret():
-    pod = POD.from_uri("s3:///some/bucket?key=key&secret=secret&token=token")
-    assert isinstance(pod, S3POD)
-    assert str(pod.path) == "some/bucket"
-    assert pod.fs.key == "key"
 
 
 def test_mempod_lru():

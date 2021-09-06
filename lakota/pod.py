@@ -25,9 +25,9 @@ from urllib.parse import parse_qs, urlsplit
 from uuid import uuid4
 
 try:
-    import s3fs
+    import boto3
 except ImportError:
-    s3fs = None
+    boto3 = None
 
 try:
     import requests
@@ -51,16 +51,16 @@ class POD:
         return cls._by_token[token]
 
     @classmethod
-    def from_uri(cls, uri=None, **fs_kwargs):
+    def from_uri(cls, uri=None):
         # multi-uri -> CachePOD
         if uri and isinstance(uri, (tuple, list)):
             if len(uri) > 1:
                 return CachePOD(
-                    local=POD.from_uri(uri[0], **fs_kwargs),
-                    remote=POD.from_uri(uri[1:], **fs_kwargs),
+                    local=POD.from_uri(uri[0]),
+                    remote=POD.from_uri(uri[1:]),
                 )
             else:
-                return POD.from_uri(uri[0], **fs_kwargs)
+                return POD.from_uri(uri[0])
 
         # Define protocal and path
         parts = urlsplit(uri or "")
@@ -86,9 +86,9 @@ class POD:
             assert not parts.netloc, "Malformed repo uri, should start with 'file:///'"
             return FilePOD(path)
         elif scheme == "s3":
-            if s3fs is None:
+            if boto3 is None:
                 raise ValueError(
-                    f'Please install the "s3fs" module in order to access {uri}'
+                    f'Please install the "boto3" module in order to access {uri}'
                 )
             profile = kwargs.get("profile", [None])[0]
             verify = kwargs.get("verify", [""])[0].lower() != "false"
@@ -550,5 +550,5 @@ class SSHPOD(POD):
 # Trigger imports if related dependencies are present
 if requests is not None:
     from .http_pod import HttpPOD
-if s3fs is not None:
+if boto3 is not None:
     from .s3_pod import S3POD
