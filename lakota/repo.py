@@ -22,13 +22,15 @@ repo = Repo(['file:///tmp/local_cache', 's3:///my_bucket'])
 ```
 
 S3 authentication is handled by
-[s3fs](https://s3fs.readthedocs.io/en/latest/#credentials "s3fs
-credentials"). So you can either put your credentials in a
-configuration files or in environment variables. If it's not possible,
-you can still pass them as arguments:
+[boto3](https://boto3.amazonaws.com/v1/documentation/api/latest/guide/credentials.html
+"s3 credentials"). So you can either put your credentials in a
+configuration files or in environment variables. Alternatively you an
+pass them as url arguments:
 
 ```python
-pod = POD.from_uri('s3:///bucket_name', key=key, secret=secret, token=token)
+# Special characters in KEY and SECRET must be escaped (for example
+# with urllib.parse.quote)
+pod = POD.from_uri('s3:///bucket_name?key=KEY&secret=SECRET')
 repo = Repo(pod=pod)
 ```
 

@@ -1,3 +1,4 @@
+from datetime import datetime, timedelta
 from itertools import product
 from time import sleep
 
@@ -185,7 +186,8 @@ def test_gc(repo, large):
         return
 
     # Squash collection (this delete older commits) & test again.
-    coll.squash()
+    trim = datetime.now() + timedelta(hours=1)
+    coll.squash(trim)
     hard, soft = repo.gc()
     assert hard == 0
     assert soft > 0

@@ -42,7 +42,7 @@ def http_server():
 
 def s3_reset(client):
     requests.post("http://127.0.0.1:8082/moto-api/reset")
-    # We always create a fresh bucket to avoid caching issue (in s3fs)
+    # We always create a fresh bucket to avoid caching issue # XXX still needed ?
     s3_bucket_id = str(uuid4())
     client.create_bucket(Bucket=s3_bucket_id)
     return s3_bucket_id
@@ -62,11 +62,11 @@ def moto_server():
 
 
 params = [
-    # "file",
+    "file",
     "s3",
-    # "memory",
-    # "memory+s3",
-    # "http",
+    "memory",
+    "memory+s3",
+    "http",
 ]  # TODO "ssh"
 
 
