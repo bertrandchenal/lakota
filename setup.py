@@ -32,10 +32,11 @@ setup(
     license="MIT",
     packages=["lakota"],
     install_requires=[
-        "numpy",
-        "numcodecs",
-        "tabulate",
         "msgpack",
+        "numcodecs",
+        "numpy",
+        "pytz",
+        "tabulate",
     ],
     entry_points={
         "console_scripts": [

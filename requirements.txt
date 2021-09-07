@@ -8,6 +8,7 @@ numpy
 pandas
 pdoc3
 pytest
+pytz
 requests
 s3fs  # installed before boto3 to force a given revision of botocore
 boto3
