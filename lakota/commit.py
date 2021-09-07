@@ -433,7 +433,6 @@ class Commit:
         if stop is None:
             closed = closed.set_right(True)
         res = []
-
         for row in self.match(
             label
         ):  # XXX allow to pass condition instead of simple start-stop ?

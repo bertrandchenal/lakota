@@ -13,7 +13,8 @@ from pathlib import PurePosixPath
 from threading import Lock
 from time import perf_counter, time
 
-from numpy import arange
+import pytz
+from numpy import arange, array, minimum, searchsorted
 
 default_hash = sha1
 hexhash_len = 40
@@ -230,6 +231,29 @@ def day_of_week_num(arr):
     # the fact that numpy.datetime64s are relative to the unix epoch,
     # which was a Thursday."
     return (arr.astype("M8[D]").view("int64") - 4) % 7
+
+
+_tz_cache = {}
+
+
+def as_tz(arr, timezone):
+    """
+    Convert UTC-naive array of timestamps to `timezone` (still naive)
+    """
+    if timezone in _tz_cache:
+        transitions, offsets = _tz_cache[timezone]
+    else:
+        tz = pytz.timezone(timezone)
+        transitions = array(tz._utc_transition_times, dtype="M8[s]")
+        offsets = array([i[0].total_seconds() for i in tz._transition_info], dtype="i8")
+        _tz_cache[timezone] = transitions, offsets
+
+    # Compute mapping between transition time and offsets
+    mapping = searchsorted(transitions, arr, side="right") + 1
+    # Fallback to last offset when last transition os reached
+    mapping = minimum(mapping, len(offsets) - 1)
+    # Apply mapping
+    return arr.astype("M8[s]") + offsets[mapping]
 
 
 def yaml_load(stream):

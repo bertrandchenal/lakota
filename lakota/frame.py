@@ -14,7 +14,7 @@ from numpy import (
 
 from .schema import Schema
 from .sexpr import AST, Alias
-from .utils import Closed, Pool, floor, pretty_nb
+from .utils import Closed, Pool, as_tz, floor, pretty_nb
 
 try:
     from pandas import DataFrame
@@ -29,11 +29,18 @@ class Frame:
     DataFrame-like object
     """
 
+    _base_env = {
+        "floor": floor,
+        "pretty_nb": lambda xs: asarray(list(map(pretty_nb, xs))),
+        "as-tz": as_tz,
+    }
+
     def __init__(self, schema, columns=None):
         self.schema = schema
         if DataFrame is not None and isinstance(columns, DataFrame):
             columns = {c: columns[c].values for c in columns}
         self.columns = schema.cast(columns)
+        self.env = {}
 
     @classmethod
     def from_segments(cls, schema, segments, limit=None, offset=None, select=None):
@@ -147,11 +154,7 @@ class Frame:
         return res
 
     def eval_env(self):
-        return {
-            "self": self,
-            "floor": floor,
-            "pretty_nb": lambda xs: asarray(list(map(pretty_nb, xs))),
-        }
+        return {**self._base_env, **self.env, "self": self}
 
     @property
     def empty(self):
@@ -349,6 +352,9 @@ class Frame:
     def select(self, keep):
         cols = {k: v for k, v in self.columns.items() if k in keep}
         return Frame(self.schema, cols)
+
+    def rename(self, mapping):
+        ...  # Use reduce instead ??
 
     def __repr__(self):
         res = []

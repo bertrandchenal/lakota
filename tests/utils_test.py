@@ -2,8 +2,9 @@ from datetime import timedelta
 from itertools import chain
 
 import pytest
+from pandas import date_range
 
-from lakota.utils import Closed, Pool, chunky, drange, strpt
+from lakota.utils import Closed, Pool, as_tz, chunky, drange, strpt, timeit
 
 
 def my_fun(i, flaky=False):
@@ -90,3 +91,11 @@ def test_closed():
 
     assert both.set_right(False) == left
     assert both.set_right(True) == both
+
+
+@pytest.mark.parametrize("tzname", ["US/Pacific", "Europe/Brussels", "Japan"])
+def test_as_tz(tzname):
+    ts = date_range("2000-01-01", "2020-01-01", freq="H")
+    expected = ts.tz_localize("UTC").tz_convert(tzname).tz_localize(None)
+    res = as_tz(ts.values, tzname)
+    assert all(res == expected.values.astype("M8[s]"))

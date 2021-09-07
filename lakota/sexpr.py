@@ -217,7 +217,7 @@ class Agg:
 
 class Alias:
     """
-    Simple wrapper that combine an value and an alias name
+    Simple wrapper that combine a value and an alias name
     """
 
     def __init__(self, value, name):
@@ -315,13 +315,19 @@ class AST:
         return fn(*simple_args, **kw_args)
 
     def is_aggregate(self):
-        for tk in self.tokens:
-            if isinstance(tk, Token):
-                if tk.value in self.aggregates:
-                    return True
-            elif isinstance(tk, list):
-                if any(t.is_aggregate() for t in tk):
-                    return True
-            elif tk.is_aggregate():
+        for tk in self.extract_tokens():
+            if tk.is_aggregate():
                 return True
         return False
+
+    def extract_tokens(self):
+        """
+        Flatten tree into a list of tokens
+        """
+        for tk in self.tokens:
+            if isinstance(tk, Token):
+                yield tk
+            elif isinstance(tk, list):
+                yield from tk
+            else:
+                raise ValueError(f"Unexpected token: {tk}")

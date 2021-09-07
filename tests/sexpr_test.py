@@ -133,3 +133,21 @@ def test_alias():
     frm = Frame(schema, values)
     frm = frm.reduce("(as self.timestamp 'ts')")
     assert all(frm["ts"] == asarray(values["timestamp"], "M"))
+
+    # Test with custom env
+    frm = Frame(schema, values)
+    frm.env.update({"spammer": lambda arr, val: asarray([val] * len(arr))})
+    frm = frm.reduce("(as (spammer self.timestamp 'SPAM') 'ts')")
+    assert all(frm["ts"] == "SPAM")
+
+
+def test_extract_tokens():
+    res = AST.parse("(+ self.ham (- self.spam self.foo))")
+    tokens = res.extract_tokens()
+    values = [t.value for t in tokens]
+    assert values == ["+", "self.ham", "-", "self.spam", "self.foo"]
+
+    res = AST.parse("(self.foo)")
+    tokens = res.extract_tokens()
+    values = [t.value for t in tokens]
+    assert values == ["self.foo"]
