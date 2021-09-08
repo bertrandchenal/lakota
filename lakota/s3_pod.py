@@ -94,8 +94,8 @@ class S3POD(POD):
 
         return resp["Body"].read()
 
-    def write(self, relpath, data, mode="wb"):
-        if self.isfile(relpath):
+    def write(self, relpath, data, mode="wb", force=False):
+        if not force and self.isfile(relpath):
             logger.debug("SKIP-WRITE s3:///%s/%s %s", self.bucket, self.path, relpath)
             return
         logger.debug("WRITE s3:///%s%s %s", self.bucket, self.path, relpath)

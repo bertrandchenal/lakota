@@ -1,6 +1,6 @@
 import pytest
 
-from lakota.pod import POD, S3POD, CachePOD, FilePOD, MemPOD
+from lakota.pod import S3POD, CachePOD, FilePOD, MemPOD
 
 deadbeef = bytes.fromhex("DEADBEEF")
 
@@ -38,6 +38,15 @@ def test_read_write(pod):
     assert pod.ls() == ["key"]
     res = pod.read("key")
     assert res == deadbeef
+
+    # By default we don't overwrite
+    decode = bytes.fromhex("DEC0DE")
+    pod.write("key", decode)
+    assert pod.read("key") == deadbeef
+
+    # force=true allows overwrite
+    pod.write("key", decode, force=True)
+    assert pod.read("key") == decode
 
 
 def test_multi_write(pod):

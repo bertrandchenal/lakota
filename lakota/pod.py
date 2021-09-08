@@ -180,8 +180,8 @@ class FilePOD(POD):
         # XXX make sure path is subpath of self.path
         return path.open(mode).read()
 
-    def write(self, relpath, data, mode="wb"):
-        if self.isfile(relpath):
+    def write(self, relpath, data, mode="wb", force=False):
+        if not force and self.isfile(relpath):
             logger.debug("SKIP-WRITE %s %s", self.path, relpath)
             return
         logger.debug("WRITE %s %s", self.path, relpath)
@@ -344,33 +344,29 @@ class MemPOD(POD):
         item = self.store.get(key)
         return isinstance(item, File)
 
-    def write(self, relpath, data, mode="rb"):
-        if self.isfile(relpath):
-            logger.debug("SKIP-WRITE memory://%s %s", self.path, relpath)
-            return
-        logger.debug("WRITE memory://%s %s", "/".join(self.parts), relpath)
-
+    def write(self, relpath, data, mode="rb", force=False):
         current_path = tuple()
         relpath = self.split(relpath)
         full_path = self.parts + relpath
 
+        # Walk the tree
         for part in full_path:
             parent = current_path
             current_path = current_path + (part,)
             folder = self.store.setdefault(parent, Folder())
             assert isinstance(folder, Folder)
-            if current_path == full_path:
-                folder.add(part, File)
-                current_file = self.store.get(current_path)
-                if current_file is not None:
-                    assert isinstance(current_file, File)
-                    logger.debug(
-                        "SKIP-WRITE memory://%s %s", self.path, "/".join(relpath)
-                    )
-                else:
-                    self.store.set(current_path, File(data))
-            else:
+            if current_path != full_path:
                 folder.add(part, Folder)
+
+        folder.add(part, File)
+        current_file = self.store.get(current_path)
+        if not force and current_file is not None:
+            assert isinstance(current_file, File)
+            logger.debug("SKIP-WRITE memory://%s %s", self.path, "/".join(relpath))
+            return
+
+        logger.debug("WRITE memory://%s %s", "/".join(self.parts), relpath)
+        self.store.set(current_path, File(data))
         return len(data)
 
     def ls(self, relpath="", missing_ok=False):
@@ -477,9 +473,9 @@ class CachePOD(POD):
         self.local.write(relpath, data)
         return data
 
-    def write(self, relpath, data, mode="wb"):
-        self.local.write(relpath, data, mode=mode)
-        return self.remote.write(relpath, data, mode=mode)
+    def write(self, relpath, data, mode="wb", force=False):
+        self.local.write(relpath, data, mode=mode, force=force)
+        return self.remote.write(relpath, data, mode=mode, force=force)
 
     def isdir(self, relpath):
         return self.remote.isdir(relpath)

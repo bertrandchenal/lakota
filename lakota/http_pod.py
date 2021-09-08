@@ -49,10 +49,10 @@ class HttpPOD(POD):
             resp.raise_for_status()
         return base64.b64decode(resp.json()["body"])
 
-    def write(self, relpath, data, mode="wb"):
+    def write(self, relpath, data, mode="wb", force=False):
         logger.debug("WRITE %s://%s %s", self.protocol, self.path, relpath)
         path = str(self.path / relpath)
-        params = {"path": str(path)}
+        params = {"path": str(path), "force": "true" if force else ""}
         resp = self.session.post(self.base_uri + "write", params=params, data=data)
         resp.raise_for_status()
         body = resp.json()["body"]

@@ -111,8 +111,9 @@ def pod(repo, action, relpath=None):
         return {"status": "ok"}
 
     elif action == "write":
+        force = request.args.get("force", "").lower() == "true"
         try:
-            info = repo.pod.write(relpath, request.data)
+            info = repo.pod.write(relpath, request.data, force=force)
         except FileNotFoundError:
             return 'Path "{relpath}" not found', 404
         return {"body": info}
