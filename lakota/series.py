@@ -156,6 +156,40 @@ class Series:
             embedded=embedded,
         )
 
+    def update(self, frame):
+        frame = Frame(self.schema, frame)
+        start, stop = frame.start(), frame.stop()
+        idx = tuple(self.schema.idx)
+        upd_cols = tuple(c for c in frame if c not in idx)
+        read_cols = tuple(c for c in self.schema.columns if c not in idx + upd_cols)
+        db_frm = self.frame(start=start, stop=stop, closed="b", select=idx + read_cols)
+        db_start, db_stop = db_frm.start(), db_frm.stop()
+        overlap_frm = frame.islice(db_start, db_stop, "b")
+        head_frm = frame.islice(None, db_start, "l")
+        tail_frm = frame.islice(db_stop, None, "r")
+
+        # Make sure index matches on overlapping part
+        for col in idx:
+            if (
+                len(db_frm) != len(overlap_frm)
+                or (db_frm[col] != overlap_frm[col]).any()
+            ):
+                raise ValueError("Update frame is not aligned with existing index")
+
+        # Update columns
+        for col in upd_cols:
+            db_frm[col] = overlap_frm[col]
+
+        # Add columns filled with zero-like values in non-overlapping
+        # frames
+        for frm in (head_frm, tail_frm):
+            for col in read_cols:
+                zero = "" if self.schema[col].codec.dt == "str" else 0
+                frm[col] = [zero] * len(frm)
+
+        full_frm = Frame.concat(head_frm, db_frm, tail_frm)
+        return self.write(full_frm, start, stop, closed="b")
+
     def commit(
         self, start, stop, all_dig, length, root=False, closed="b", embedded=None
     ):
@@ -302,10 +336,8 @@ class KVSeries(Series):
         if not isinstance(frame, Frame):
             frame = Frame(self.schema, frame).sorted()
 
-        start = self.schema.row(frame, pos=0, full=False)
-        stop = self.schema.row(frame, pos=-1, full=False)
-        segments = self.segments(start, stop, closed="BOTH")
-        db_frm = Frame.from_segments(  # TODO paginate
+        segments = self.segments(frame.start(), frame.stop(), closed="BOTH")
+        db_frm = Frame.from_segments(
             self.schema, segments
         )  # Maybe paginate on large results
 

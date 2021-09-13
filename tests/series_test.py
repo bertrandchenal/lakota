@@ -479,6 +479,55 @@ def test_fragmented_write(series, direction, sgm_size):
     assert all(frm["value"] == vals)
 
 
+def test_update(repo):
+    schema = Schema(timestamp="timestamp*", a="int", b="int")
+    clct = repo.create_collection(schema, "-")
+    series = clct / "_"
+    frm = {
+        "timestamp": ["2020-01-01", "2020-02-01", "2020-03-01"],
+        "a": [1, 2, 3],
+        "b": [1, 2, 3],
+    }
+    series.write(frm)
+
+    # write over full index
+    frm = {
+        "timestamp": ["2020-01-01", "2020-02-01", "2020-03-01"],
+        "a": [10, 20, 30],
+    }
+    series.update(frm)
+    frm = series.frame()
+    assert (frm["a"] == [10, 20, 30]).all()
+
+    # With extra item at the end
+    frm = {
+        "timestamp": ["2020-02-01", "2020-03-01", "2020-04-01"],
+        "a": [200, 300, 400],
+    }
+    series.update(frm)
+    frm = series.frame()
+    assert (frm["a"] == [10, 200, 300, 400]).all()
+    assert (frm["b"] == [1, 2, 3, 0]).all()
+
+    # With extra item at the start
+    frm = {
+        "timestamp": ["2019-12-01", "2020-01-01", "2020-02-01", "2020-03-01"],
+        "a": [0, 1000, 2000, 3000],
+    }
+    series.update(frm)
+    frm = series.frame()
+    assert (frm["a"] == [0, 1000, 2000, 3000, 400]).all()
+    assert (frm["b"] == [0, 1, 2, 3, 0]).all()
+
+    # Misaligned index must raise and index
+    frm = {
+        "timestamp": ["2020-02-01", "2020-02-02", "2020-03-01"],
+        "a": [200, 300],
+    }
+    with pytest.raises(ValueError):
+        series.update(frm)
+
+
 # def test_partition(repo):
 #     schema = Schema(timestamp="timestamp*", value="float")
 #     clct = repo.create_collection(schema, "timeseries")

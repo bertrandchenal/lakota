@@ -160,10 +160,10 @@ class Frame:
     def empty(self):
         return len(self) == 0
 
-    def index_slice(self, start=None, stop=None, closed="l"):
-        """Slice between two index value. `closed` can be "l" (left, the
-        default), "r" (right) "n" (none) or "b" (both).
-
+    def slice_index(self, start=None, stop=None, closed="l"):
+        """
+        Return slice postions between two index value. `closed` can be "l"
+        (left, the default), "r" (right) "n" (none) or "b" (both).
         """
         closed = closed if isinstance(closed, Closed) else Closed[closed]
         idx_start = idx_stop = None
@@ -198,6 +198,13 @@ class Frame:
         for name in self.columns:
             cols[name] = self.columns[name][slc]
         return Frame(self.schema, cols)
+
+    def islice(self, start=None, stop=None, closed="l"):
+        """
+        Return slice between two index values `start` and `stop`. It
+        simply combines `self.slice` and `self.slice_index`
+        """
+        return self.slice(*self.slice_index(start, stop, closed))
 
     def __eq__(self, other):
         other = self.schema.cast(other)
@@ -248,7 +255,7 @@ class Frame:
         # Make sure we have a numpy array
         arr = self.schema[name].cast(arr)
         if len(arr) != len(self):
-            raise ValueError("Lenght mismatch")
+            raise ValueError("Length mismatch")
         self.columns[name] = arr
 
     def reduce(self, *col_list, **col_dict):
@@ -327,7 +334,7 @@ class Frame:
         if isinstance(by, slice):
             start = by.start and self.schema.deserialize(by.start)
             stop = by.stop and self.schema.deserialize(by.stop)
-            return self.slice(*self.index_slice(start, stop))
+            return self.islice(start, stop)
         # By mask -> return a frame
         if isinstance(by, ndarray):
             return self.mask(by)

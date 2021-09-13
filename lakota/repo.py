@@ -147,7 +147,7 @@ class Repo:
     def collection(self, label, from_frm=None, namespace="collection"):
         series = self.registry.series(namespace)
         if from_frm:
-            frm = from_frm.slice(*from_frm.index_slice([label], [label], closed="BOTH"))
+            frm = from_frm.islice([label], [label], closed="BOTH")
         else:
             frm = series.frame(start=label, stop=label, closed="BOTH")
 

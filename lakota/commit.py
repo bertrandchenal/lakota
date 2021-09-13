@@ -574,7 +574,7 @@ class Segment:
                 cols[name] = self._read(name)
 
             frm = Frame(self.commit.schema, cols)
-            self.start_pos, self.stop_pos = frm.index_slice(
+            self.start_pos, self.stop_pos = frm.slice_index(
                 self.start, self.stop, closed=self.closed
             )
             self._frm = frm.slice(self.start_pos, self.stop_pos)

@@ -32,25 +32,25 @@ def test_index_slice():
     frm = Frame(schema, {"x": [1, 2, 3, 4, 5, 5, 5, 6]})
 
     # include both side
-    res = frm.slice(*frm.index_slice([2], [4], closed="b"))["x"]
+    res = frm.islice([2], [4], closed="b")["x"]
     assert all(res == [2, 3, 4])
 
     # include only left
-    res = frm.slice(*frm.index_slice([2], [4], closed="l"))["x"]
+    res = frm.islice([2], [4], closed="l")["x"]
     assert all(res == [2, 3])
 
     # include only right
-    res = frm.slice(*frm.index_slice([2], [4], closed="r"))["x"]
+    res = frm.islice([2], [4], closed="r")["x"]
     assert all(res == [3, 4])
 
     # implict right
-    res = frm.slice(*frm.index_slice([5], [5], closed="b"))["x"]
+    res = frm.islice([5], [5], closed="b")["x"]
     assert all(res == [5, 5, 5])
 
-    res = frm.slice(*frm.index_slice([1], [1], closed="b"))["x"]
+    res = frm.islice([1], [1], closed="b")["x"]
     assert all(res == [1])
 
-    res = frm.slice(*frm.index_slice([6], [6], closed="b"))["x"]
+    res = frm.islice([6], [6], closed="b")["x"]
     assert all(res == [6])
 
 
