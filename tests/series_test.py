@@ -479,8 +479,10 @@ def test_fragmented_write(series, direction, sgm_size):
     assert all(frm["value"] == vals)
 
 
-def test_update(repo):
-    schema = Schema(timestamp="timestamp*", a="int", b="int")
+@pytest.mark.parametrize("col_type", list(ALIASES))
+def test_update(repo, col_type):
+    dtype = ALIASES[col_type]
+    schema = Schema(timestamp="timestamp*", a=col_type, b=col_type)
     clct = repo.create_collection(schema, "-")
     series = clct / "_"
     frm = {
@@ -497,7 +499,8 @@ def test_update(repo):
     }
     series.update(frm)
     frm = series.frame()
-    assert (frm["a"] == [10, 20, 30]).all()
+    expected = asarray([10, 20, 30], dtype=dtype)
+    assert (frm["a"] == expected).all()
 
     # With extra item at the end
     frm = {
@@ -506,8 +509,13 @@ def test_update(repo):
     }
     series.update(frm)
     frm = series.frame()
-    assert (frm["a"] == [10, 200, 300, 400]).all()
-    assert (frm["b"] == [1, 2, 3, 0]).all()
+    expected_a = asarray([10, 200, 300, 400], dtype=dtype)
+    if col_type == "str":
+        expected_b = ["1", "2", "3", ""]
+    else:
+        expected_b = asarray([1, 2, 3, 0], dtype=dtype)
+    assert (frm["a"] == expected_a).all()
+    assert (frm["b"] == expected_b).all()
 
     # With extra item at the start
     frm = {
@@ -516,8 +524,13 @@ def test_update(repo):
     }
     series.update(frm)
     frm = series.frame()
-    assert (frm["a"] == [0, 1000, 2000, 3000, 400]).all()
-    assert (frm["b"] == [0, 1, 2, 3, 0]).all()
+    expected_a = asarray([0, 1000, 2000, 3000, 400], dtype=dtype)
+    if col_type == "str":
+        expected_b = ["", "1", "2", "3", ""]
+    else:
+        expected_b = asarray([0, 1, 2, 3, 0], dtype=dtype)
+    assert (frm["a"] == expected_a).all()
+    assert (frm["b"] == expected_b).all()
 
     # Misaligned index must raise and index
     frm = {
