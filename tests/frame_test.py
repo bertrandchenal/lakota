@@ -307,3 +307,17 @@ def test_frame_record():
         "float_val": 4.0,
         "int_val": 4,
     }
+
+
+def test_from_records():
+    records = [
+        {"category": "one", "value": 1},
+        {"category": "two", "value": 2},
+        {"category": "three", "value": 3},
+    ]
+    frm = Frame.from_records(base_schema, records)
+    assert all(frm["category"] == ["one", "two", "three"])
+    assert all(frm["value"] == [1, 2, 3])
+
+    frm = Frame.from_records(base_schema, [])
+    assert frm.get("category") == None

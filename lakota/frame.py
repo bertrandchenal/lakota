@@ -14,7 +14,7 @@ from numpy import (
 
 from .schema import Schema
 from .sexpr import AST, Alias
-from .utils import Closed, Pool, as_tz, floor, pretty_nb
+from .utils import Closed, Pool, as_tz, floor, pivot, pretty_nb
 
 try:
     from pandas import DataFrame
@@ -39,8 +39,14 @@ class Frame:
         self.schema = schema
         if DataFrame is not None and isinstance(columns, DataFrame):
             columns = {c: columns[c].values for c in columns}
-        self.columns = schema.cast(columns)
+        self.columns = schema.cast(
+            columns
+        )  # XXX create empty list if one column is missing ?
         self.env = {}
+
+    @classmethod
+    def from_records(self, schema, records):
+        return Frame(schema, pivot(records, list(schema)))
 
     @classmethod
     def from_segments(cls, schema, segments, limit=None, offset=None, select=None):
@@ -347,7 +353,7 @@ class Frame:
         if by in self.columns:
             return self.columns[by]
         else:
-            raise KeyError(f'KeyError "{by}"')
+            raise KeyError(f'KeyError: "{by}"')
 
     def drop(self, *columns):
         keep_columns = (c for c in self.columns if c not in columns)

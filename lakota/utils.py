@@ -43,6 +43,18 @@ class Settings:
 settings = Settings()
 
 
+def pivot(records, keys):
+    """
+    Convert a list of dict to a dict of lists
+    """
+    if not records:
+        return {}
+    # Extract column names from first record
+    keys = list(records[0])
+    columns = [[i[k] for i in records] for k in keys]
+    return dict(zip(keys, columns))
+
+
 def chunky(collection, size=100):
     it = iter(collection)
     while True:
