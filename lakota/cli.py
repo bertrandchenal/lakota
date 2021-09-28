@@ -491,9 +491,9 @@ def write(args):
     repo = get_repo(args)
     series = get_series(repo, args.label, auto_create=True)
     reader = csv.reader(sys.stdin)
-    columns = zip(*reader)
-    schema = series.schema
-    df = dict(zip(schema.columns, columns))
+    headers = next(reader)
+    columns = list(zip(*reader))
+    df = dict(zip(headers, columns))
     series.write(df)
 
 
@@ -558,7 +558,7 @@ def pull(args):
 
 def delete(args):
     """
-    Delete a series
+    Delete a series or a collection
     ```
     $ lakota delete my_collection/my_series
     ```
@@ -775,6 +775,7 @@ def run():
     # Add write command
     parser_write = subparsers.add_parser("write")
     parser_write.add_argument("label")
+    # TODO add --update flag to do Series.update instead of Series.write
     parser_write.set_defaults(func=write)
 
     # Add merge command
