@@ -1,4 +1,4 @@
-from pathlib import Path
+from pathlib import PurePosixPath
 
 import boto3
 import urllib3
@@ -34,8 +34,8 @@ class S3POD(POD):
         "REQUESTS_CA_BUNDLE" env variable.
         """
         bucket, *parts = path.parts
-        self.path = Path(*parts)
-        self.bucket = Path(bucket)
+        self.path = PurePosixPath(*parts)
+        self.bucket = PurePosixPath(bucket)
         if client:
             self.client = client
         else:

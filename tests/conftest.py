@@ -30,7 +30,7 @@ def http_server():
     # Start http server
     with TemporaryDirectory() as tdir:
         proc = Popen(
-            ["lakota", "serve", "-w", http_uri, f"/ {tdir}"],
+            ["lakota", "serve", "-w", http_uri, f"/ file:///{tdir}"],
             stderr=DEVNULL,
             stdout=DEVNULL,
         )

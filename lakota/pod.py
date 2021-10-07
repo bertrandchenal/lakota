@@ -122,7 +122,7 @@ class POD:
             lru_size = int(kwargs.get("lru_size", [0])[0])
             return MemPOD(path, lru_size=lru_size)
         else:
-            raise ValueError(f'Protocol "{scheme}" not supported')
+            raise ValueError(f'Protocol "{scheme}" not supported in "{uri}"')
 
     def __truediv__(self, relpath):
         return self.cd(relpath)
@@ -323,13 +323,13 @@ class MemPOD(POD):
     protocol = "memory"
 
     def __init__(self, path, store=None, lru_size=None):
-        self.path = Path(path)
+        self.path = PurePosixPath(path)
         self.parts = self.path.parts
         self.store = store or Store(lru_size=lru_size)
         super().__init__()
 
     def cd(self, *others):
-        path = Path(*(self.parts + others))
+        path = PurePosixPath(*(self.parts + others))
         return MemPOD(path, store=self.store)
 
     def isdir(self, relpath):
@@ -510,8 +510,6 @@ class SSHPOD(POD):
     def from_uri(cls, uri):
         user, tail = uri.split("@")
         host, path = tail.split("/", 1)
-
-        # path = Path(path)
 
         key = os.environ["SSH_KEY"]
         file_obj = io.StringIO(key)
