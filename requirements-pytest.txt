@@ -1,0 +1,8 @@
+flask
+pandas
+pdoc3
+pytest
+requests
+boto3
+dask[distributed]
+moto[server,s3]==1.3.16.dev122  # See https://github.com/spulec/moto/issues/3530
