@@ -109,13 +109,16 @@ class Changelog:
 
         # Depth first traversal of the tree(see
         # https://stackoverflow.com/a/5278667)
+        yielded = set()
         while queue:
             rev = queue.pop()
             # Append children
-            children = revisions[rev.child]
+            children = [] if rev.child in yielded else revisions[rev.child]
+            yielded.add(rev.child)
+            # Set is_leaf attribute, fill queue with next generation
+            # and yield
             rev.is_leaf = not children
             queue.extend(reversed(children))
-            # Yield
             yield rev
 
     def pull(self, remote, shallow=False):

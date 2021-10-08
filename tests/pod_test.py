@@ -84,7 +84,7 @@ def test_write_delete_recursive(pod):
 
 
 def test_write_rm_many(pod):
-    assert pod.ls() == []
+    assert pod.ls(missing_ok=True) == []
 
     pod.write("key", deadbeef)
     pod.write("ham/key", deadbeef)
@@ -105,7 +105,7 @@ def test_write_rm_many(pod):
 
 
 def test_mv(pod):
-    assert pod.ls() == []
+    assert pod.ls(missing_ok=True) == []
     pod.write("key", deadbeef)
 
     pod.mv("key", "ham/key")

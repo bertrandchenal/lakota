@@ -13,17 +13,18 @@ from moto import mock_s3
 from lakota import POD
 from lakota.utils import settings
 
-http_uri = "http://127.0.0.1:8081/some_prefix/test_repo"
+http_uri = "http://127.0.0.1:8081/some_prefix/test_repo/"
 s3_netloc = "127.0.0.1:8082"
 
 
-def http_reset(path):
-    for item in Path(path).iterdir():
-        if item.is_dir():
-            rmtree(item)
-        else:
-            item.unlink()
-
+def http_reset():
+    params = {
+        "recursive": "true",
+        "path": '.',
+    }
+    resp = requests.post(http_uri + "rm", params=params)
+    if resp.status_code not in (200, 404):
+        resp.raise_for_status()
 
 @pytest.fixture(scope="session")
 def http_server():
@@ -36,7 +37,7 @@ def http_server():
         )
         time.sleep(1)
         with proc:
-            yield lambda: http_reset(tdir)
+            yield http_reset
             proc.kill()
 
 

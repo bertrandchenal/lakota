@@ -39,8 +39,8 @@ def test_vlen_codecs():
 def test_schema_from_frame(use_df):
     frm = {
         "timestamp": asarray(["2020-01-01", "2020-01-02"], dtype="M8[s]"),
-        "float": asarray([1, 2], dtype="float"),
-        "int": asarray([1, 2], dtype="int"),
+        "float": asarray([1, 2], dtype="float64"),
+        "int": asarray([1, 2], dtype="int64"),
         "str": asarray([1, 2], dtype="U"),
     }
 
