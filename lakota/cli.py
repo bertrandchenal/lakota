@@ -282,6 +282,8 @@ def get_series(repo, label, auto_create=False):
     match = [s for s in collection.ls() if s.startswith(s_label)]
     if len(match) == 1:
         return collection / match[0]
+    elif s_label in match:
+        return collection / s_label
     exit(f"Series '{label}' not found")
 
 
