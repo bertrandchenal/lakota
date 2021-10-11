@@ -11,13 +11,13 @@ from pandas import read_csv
 
 # Instantiate a local repo and define a schema
 repo = Repo('file:///db')
-schema = Schema(**{
-    'date_reported': 'timestamp*',
-    'new_cases': 'int',
-    'cumulative_cases': 'int',
-    'new_deaths': 'int',
-    'cumulative_deaths': 'int',
-})
+schema = Schema(
+    date_reported='timestamp*',
+    new_cases='int',
+    cumulative_cases='int',
+    new_deaths='int',
+    cumulative_deaths='int',
+)
 
 # Download csv from WHO's website
 resp = get('https://covid19.who.int/WHO-COVID-19-global-data.csv', stream=True)
