@@ -47,6 +47,7 @@ class S3POD(POD):
             session = boto3.session.Session(
                 aws_access_key_id=key,
                 aws_secret_access_key=secret,
+                aws_session_token=token,
                 profile_name=profile,
             )
             self.client = session.client(
