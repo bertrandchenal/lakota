@@ -286,7 +286,7 @@ class Commit:
         start_row = None
         if start_pos > 0:
             prev_row = self.at(start_pos - 1)
-            if prev_row["stop"] == start:
+            if (prev_row["label"], prev_row["stop"]) == (label, start):
                 start_pos -= 1
                 start_row = prev_row
         if start_row is None:
@@ -327,7 +327,7 @@ class Commit:
         stop_row = None
         if stop_pos < len(self):
             next_row = self.at(stop_pos)
-            if next_row["start"] == stop:
+            if (next_row["label"], next_row["start"]) == (label, stop):
                 stop_row = next_row
                 stop_pos += 1
         if stop_row is None:

@@ -479,6 +479,20 @@ def test_fragmented_write(series, direction, sgm_size):
     assert all(frm["value"] == vals)
 
 
+@pytest.mark.parametrize("multi", (True, False))
+def test_write_oneliner(repo, multi):
+    clct = repo.create_collection(schema, "-")
+    data = {'timestamp': [0], 'value': [0]}
+    labels = ('ham', 'spam', 'foo')
+    if multi:
+        with clct.multi():
+            for lb in labels:
+                clct.series(lb).write(data)
+    else:
+        for lb in labels:
+            clct.series(lb).write(data)
+    assert clct.ls() == sorted(labels)
+
 @pytest.mark.parametrize("col_type", list(ALIASES))
 def test_update(repo, col_type):
     dtype = ALIASES[col_type]
