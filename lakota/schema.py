@@ -3,7 +3,10 @@ from dataclasses import dataclass
 from datetime import date, datetime
 
 from numcodecs import registry
-from numpy import asarray, ascontiguousarray, dtype, frombuffer, issubdtype, ndarray
+from numpy import asarray, ascontiguousarray, dtype, frombuffer, issubdtype, ndarray, repeat
+
+from .utils import hexdigest
+
 
 DTYPES = [dtype(s) for s in ("datetime64[s]", "int64", "float64", "U", "O")]
 
@@ -49,24 +52,35 @@ class Codec:
                 default_codec_names = ["msgpack2", "zstd"]
             self.codec_names = default_codec_names
 
-    def encode(self, arr):
+    def encode(self, arr, with_digest=False):
         if len(arr) == 0:
-            return b""
-        # encoding may require contiguous memory
-        arr = ascontiguousarray(arr)
-        # convert to proper type
-        arr = arr.astype(self.dt)
-        # Apply codecs
-        for codec_name in self.codec_names:
-            codec = registry.codec_registry[codec_name]
-            kw = {}
-            if codec_name == "blosc":
-                kw = {
-                    "cname": "zstd",
-                    "shuffle": codec.BITSHUFFLE,
-                }
-            arr = codec(**kw).encode(arr)
-        return arr
+            res = b""
+        else:
+            # encoding may require contiguous memory
+            res = ascontiguousarray(arr)
+            # convert to proper type
+            res = res.astype(self.dt)
+            # Apply codecs
+            for codec_name in self.codec_names:
+                codec = registry.codec_registry[codec_name]
+                kw = {}
+                if codec_name == "blosc":
+                    kw = {
+                        "cname": "zstd",
+                        "shuffle": codec.BITSHUFFLE,
+                    }
+                res = codec(**kw).encode(res)
+        if not with_digest:
+            return res
+
+        # Extra step: compute digest
+        if issubdtype(self.dt, "M"):
+            digest = hexdigest(ascontiguousarray(arr.view("i8")))
+        elif self.dt in (dtype("O"), dtype("U")):
+            digest = hexdigest(res)
+        else:
+            digest = hexdigest(ascontiguousarray(arr))
+        return res, digest
 
     def decode(self, arr):
         if len(arr) == 0:
@@ -147,6 +161,10 @@ class SchemaColumn:
             and self.idx == other.idx
             and self.codec == other.codec
         )
+
+    def zeroes(self, length):
+        zero = "" if self.codec.dt == "str" else 0
+        return repeat(zero, length)
 
 
 class Schema:

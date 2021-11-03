@@ -332,4 +332,24 @@ def test_multi_batch():
     assert not temperature.series("Brussels").frame().empty
 
 
-## TODO test of schema update of existing collection
+@pytest.mark.parametrize("new_type", ['str', 'int', 'float'])
+def test_clone(new_type):
+    schema_bis = Schema(timestamp="timestamp*", value="float",
+                        extra_col=new_type)
+    repo = Repo()
+    temperature = repo.create_collection(schema, "temperature")
+    temperature_bis = repo.create_collection(schema_bis, "temperature_bis")
+    srs = temperature / "Brussels"
+    srs.write(frame)
+    orig = srs.frame()
+
+    # Clone collection and test series values
+    temperature.clone(temperature_bis)
+    new_frame = temperature_bis.series('Brussels').frame()
+    for col in ('timestamp', 'value'):
+        assert all(new_frame[col] == orig[col])
+
+    if new_type == 'str':
+        assert all(new_frame['extra_col'] == ['', '', ''])
+    else:
+        assert all(new_frame['extra_col'] == [0, 0, 0])

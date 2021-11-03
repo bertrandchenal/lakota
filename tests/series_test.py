@@ -554,6 +554,18 @@ def test_update(repo, col_type):
     with pytest.raises(ValueError):
         series.update(frm)
 
+@pytest.mark.parametrize("how", ["left", "right", "middle"])
+def test_delete(series, how):
+    if how == 'middle':
+        series.delete(start=1589455904, stop=1589455904)
+        assert all(series.frame()['value'] == [3.3, 5.5])
+    elif how == 'left':
+        series.delete(start=0, stop=1589455904)
+        assert all(series.frame()['value'] == [5.5])
+    else:
+        series.delete(start=1589455904, stop=1589455906)
+        assert all(series.frame()['value'] == [3.3])
+
 
 # def test_partition(repo):
 #     schema = Schema(timestamp="timestamp*", value="float")

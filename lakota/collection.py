@@ -51,7 +51,7 @@ from itertools import chain
 from threading import Lock
 
 from .batch import Batch
-from .changelog import Changelog
+from .changelog import Changelog, phi
 from .commit import Commit
 from .series import KVSeries, Series
 from .utils import Pool, hashed_path, logger, settings
@@ -111,6 +111,43 @@ class Collection:
         parent = leaf_rev.child
         payload = ci.encode()
         return self.changelog.commit(payload, parents=[parent])
+
+    def clone(self, other_collection):
+        if other_collection.changelog.leaf():
+            raise ValueError("Clone can only be saved into an empty collection")
+
+        other_schema = other_collection.schema
+        leaf_rev = self.changelog.leaf()
+        leaf_ci = leaf_rev.commit(self)
+        all_dig = leaf_ci.digest
+        for col in other_schema:
+            if col in all_dig:
+                continue
+            if col in other_schema.idx:
+                raise ValueError("Can not add idx column")
+            # Fill each commit row with digest & embed data of zeroes
+            zeroes = [other_schema[col].zeroes(l) for l in leaf_ci.length]
+            codec = other_schema[col].codec
+            embedded = {}
+            for z in zeroes:
+                encoded, digest = codec.encode(z, with_digest=True)
+                embedded[digest] = encoded
+            # Add new coll to digest dict
+            all_dig[col] = list(embedded.keys())
+            # Add data to embedded dict
+            embedded.update(leaf_ci.embedded)
+
+        new_ci = Commit(
+            other_schema,
+            leaf_ci.label,
+            leaf_ci.start,
+            leaf_ci.stop,
+            all_dig,
+            leaf_ci.length,
+            closed=leaf_ci.closed,
+            embedded=embedded,
+        )
+        return other_collection.changelog.commit(new_ci.encode(), parents=[phi])
 
     def refresh(self):
         self.changelog.refresh()

@@ -556,7 +556,9 @@ class Segment:
                     if f.startswith(filename):
                         data = sub_pod.read(f)
                         break
-        arr = self.commit.schema[name].codec.decode(data)
+
+        codec = self.commit.schema[name].codec
+        arr = codec.decode(data)
         return arr[self.start_pos : self.stop_pos]
 
     @property

@@ -290,7 +290,7 @@ class Repo:
 
     def rename(self, from_label, to_label, namespace="collection"):
         """
-        Change the label a collection
+        Change the label of a collection
         """
         series = self.registry.series(namespace)
         frm = series.frame()

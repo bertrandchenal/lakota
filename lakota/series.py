@@ -4,7 +4,7 @@ from .batch import Batch
 from .changelog import phi
 from .commit import Commit
 from .frame import Frame
-from .utils import Closed, Interval, Pool, hashed_path, hexdigest, settings
+from .utils import Closed, Interval, Pool, hashed_path, settings
 
 __all__ = ["Series", "KVSeries"]
 
@@ -100,34 +100,15 @@ class Series:
         with Pool() as pool:
             for name in self.schema:
                 # Cast array & check len
-                arr = self.schema[name].cast(frame[name])
+                values = frame[name]
                 if arr_length is None:
-                    arr_length = len(arr)
-                elif len(arr) != arr_length:
+                    arr_length = len(values)
+                elif len(values) != arr_length:
                     raise ValueError("Length mismatch")
-                # Encode content
-                data = self.schema[name].codec.encode(arr)
-                # Create digest (based on actual array for simple
-                # type, based on encoded content for O and U)
-                codec = self.schema[name].codec
-                if issubdtype(codec.dt, "M"):
-                    digest = hexdigest(ascontiguousarray(arr.view("i8")))
-                elif codec.dt in (dtype("O"), dtype("U")):
-                    digest = hexdigest(data)
-                else:
-                    digest = hexdigest(ascontiguousarray(arr))
+                digest, embed_data = self._write_col(name, values, pool)
                 all_dig.append(digest)
-
-                if (
-                    len(data) < settings.embed_max_size
-                ):  # every small array gets embedded
-                    # Put small arrays aside
-                    embedded[digest] = data
-                    continue
-                folder, filename = hashed_path(digest)
-                # XXX move writing in Series.commit and handle situation where the commit gets to large?
-                # XXX keep it here for when a batch gets too large ?
-                pool.submit(self.pod.cd(folder).write, filename, data)
+                if embed_data is not None:
+                    embedded[digest] = embed_data
 
         # Build commit info
         start = frame.start() if start is None else start
@@ -155,6 +136,27 @@ class Series:
             closed=closed,
             embedded=embedded,
         )
+
+    def _write_col(self, name, values, pool):
+        # Encode content
+        arr = self.schema[name].cast(values)
+        # Create digest (based on actual array for simple
+        # type, based on encoded content for O and U)
+        codec = self.schema[name].codec
+        data, digest = codec.encode(arr, with_digest=True)
+
+        embedded_data = None
+        if (
+            len(data) < settings.embed_max_size
+        ):  # every small array gets embedded
+            # Put small arrays aside
+            embedded_data = data
+        else:
+            folder, filename = hashed_path(digest)
+            # XXX move writing in Series.commit and handle situation where the commit gets to large?
+            # XXX keep it here for when a batch gets too large ?
+            pool.submit(self.pod.cd(folder).write, filename, data)
+        return digest, embedded_data
 
     def update(self, frame):
         frame = Frame(self.schema, frame)
@@ -184,8 +186,7 @@ class Series:
         # frames
         for frm in (head_frm, tail_frm):
             for col in read_cols:
-                zero = "" if self.schema[col].codec.dt == "str" else 0
-                frm[col] = [zero] * len(frm)
+                frm[col] = self.schema[col].zeroes(len(frm))
 
         full_frm = Frame.concat(head_frm, db_frm, tail_frm)
         return self.write(full_frm, start, stop, closed="b")
@@ -225,6 +226,11 @@ class Series:
         parent = leaf_rev.child if leaf_rev else phi
         return self.changelog.commit(payload, parents=[parent])
 
+    def delete(self, start, stop, closed="b", root=False):
+        frm = {k:[] for k in self.schema}
+        return self.write(frame=frm, start=start, stop=stop, closed=closed,
+                          root=root)
+
     def __getitem__(self, by):
         return Query(self)[by]
 
@@ -243,7 +249,6 @@ class Series:
     def df(self, **kw):
         # TODO implement order (to "tail" a series)! (or .start and .stop based on last rev)
         return Query(self, **kw).df()
-
 
 class Query:
     def __init__(self, series, **kw):
