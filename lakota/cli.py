@@ -413,14 +413,16 @@ def rev(args):
     fmt = lambda a: " / ".join(map(str, a))
     for rev in collection.changelog.log():
         timestamp = str(datetime.fromtimestamp(int(rev.epoch, 16) / 1000))
+        ci = rev.commit(collection)
         print(
             f"""
 Revision: {rev.path}{"*" if rev.is_leaf else ""}
-Date: {timestamp}"""
+Date: {timestamp}
+Total length: {sum(ci.length)}
+"""
         )
         if not args.extended:
             continue
-        ci = rev.commit(collection)
         if series is not None:
             ci = ci.mask(ci.label == series.label)
         starts = list(map(fmt, zip(*ci.start.values())))
