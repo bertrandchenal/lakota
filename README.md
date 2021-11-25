@@ -48,7 +48,7 @@ df = {
 }
 
 series.write(df)
-df = series[:'2020-01-03'].df()
+df = series.df(stop='2020-01-03')
 print(df)
 # ->
 #    timestamp  value
