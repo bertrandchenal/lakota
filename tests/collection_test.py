@@ -333,9 +333,18 @@ def test_multi_batch():
 
 
 @pytest.mark.parametrize("new_type", ['str', 'int', 'float'])
-def test_clone(new_type):
-    schema_bis = Schema(timestamp="timestamp*", value="float",
-                        extra_col=new_type)
+@pytest.mark.parametrize("rename", [None, {'value': 'new_value'}])
+@pytest.mark.parametrize("defaults", [None, {'extra_col': 5}])
+def test_clone(new_type, rename, defaults):
+
+    if rename:
+        schema_bis = Schema(**{'timestamp':"timestamp*", rename['value']:"float", 'extra_col':new_type})
+    else:
+        schema_bis = Schema(timestamp="timestamp*", value="float", extra_col=new_type)
+
+    schema_dict = {'timestamp': "timestamp*", 'extra_col': new_type}
+    schema_dict['value' if rename is None else rename['value']] = 'float'
+
     repo = Repo()
     temperature = repo.create_collection(schema, "temperature")
     temperature_bis = repo.create_collection(schema_bis, "temperature_bis")
@@ -344,12 +353,17 @@ def test_clone(new_type):
     orig = srs.frame()
 
     # Clone collection and test series values
-    temperature.clone(temperature_bis)
+    temperature.clone(temperature_bis, rename, defaults)
     new_frame = temperature_bis.series('Brussels').frame()
-    for col in ('timestamp', 'value'):
-        assert all(new_frame[col] == orig[col])
 
-    if new_type == 'str':
-        assert all(new_frame['extra_col'] == ['', '', ''])
-    else:
-        assert all(new_frame['extra_col'] == [0, 0, 0])
+    for col in ('timestamp', 'value'):
+        dst_col = rename.get(col, col) if rename else col
+        assert all(new_frame[dst_col] == orig[col])
+
+    cast = __builtins__[new_type]
+
+    expected = [cast(defaults['extra_col']) if defaults else ('' if new_type == 'str' else 0)] * 3
+    assert all(new_frame['extra_col'] == expected)
+
+    if rename is not None:
+        assert (new_frame[rename['value']] == frame['value']).all()
