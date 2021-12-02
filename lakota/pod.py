@@ -365,7 +365,7 @@ class MemPOD(POD):
             logger.debug("SKIP-WRITE memory://%s %s", self.path, "/".join(relpath))
             return
 
-        logger.debug("WRITE memory://%s %s", "/".join(self.parts), relpath)
+        logger.debug("WRITE memory://%s %s", "/".join(self.parts), "/".join(relpath))
         self.store.set(current_path, File(data))
         return len(data)
 
