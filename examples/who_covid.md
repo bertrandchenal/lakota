@@ -45,7 +45,7 @@ series = repo / 'covid' / 'EURO_Belgium'
 
 start = '2020-08-20T00:00:00'
 stop = '2020-08-30T00:00:00'
-df = series[start:stop].df()
+df = series.df(start=start, stop=stop)
 print(df)
 # ->
 #   date_reported  new_cases  cumulative_cases  new_deaths  cumulative_deaths

@@ -51,9 +51,9 @@ def test_insert(pod):
 
     with timeit(f"\nREAD ({pod.protocol})"):
         series = collection / label
-        df = series["2015-01-01":"2015-01-02"].df()
+        df = series.df("2015-01-01", "2015-01-02")
         assert len(df) == 1440
-        df = series["2015-12-31":"2016-01-02"].df()
+        df = series.df("2015-12-31", "2016-01-02")
         assert len(df) == 2880
 
 

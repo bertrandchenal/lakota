@@ -176,7 +176,7 @@ def test_adjacent_write(series, how):
         assert all(frm_copy["value"] == [3.3, 4.4, 5.5, 6.6, 7.7])
 
     # Slice read - left slice
-    frm_copy = series[1589455902:1589455903].frame(closed="b")
+    frm_copy = series.frame(1589455902, 1589455903, closed="b")
     if how == "left":
         assert all(frm_copy["timestamp"] == [1589455902, 1589455903])
         assert all(frm_copy["value"] == [2.2, 3.3])
@@ -186,7 +186,7 @@ def test_adjacent_write(series, how):
         assert all(frm_copy["value"] == [3.3])
 
     # Slice read - right slice
-    frm_copy = series[1589455905:1589455906].frame(closed="b")
+    frm_copy = series.frame(1589455905, 1589455906, closed="b")
     if how == "left":
         assert all(frm_copy["timestamp"] == [1589455905])
         assert all(frm_copy["value"] == [5.5])
@@ -565,6 +565,46 @@ def test_delete(series, how):
     else:
         series.delete(start=1589455904, stop=1589455906)
         assert all(series.frame()['value'] == [3.3])
+
+
+def test_tail(series):
+    frm = series.tail(1)
+    assert len(frm) == 1
+    assert frm['value'][0] == 5.5
+
+    frm = series.tail(2)
+    assert len(frm) == 2
+    assert all(frm['value'] == [4.4, 5.5])
+
+    frm = series.tail(10)
+    assert len(frm) == 3
+    assert all(frm['value'] == [3.3, 4.4, 5.5])
+
+    # append some data
+    series.write({
+    "timestamp": [1589455906, 1589455907, 1589455908],
+    "value": [6, 7, 8],
+    })
+
+    frm = series.tail(1)
+    assert len(frm) == 1
+    assert frm['value'][0] == 8
+
+    frm = series.tail(4)
+    assert len(frm) == 4
+    assert all(frm['value'] == [5.5, 6, 7, 8])
+
+    frm = series.tail(10)
+    assert len(frm) == 6
+    assert all(frm['value'] == [3.3, 4.4, 5.5, 6, 7, 8])
+
+    frm = series.tail(10, start=1589455904)
+    assert len(frm) == 5
+    assert all(frm['value'] == [4.4, 5.5, 6, 7, 8])
+
+    frm = series.tail(10, stop=1589455908)
+    assert len(frm) == 5
+    assert all(frm['value'] == [3.3, 4.4, 5.5, 6, 7])
 
 
 # def test_partition(repo):

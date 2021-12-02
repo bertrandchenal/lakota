@@ -136,8 +136,7 @@ class Repo:
         else:
             start = stop = None
         series = self.registry.series(namespace)
-        qr = series[start:stop] @ {"closed": "BOTH"}
-        frm = qr.frame()
+        frm = series.frame(start=start, stop=stop, closed="BOTH")
         for l in frm["label"]:
             yield self.collection(l, frm)
 

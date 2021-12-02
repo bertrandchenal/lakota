@@ -102,6 +102,9 @@ class Collection:
         return self.changelog.commit(payload, parents=[parent])
 
     def rename(self, from_label, to_label):
+        '''
+        Rename Series
+        '''
         leaf_rev = self.changelog.leaf()
         if not leaf_rev:
             return

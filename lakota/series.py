@@ -146,9 +146,7 @@ class Series:
         data, digest = codec.encode(arr, with_digest=True)
 
         embedded_data = None
-        if (
-            len(data) < settings.embed_max_size
-        ):  # every small array gets embedded
+        if len(data) < settings.embed_max_size:  # every small array gets embedded
             # Put small arrays aside
             embedded_data = data
         else:
@@ -227,103 +225,155 @@ class Series:
         return self.changelog.commit(payload, parents=[parent])
 
     def delete(self, start, stop, closed="b", root=False):
-        frm = {k:[] for k in self.schema}
-        return self.write(frame=frm, start=start, stop=stop, closed=closed,
-                          root=root)
-
-    def __getitem__(self, by):
-        return Query(self)[by]
-
-    def __matmul__(self, by):
-        return Query(self) @ by
+        frm = {k: [] for k in self.schema}
+        return self.write(frame=frm, start=start, stop=stop, closed=closed, root=root)
 
     def __len__(self):
         return len(Query(self, select=list(self.schema.idx)))
 
-    def paginate(self, step=settings.page_len, **kw):
-        return Query(self).paginate(step=step, **kw)
+    def paginate(
+        self,
+        step=settings.page_len,
+        start=None,
+        stop=None,
+        limit=None,
+        offset=None,
+        select=None,
+        closed="LEFT",
+        before=None,
+    ):
+        return Query(
+            self,
+            start=start,
+            stop=stop,
+            limit=limit,
+            offset=offset,
+            before=before,
+            closed=closed,
+        ).paginate(step=step)
 
-    def frame(self, **kw):
-        return Query(self, **kw).frame()
+    def tail(
+        self,
+        length,
+        start=None,
+        stop=None,
+        select=None,
+        closed="LEFT",
+        before=None,
+    ):
+        '''
+        Return the last `length` values of the series. Optionaly
+        pre-filtered between `start` and `stop`.
+        '''
+        return Query(
+            self,
+            start=start,
+            stop=stop,
+            before=before,
+            closed=closed,
+        ).tail(length)
 
-    def df(self, **kw):
-        # TODO implement order (to "tail" a series)! (or .start and .stop based on last rev)
-        return Query(self, **kw).df()
+    def frame(
+        self,
+        start=None,
+        stop=None,
+        limit=None,
+        offset=None,
+        select=None,
+        closed="LEFT",
+        before=None,
+    ):
+        return Query(
+            self,
+            start=start,
+            stop=stop,
+            limit=limit,
+            offset=offset,
+            before=before,
+            closed=closed,
+        ).frame()
+
+    def df(
+        self,
+        start=None,
+        stop=None,
+        limit=None,
+        offset=None,
+        select=None,
+        closed="LEFT",
+        before=None,
+    ):
+        return Query(
+            self,
+            start=start,
+            stop=stop,
+            limit=limit,
+            offset=offset,
+            before=before,
+            closed=closed,
+        ).df()
+
 
 class Query:
-    def __init__(self, series, **kw):
+    def __init__(
+        self,
+        series,
+        start=None,
+        stop=None,
+        limit=None,
+        offset=None,
+        select=None,
+        closed="LEFT",
+        before=None,
+        from_ci=None,
+    ):
         self.series = series
-        self.params = {
-            "closed": "LEFT",
-        }
-        for k, v in kw.items():
-            self.set_param(k, v)
-
-    def set_param(self, key, value):
-        if key == "closed":
-            self.params["closed"] = Closed.cast(value)
-        elif key in ("start", "stop"):
-            self.params[key] = self.series.schema.deserialize(value)
-        else:
-            if not key in ("limit", "offset", "before", "select", "from_ci"):
-                raise ValueError(f"Unsupported parameter: {key}")
-            self.params[key] = value
-
-    def __getitem__(self, by):
-        if isinstance(by, slice):
-            return self @ {"start": by.start, "stop": by.stop}
-        elif isinstance(by, (list, tuple, str)):
-            return self @ {"select": by}
-        else:
-            raise KeyError(by)
-
-    def __matmul__(self, kw):
-        if not kw:
-            return self
-        params = self.params.copy()
-        params.update(kw)
-        return Query(self.series, **params)
+        self.start = self.series.schema.deserialize(start)
+        self.stop = self.series.schema.deserialize(stop)
+        self.closed = Closed.cast(closed)
+        self.limit = limit
+        self.offset = offset
+        self.select = select
+        self.before = before
+        self.from_ci = from_ci
 
     def segments(self):
-        keys = ("start", "stop", "before", "closed", "from_ci")
-        kw = {k: self.params.get(k) for k in keys}
-        segments = self.series.segments(**kw)
+        segments = self.series.segments(
+            start=self.start,
+            stop=self.stop,
+            before=self.before,
+            closed=self.closed,
+            from_ci=self.from_ci,
+        )
         return segments
 
     def __len__(self):
         return sum(len(s) for s in self.segments())
 
-    def frame(self, **kw):
-        qr = self @ kw
-        segments = qr.segments()
-        limit = qr.params.get("limit")
-        offset = qr.params.get("offset")
-        select = qr.params.get("select")
+    def frame(self):
         return Frame.from_segments(
-            qr.series.schema,
-            segments,
-            limit=limit,
-            offset=offset,
-            select=select,
+            self.series.schema,
+            self.segments(),
+            limit=self.limit,
+            offset=self.offset,
+            select=self.select,
         )
 
-    def df(self, **kw):
-        frm = self.frame(**kw)
-        return frm.df()
+    def df(self):
+        return self.frame().df()
 
-    def paginate(self, step=settings.page_len, **kw):
+    def paginate(self, step=settings.page_len):
         if step <= 0:
             raise ValueError("step argument must be > 0")
-        qr = self @ kw
-        segments = qr.segments()
-        select = qr.params.get("select")
-        limit = qr.params.get("limit")
-        pos = qr.params.get("offset") or 0
+        segments = self.segments()
+        select = self.select
+        limit = self.limit
+        pos = self.offset or 0
         while True:
             lmt = step if limit is None else min(step, limit)
             offset = pos
             frm = Frame.from_segments(
-                qr.series.schema, segments, limit=lmt, offset=offset, select=select
+                self.series.schema, segments, limit=lmt, offset=offset, select=select
             )
             if len(frm) == 0:
                 return
@@ -331,6 +381,31 @@ class Query:
                 limit -= len(frm)
             yield frm
             pos += step
+
+    def tail(self, length):
+        if length <= 0:
+            raise ValueError("length argument must be > 0")
+        segments = self.segments()
+        select = self.select
+        cnt = 0
+        res = []
+
+        # Create one frame per segment, starting from the last one.
+        for segment in reversed(segments):
+            frm = Frame.from_segments(
+                self.series.schema, [segment], select=select
+            )
+            if cnt + len(frm) >= length:
+                # Last frame: keep the correct amount of lines
+                cut = length - cnt
+                res.append(frm.slice(start=-cut))
+                break
+            # We consume the full frame, append it and increase counter
+            res.append(frm)
+            cnt += len(frm)
+
+        # Re-order frames and concat
+        return Frame.concat(*reversed(res))
 
 
 class KVSeries(Series):
@@ -372,7 +447,7 @@ class KVSeries(Series):
 
         # XXX use changelog pack ?
         start, stop = min(keys), max(keys)
-        frm = self[start:stop].frame(closed="BOTH")
+        frm = self.frame(start, stop, closed="BOTH")
         # Keep only keys not given as argument
         # FIXME use frame.mask to filter it
         items = [(k, s) for k, s in zip(frm["label"], frm["meta"]) if k not in keys]
