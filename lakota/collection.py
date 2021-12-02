@@ -49,6 +49,7 @@ from contextlib import contextmanager
 from datetime import datetime, timedelta
 from itertools import chain
 from threading import Lock
+from typing import Dict, Any
 
 from .batch import Batch
 from .changelog import Changelog, phi
@@ -115,7 +116,7 @@ class Collection:
         payload = ci.encode()
         return self.changelog.commit(payload, parents=[parent])
 
-    def clone(self, other_collection):
+    def clone(self, other_collection: "Collection", rename_columns: Dict[str, str]=None, defaults: Dict[str, Any]=None) -> Commit:
         if other_collection.changelog.leaf():
             raise ValueError("Clone can only be saved into an empty collection")
 
@@ -123,22 +124,32 @@ class Collection:
         leaf_rev = self.changelog.leaf()
         leaf_ci = leaf_rev.commit(self)
         all_dig = leaf_ci.digest
+        for old_label, new_label in (rename_columns or {}).items():
+            all_dig[new_label] = all_dig.pop(old_label)
+        embedded = {}
         for col in other_schema:
             if col in all_dig:
                 continue
             if col in other_schema.idx:
                 raise ValueError("Can not add idx column")
             # Fill each commit row with digest & embed data of zeroes
-            zeroes = [other_schema[col].zeroes(l) for l in leaf_ci.length]
+            if defaults and col in defaults:
+                default_value = defaults[col]
+                values = [[default_value]*l for l in leaf_ci.length]
+            else:
+                values = [other_schema[col].zeroes(l) for l in leaf_ci.length]
             codec = other_schema[col].codec
-            embedded = {}
-            for z in zeroes:
-                encoded, digest = codec.encode(z, with_digest=True)
-                embedded[digest] = encoded
+            col_embedded = {}
+            for v in values:
+                encoded, digest = codec.encode(v, with_digest=True)
+                col_embedded[digest] = encoded
             # Add new coll to digest dict
-            all_dig[col] = list(embedded.keys())
-            # Add data to embedded dict
-            embedded.update(leaf_ci.embedded)
+
+            all_dig[col] = list(col_embedded.keys())
+            # Add data to embedded
+            embedded.update(col_embedded)
+
+        embedded.update(leaf_ci.embedded)
 
         new_ci = Commit(
             other_schema,
