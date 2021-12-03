@@ -322,15 +322,18 @@ def read(args):
     else:
         columns = args.columns
 
-    query = series[columns][args.greater_than : args.less_than] @ {
+    kw = {
+        "start": args.greater_than,
+        "stop": args.less_than,
         "limit": args.limit,
         "offset": args.offset,
         "before": args.before,
+        "select": columns,
     }
     if args.paginate:
-        frames = query.paginate(args.paginate)
+        frames = series.paginate(args.paginate, **kw)
     else:
-        frames = [query.frame()]
+        frames = [series.frame(**kw)]
 
     if args.mask:
         frames = (frm.mask(args.mask) for frm in frames)
