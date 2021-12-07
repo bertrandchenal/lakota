@@ -101,8 +101,6 @@ timestamp,value
 2020-06-24T00:00:00,27.9
 ```
 
-But `--mask` and group-by/aggregate are not compatible (yet).
-
 Built-in help:
 
 ```shell
@@ -149,16 +147,8 @@ Most sub commands come with extra doc:
 $ lakota help ls
 
     List collections in a repo
-    ```
-    $ lakota ls
-    ```
-
-    List series in a collection
-    ```
-    $ lakota ls my_collection
-    ```
+    ...
 ```
-
 
 
 
