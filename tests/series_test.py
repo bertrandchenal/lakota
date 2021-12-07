@@ -606,6 +606,14 @@ def test_tail(series):
     assert len(frm) == 5
     assert all(frm['value'] == [3.3, 4.4, 5.5, 6, 7])
 
+    frm = series.tail(10, limit=2)
+    assert len(frm) == 5
+    assert all(frm['value'] == [3.3, 4.4])
+
+    frm = series.tail(10, limit=2, offset=2)
+    assert len(frm) == 5
+    assert all(frm['value'] == [5.5, 6])
+
 
 # def test_partition(repo):
 #     schema = Schema(timestamp="timestamp*", value="float")

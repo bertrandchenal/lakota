@@ -303,6 +303,7 @@ def read(args):
     """
     repo = get_repo(args)
     series = get_series(repo, args.label)
+
     reduce = False
     if not args.columns:
         columns = list(series.schema.columns)
@@ -322,6 +323,8 @@ def read(args):
     }
     if args.paginate:
         frames = series.paginate(args.paginate, **kw)
+    elif args.tail:
+        frames = [series.tail(args.tail, **kw)]
     else:
         frames = [series.frame(**kw)]
 
@@ -660,6 +663,7 @@ def run():
     parser_read.add_argument("--limit", "-l", type=int, default=None)
     parser_read.add_argument("--offset", "-o", type=int, default=None)
     parser_read.add_argument("--paginate", "-p", type=int, default=None)
+    parser_read.add_argument("--tail", "-t", type=int, default=None)
     parser_read.add_argument("--before", "-B", default=None, type=datetime_like)
     parser_read.add_argument("--mask", "-m", type=str, default=None)
     parser_read.add_argument(
