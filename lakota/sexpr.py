@@ -79,15 +79,17 @@ class Env:
         res = self.values
         for part in key.split("."):
             try:
-                res = getattr(res, part)
-            except AttributeError:
-                pass
-            try:
                 res = res[part]
             except KeyError:
+                pass
+            else:
+                continue
+            try:
+                res = getattr(res, part)
+            except AttributeError:
                 if default is not UNSET:
                     return default
-                raise
+                raise KeyError(part)
         return res
 
 
