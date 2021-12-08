@@ -257,6 +257,8 @@ class Series:
         length,
         start=None,
         stop=None,
+        limit=None,
+        offset=None,
         select=None,
         closed="LEFT",
         before=None,
@@ -269,6 +271,8 @@ class Series:
             self,
             start=start,
             stop=stop,
+            limit=limit,
+            offset=offset,
             before=before,
             closed=closed,
         ).tail(length)
@@ -405,7 +409,14 @@ class Query:
             cnt += len(frm)
 
         # Re-order frames and concat
-        return Frame.concat(*reversed(res))
+        frm = Frame.concat(*reversed(res))
+
+        if (self.limit, self.offset) != (None, None):
+            start = self.offset or 0
+            stop = start + (self.limit or 0)
+            frm = frm.slice(start, stop)
+
+        return frm
 
 
 class KVSeries(Series):
