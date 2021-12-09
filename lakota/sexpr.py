@@ -67,6 +67,9 @@ class KWargs:
     def __init__(self, *items):
         self.value = list_to_dict(*items)
 
+    def __repr__(self):
+        return f'<KWargs {self.value}>'
+
 
 class Env:
     def __init__(self, values):
