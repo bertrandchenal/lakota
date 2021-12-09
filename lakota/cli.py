@@ -320,6 +320,7 @@ def read(args):
         "offset": args.offset,
         "before": args.before,
         "select": columns,
+        "closed": args.closed,
     }
     if args.paginate:
         frames = series.paginate(args.paginate, **kw)
@@ -669,14 +670,23 @@ def run():
     parser_read.add_argument(
         "--greater-than",
         "--gt",
-        nargs="+",
+        action="append",
         help="Keep rows where index is bigger the given value",
     )
     parser_read.add_argument(
         "--less-than",
         "--lt",
-        nargs="+",
+        action="append",
         help="Keep rows where index is less than given value",
+    )
+    parser_read.add_argument(
+        "--closed",
+        "-c",
+        type=str,
+        default="left",
+        help='Include or exclude the bounds of interval defined by --gt'
+        ' and --lt (defaults to "LEFT" or "l", other possible values: '
+        'RIGHT, r, BOTH, b and NONE, n)',
     )
     parser_read.set_defaults(func=read)
 
