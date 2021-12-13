@@ -69,19 +69,24 @@ def test_write_delete_recursive(pod):
 
     top_pod.write("sub_dir/key", deadbeef)
     top_pod.write("sub_dir2/sub_dir3/key", deadbeef)
-    if isinstance(pod, MemPOD):
-        with pytest.raises(FileNotFoundError):
-            top_pod.rm(".")
-    elif isinstance(pod, FilePOD):
-        with pytest.raises(OSError):
-            top_pod.rm(".")
-    # XXX test on exception for S3
+
+    # oserror is raised if the folder is not empty
+    with pytest.raises(OSError):
+        top_pod.rm(".")
+
     top_pod.rm("sub_dir2", recursive=True)
     assert pod.ls("top_dir") == ["sub_dir"]
 
     top_pod.rm(".", recursive=True)
     assert pod.ls() == []
 
+
+def test_missing_ok(pod):
+    for recursive in (True, False):
+        with pytest.raises(FileNotFoundError):
+            pod.rm('i-do-not-exist', recursive=recursive)
+        # Shoudn't raise an error
+        pod.rm('i-do-not-exist', recursive=recursive, missing_ok=True)
 
 def test_write_rm_many(pod):
     assert pod.ls(missing_ok=True) == []

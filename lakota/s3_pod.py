@@ -125,13 +125,25 @@ class S3POD(POD):
 
     def rm(self, relpath=".", recursive=False, missing_ok=False):
         logger.debug("REMOVE s3://%s/%s %s", self.bucket, self.path, relpath)
+
         prefix = str(self.path / relpath)
-        if recursive:
-            prefix = "" if prefix in (".", "") else prefix + "/"
-            resp = self.client.list_objects_v2(Bucket=str(self.bucket), Prefix=prefix)
-            keys = [item["Key"] for item in resp.get("Contents", [])]
-        else:
+        if missing_ok and not recursive:
+            # We don't need to list remote keys if we don't plan to
+            # check their existance
             keys = [prefix]
+        else:
+            if recursive:
+                prefix = "" if prefix in (".", "") else prefix + "/"
+            resp = self.client.list_objects_v2(
+                Bucket=str(self.bucket), Prefix=prefix)
+            keys = [item["Key"] for item in resp.get("Contents", [])]
+
+        if not recursive and len(keys) > 1:
+            # We raise an OSError to mimic file based access
+            raise OSError(f"{relpath} is not empty")
+        if not keys and not missing_ok:
+            raise FileNotFoundError(f"{relpath} not found")
+
         try:
             _ = self.client.delete_objects(
                 Bucket=str(self.bucket),
@@ -151,8 +163,6 @@ class S3POD(POD):
                     Bucket=str(self.bucket),
                     Key=key,
                 )
-
-        # XXX implement missing_ok
 
     def mv(self, from_path, to_path, missing_ok=False):
         orig = str(self.path / from_path)

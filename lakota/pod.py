@@ -198,20 +198,20 @@ class FilePOD(POD):
     def rm(self, relpath=".", recursive=False, missing_ok=False):
         logger.debug("REMOVE %s %s", self.path, relpath)
         path = self.path / relpath
-        if recursive:
-            if path.is_dir():
-                shutil.rmtree(path)
+        try:
+            if recursive:
+                if path.is_dir():
+                    shutil.rmtree(path)
+                else:
+                    path.unlink()
+            elif path.is_dir():
+                path.rmdir()
             else:
                 path.unlink()
-        elif path.is_dir():
-            path.rmdir()
-        else:
-            try:
-                path.unlink()
-            except FileNotFoundError:
-                if missing_ok:
-                    return
-                raise
+        except FileNotFoundError:
+            if missing_ok:
+                return
+            raise
 
     def mv(self, from_path, to_path, missing_ok=False):
         orig = self.path / from_path
@@ -389,7 +389,7 @@ class MemPOD(POD):
 
         elif isinstance(item, Folder):
             if not recursive:
-                raise FileNotFoundError(f"{relpath} is not empty")
+                raise OSError(f"{relpath} is not empty")
 
             # Delete and recurse
             self.store.delete(path)

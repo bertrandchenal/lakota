@@ -67,6 +67,11 @@ class HttpPOD(POD):
             "path": path,
         }
         resp = self.session.post(self.base_uri + "rm", params=params)
+        if resp.status_code == 404:
+            if missing_ok:
+                return
+            else:
+                raise FileNotFoundError(f"{relpath} not found")
         resp.raise_for_status()
 
     def mv(self, from_path, to_path, missing_ok=False):
