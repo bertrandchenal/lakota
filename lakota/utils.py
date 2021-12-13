@@ -38,7 +38,7 @@ class Settings:
     page_len: int = 500_000
     squash_max_chunk: int = 4  # Max number of small chunks in a series
     timeout: int = 600  # Max duration for a write batch (in seconds)
-
+    max_threads: int = 10 # Size of the threadpool
 
 settings = Settings()
 
@@ -174,7 +174,7 @@ class Pool:
     """
 
     _lock = Lock()
-    _pool = ThreadPoolExecutor(16)
+    _pool = None
 
     def __init__(self):
         self.threaded = False
@@ -190,6 +190,8 @@ class Pool:
         return self
 
     def submit(self, fn, *a, **kw):
+        if self._pool is None:
+            self._pool = ThreadPoolExecutor(settings.max_threads)
         if self.threaded:
             self.futures.append(self._pool.submit(fn, *a, **kw))
         else:
