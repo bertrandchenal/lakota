@@ -683,7 +683,7 @@ def run():
         "--closed",
         "-c",
         type=str,
-        default="left",
+        default="LEFT",
         help='Include or exclude the bounds of interval defined by --gt'
         ' and --lt (defaults to "LEFT" or "l", other possible values: '
         'RIGHT, r, BOTH, b and NONE, n)',

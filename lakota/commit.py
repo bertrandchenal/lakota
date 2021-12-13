@@ -556,6 +556,8 @@ class Segment:
                     if f.startswith(filename):
                         data = sub_pod.read(f)
                         break
+                else:
+                    raise RuntimeError(f'File {folder}/{filename} is missing!')
 
         codec = self.commit.schema[name].codec
         arr = codec.decode(data)
