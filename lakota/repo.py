@@ -97,6 +97,7 @@ import json
 from io import BytesIO, StringIO
 from itertools import chain
 from time import time
+from uuid import uuid4
 
 from numpy import where
 
@@ -181,23 +182,31 @@ class Repo:
             start=min(labels), stop=max(labels), closed="BOTH", select="label"
         )["label"]
 
+        new_labels = []
         for label in labels:
             label = label.strip()
             if len(label) == 0:
                 raise ValueError(f"Invalid label: {label}")
-            if label in current_labels and raise_if_exists:
-                raise ValueError(f"Collection with label '{label}' already exists")
-
-            key = label.encode()
-            # Use digest to create collection folder (based on mode and label)
-            digest = hexdigest(key)
-            if namespace != "collection":
-                digest = hexdigest(digest.encode(), namespace.encode())
+            if label in current_labels:
+                if raise_if_exists:
+                    raise ValueError(f"Collection with label '{label}' already exists")
+                else:
+                    continue
+            # Generate random digest
+            digest = hexdigest(uuid4().bytes)
             folder, filename = hashed_path(digest)
+            new_labels.append(label)
             meta.append({"path": str(folder / filename), "schema": schema_dump})
 
-        series.write({"label": labels, "meta": meta})
-        res = [self.reify(l, m) for l, m in zip(labels, meta)]
+        if new_labels:
+            series.write({"label": new_labels, "meta": meta})
+
+        # Return collections
+        mask = "(isin self.label (list %s))" % " ".join(f'"{l}"' for l in labels)
+        frm = series.frame(start=min(labels), stop=max(labels), closed="BOTH").mask(
+            mask
+        )
+        res = [self.collection(l, from_frm=frm) for l in labels]
         if len(labels) == 1:
             return res[0]
         return res

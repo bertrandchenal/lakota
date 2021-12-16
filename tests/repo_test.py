@@ -136,12 +136,13 @@ def test_delete_and_recreate(repo, merge):
 
 def test_label_regexp():
     repo = Repo()
-    ok = ["abc", "abc-abc-123", "abc_abc-123.45", "abc+abc", "$", "é"]
+    ok = ["abc", "abc-abc-123", "abc_abc-123.45", "abc+abc", "$", "é",
+          "foo bar"]
     for label in ok:
         repo.create_collection(SCHEMA, label)
         repo.create_collection(SCHEMA, label.upper(), raise_if_exists=False)
 
-    not_ok = ["", "\t", "\n"]
+    not_ok = ["", "\t", "\n", " "]
     for label in not_ok:
         with pytest.raises(ValueError):
             repo.create_collection(SCHEMA, label)
@@ -258,6 +259,10 @@ def test_rename(repo):
     # Rename to a longer label (test for issue #2)
     repo.rename("B", "BB")
     assert repo.ls() == ["BB", "C", "D"]
+
+    # Re-create old label
+    clc = repo.create_collection(SCHEMA, "A")
+    assert clc.ls() == []
 
 
 def test_import_export(repo):

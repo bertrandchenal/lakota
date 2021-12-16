@@ -143,7 +143,8 @@ def test_series_squash_stability():
     local_repo = Repo()
     local_coll = local_repo.create_collection(schema, "a_collection")
     remote_repo = Repo()
-    remote_coll = remote_repo.create_collection(schema, "a_collection")
+    remote_repo.pull(local_repo)
+    remote_coll = remote_repo / "a_collection"
     series = local_coll / label
 
     months = list(range(1, 12))
