@@ -231,6 +231,9 @@ class Series:
     def __len__(self):
         return len(Query(self, select=list(self.schema.idx)))
 
+    def __bool__(self):
+        return self.label in self.collection.ls()
+
     def paginate(
         self,
         step=settings.page_len,

@@ -615,6 +615,11 @@ def test_tail(series):
     assert all(frm['value'] == [5.5, 6])
 
 
+def test_bool(series):
+    clc = series.collection
+    assert bool(series)
+    assert not bool(clc / 'i-do-not-exist')
+
 # def test_partition(repo):
 #     schema = Schema(timestamp="timestamp*", value="float")
 #     clct = repo.create_collection(schema, "timeseries")
