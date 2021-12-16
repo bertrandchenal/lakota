@@ -333,7 +333,8 @@ class Repo:
         ones.
         """
         logger.info("Start GC")
-        # Collect digests across folders
+        # Collect digests across folders (_walk_folder ignore files
+        # containing changelogs, it will only return segments of data)
         base_folders = self.pod.ls()
         with Pool() as pool:
             for folder in base_folders:
@@ -391,6 +392,11 @@ class Repo:
         return nb_hard_del, nb_soft_del
 
     def _walk_folder(self, folder):
+        '''
+        Return list of digests contained in the top folder (ignoring
+        content deeper than 2 subfolders and so ignores changelog
+        files)
+        '''
         digs = []
         pod = self.pod.cd(folder)
         for filename in pod.walk(max_depth=2):
