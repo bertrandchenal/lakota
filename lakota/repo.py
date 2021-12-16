@@ -98,6 +98,8 @@ from io import BytesIO, StringIO
 from itertools import chain
 from time import time
 
+from numpy import where
+
 from .changelog import zero_hash
 from .collection import Collection
 from .pod import POD
@@ -293,24 +295,27 @@ class Repo:
         """
         series = self.registry.series(namespace)
         frm = series.frame()
+        idx = where(frm["label"] == from_label)[0]
+        if len(idx) == 0:
+            raise ValueError(f'Collection "{from_label}" does not exists')
         if to_label in frm["label"]:
             raise ValueError(f'Collection "{to_label}" already exists')
 
-        # replace in label column
+        # Extract bounds
         start, stop = frm.start(), frm.stop()
-        labels = frm["label"]
-        mask = labels == from_label
-        labels[mask] = to_label
-        frm["label"] = labels
-
+        # unpack idx
+        idx = idx[0]
+        # rebuild label list
+        labels = list(frm["label"])
+        frm["label"] = labels[:idx] + [to_label] + labels[idx + 1 :]
         # Re-order frame
         frm = frm.sorted()
+
         series.write(
             frm,
-            start=min(
-                frm.start(), start
-            ),  # Make sure we over-write the previous content
-            stop=max(frm.stop(), stop),  # same
+            # Make sure we over-write the previous content:
+            start=min(frm.start(), start),
+            stop=max(frm.stop(), stop),
         )
 
     def gc(self):

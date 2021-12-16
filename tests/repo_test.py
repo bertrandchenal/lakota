@@ -245,10 +245,19 @@ def test_rename(repo):
     srs = repo / "D" / "a"
     assert srs.frame() == frm
 
-    # Rename to an existing label is not supported
+    # Rename to an existing label raise an exception
     assert repo.ls() == ["B", "C", "D"]
     with pytest.raises(ValueError):
         repo.rename("B", "C")
+
+    # Rename an non existing collection too
+    assert repo.ls() == ["B", "C", "D"]
+    with pytest.raises(ValueError):
+        repo.rename("Z", "E")
+
+    # Rename to a longer label (test for issue #2)
+    repo.rename("B", "BB")
+    assert repo.ls() == ["BB", "C", "D"]
 
 
 def test_import_export(repo):
