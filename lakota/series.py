@@ -393,6 +393,8 @@ class Query:
         if length <= 0:
             raise ValueError("length argument must be > 0")
         segments = self.segments()
+        if not segments:
+            return Frame(self.series.schema)
         select = self.select
         cnt = 0
         res = []

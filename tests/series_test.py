@@ -32,6 +32,13 @@ def series(request, repo):
     series.write(orig_frm)
     return series
 
+@pytest.fixture(
+    scope="function",
+)
+def empty_series(request, repo):
+    clct = repo.create_collection(schema, "-", raise_if_exists=False)
+    series = clct / "empty"
+    return series
 
 def test_read_series(series):
     # Read those back
@@ -567,7 +574,13 @@ def test_delete(series, how):
         assert all(series.frame()['value'] == [3.3])
 
 
-def test_tail(series):
+def test_tail(series, empty_series):
+    frm = empty_series.tail(1)
+    assert len(frm) == 0
+
+    frm = series.tail(1, start=1589455905 + 1)
+    assert len(frm) == 0
+
     frm = series.tail(1)
     assert len(frm) == 1
     assert frm['value'][0] == 5.5
