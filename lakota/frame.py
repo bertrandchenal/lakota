@@ -53,22 +53,9 @@ class Frame:
         if not segments:
             return Frame(schema)
         select = select or schema.columns
-        with Pool() as pool:
-            for name in schema.columns:
-                if name not in select:
-                    continue
-                pool.submit(
-                    Frame.read_segments, segments, name, limit=limit, offset=offset
-                )
-
-        res = dict(pool.results)
-        return Frame(schema, res)
-
-    @classmethod
-    def read_segments(cls, segments, name, limit=None, offset=None):
-        arrays = []
         start = offset or 0
         stop = None if limit is None else start + limit
+        frames = []
 
         for sgm in segments:
             if stop == 0:
@@ -78,12 +65,17 @@ class Frame:
                 if stop is not None:
                     stop = max(stop - len(sgm), 0)
                 continue
-            arr = sgm.read(name, start_pos=start, stop_pos=stop)
+            # with Pool() ...
+            values = {name: sgm.read(name, start_pos=start, stop_pos=stop)
+                      for name in select}
+            frames.append(Frame(schema, values))
+
             start = max(start - len(sgm), 0)
             if stop is not None:
                 stop = max(stop - len(sgm), 0)
-            arrays.append(arr)
-        return name, concatenate(arrays) if arrays else []
+
+        return Frame.concat(frames)
+
 
     def df(self, *columns):
         if DataFrame is None:
