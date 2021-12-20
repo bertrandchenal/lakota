@@ -181,6 +181,10 @@ class Schema:
         if len(self.idx) == 0:
             raise ValueError("Invalid schema, no index defined")
 
+    def clone(self, *keep):
+        cols = keep or list(self)
+        return Schema(**{c: self[c] for c in cols})
+
     @classmethod
     def kv(cls, **columns):
         schema = Schema(**columns)

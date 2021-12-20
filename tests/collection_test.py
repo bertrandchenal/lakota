@@ -138,14 +138,15 @@ def test_squash_max_chunk(nb_chunk, frame_len):
     temperature.squash(trim=trim, max_chunk=4)
     assert series.frame() == expected
 
+    segments = list(series.segments())
     if nb_chunk <= 4:
-        assert len(series.segments()) == nb_chunk
+        assert len(segments) == nb_chunk
     elif frame_len == 10:
-        assert len(series.segments()) == 1
+        assert len(segments) == 1
     elif frame_len == settings.page_len / 2:
-        assert len(series.segments()) == 4
+        assert len(segments) == 4
     else:
-        assert len(series.segments()) == 8
+        assert len(segments) == 8
 
 
 def test_merge():

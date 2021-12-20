@@ -50,9 +50,11 @@ class Frame:
 
     @classmethod
     def from_segments(cls, schema, segments, limit=None, offset=None, select=None):
-        if not segments:
-            return Frame(schema)
-        select = select or schema.columns
+        if not select:
+            select = schema.columns
+        else:
+            select = [select] if isinstance(select, str) else select
+
         start = offset or 0
         stop = None if limit is None else start + limit
         frames = []
@@ -65,16 +67,23 @@ class Frame:
                 if stop is not None:
                     stop = max(stop - len(sgm), 0)
                 continue
-            # with Pool() ...
-            values = {name: sgm.read(name, start_pos=start, stop_pos=stop)
-                      for name in select}
+            with Pool() as pool:
+                # For each column we schedule a lambda that return a tuple
+                # `(name, numpy_array)`
+                read_col = lambda name: (
+                    name,
+                    sgm.read(name, start_pos=start, stop_pos=stop)
+                )
+                for name in select:
+                    pool.submit(read_col, name)
+            values = dict(pool.results)
             frames.append(Frame(schema, values))
 
             start = max(start - len(sgm), 0)
             if stop is not None:
                 stop = max(stop - len(sgm), 0)
 
-        return Frame.concat(frames)
+        return Frame.concat(*frames) if frames else Frame(schema)
 
 
     def df(self, *columns):
@@ -110,18 +119,19 @@ class Frame:
 
         # General cases
         schema = frames[0].schema
+        names = list(frames[0])
         cols = defaultdict(list)
         # Build dict of list
         for frm in frames:
             if not frm.schema == schema:
                 raise ValueError("Unable to concat frames with different schema")
-            for name in schema:
+            for name in names:
                 arr = frm[name]
                 if len(arr) == 0:
                     continue
                 cols[name].append(arr)
         # Concatenate all lists
-        for name in schema:
+        for name in names:
             cols[name] = concatenate(cols[name])
         # Create frame and sort it
         return Frame(schema, cols).sorted()

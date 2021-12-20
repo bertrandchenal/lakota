@@ -1,4 +1,4 @@
-from numpy import ascontiguousarray, dtype, issubdtype
+from numpy import issubdtype
 
 from .batch import Batch
 from .changelog import phi
@@ -49,7 +49,7 @@ class Series:
             # Find leaf commit
             leaf_rev = self.changelog.leaf(before=before)
             if not leaf_rev:
-                return
+                return []
             from_ci = leaf_rev.commit(self.collection)
         return from_ci.segments(self.label, self.pod, start, stop, closed=closed)
 
@@ -237,33 +237,37 @@ class Series:
     def paginate(
         self,
         step=settings.page_len,
-        select=None,
-        closed="LEFT",
+        start=None,
+        stop=None,
         before=None,
+        closed="LEFT",
+        limit=None,
+        offset=None,
+        select=None,
     ):
 
         return Paginate(
             self,
-            from_ci,
+            step=step,
             start=start,
             stop=stop,
-            limit=limit,
-            offset=offset,
             before=before,
             closed=closed,
-            step=step,
-        )
+            limit=limit,
+            offset=offset,
+            select=select,
+        ).iter()
 
     def tail(
         self,
         length,
         start=None,
         stop=None,
+        before=None,
+        closed="LEFT",
         limit=None,
         offset=None,
         select=None,
-        closed="LEFT",
-        before=None,
     ):
         '''
         Return the last `length` values of the series. Optionaly
@@ -278,13 +282,10 @@ class Series:
             closed=closed,
         )
 
-        if not segments:
-            return Frame(self.schema)
-
         cnt = 0
         res = []
         # Create one frame per segment, starting from the last one.
-        for segment in reversed(segments):
+        for segment in reversed(list(segments)):
             frm = Frame.from_segments(
                 self.schema, [segment], select=select
             )
@@ -296,6 +297,9 @@ class Series:
             # We consume the full frame, append it and increase counter
             res.append(frm)
             cnt += len(frm)
+
+        if not res:
+            return Frame(self.schema)
 
         # Re-order frames and concat
         frm = Frame.concat(*reversed(res))
@@ -311,11 +315,11 @@ class Series:
         self,
         start=None,
         stop=None,
+        before=None,
+        closed="LEFT",
         limit=None,
         offset=None,
         select=None,
-        closed="LEFT",
-        before=None,
     ):
         segments = self.segments(
             start=self.schema.deserialize(start),
@@ -323,7 +327,9 @@ class Series:
             before=before,
             closed=closed,
         )
-        return Frame.from_segment(
+
+
+        return Frame.from_segments(
             self.schema,
             segments,
             limit=limit,
@@ -335,20 +341,20 @@ class Series:
         self,
         start=None,
         stop=None,
+        before=None,
+        closed="LEFT",
         limit=None,
         offset=None,
         select=None,
-        closed="LEFT",
-        before=None,
     ):
         return self.frame(
-            self,
             start=start,
             stop=stop,
-            limit=limit,
-            offset=offset,
             before=before,
             closed=closed,
+            limit=limit,
+            offset=offset,
+            select=select,
         ).df()
 
 
@@ -356,20 +362,20 @@ class Paginate:
     def __init__(
         self,
         series,
+        step=settings.page_len,
         start=None,
         stop=None,
+        before=None,
+        closed="LEFT",
         limit=None,
         offset=None,
         select=None,
-        closed="LEFT",
-        before=None,
-        step=settings.page_len,
     ):
         self.series = series
         self.start = series.schema.deserialize(start)
         self.stop = series.schema.deserialize(stop)
         self.closed = Closed.cast(closed)
-        self.limit = limit or step
+        self.limit = limit
         self.offset = offset or 0
         self.select = select
         self.step = step
@@ -378,40 +384,53 @@ class Paginate:
             raise ValueError("step argument must be > 0")
 
         leaf_rev = series.changelog.leaf(before=before)
-        self.from_ci = leaf_rev.commit(self.collection) if leaf_rev else None
+        self.from_ci = leaf_rev and leaf_rev.commit(self.series.collection)
 
-    def __iter__(self):
+    def iter(self):
         if not self.from_ci:
-            return iter([])
-        return self
+            return []
+        for frm in self.loop():
+            if not frm.empty:
+                yield frm
 
-
-    def __next__(self):
-        lmt = min(self.step, self.limit)
-        read_len = 0
-        segments = []
-        for sgm in self.series.segments(self.start, self.stop, closed=closed):
-            segments.append(sgm)
-            read_len += len(sgm)
-            if read_len >= lmt:
+    def loop(self):
+        while True:
+            if self.limit == 0:
                 break
+            lmt = min(self.step, self.step if self.limit is None else self.limit)
 
-        frm = Frame.from_segments(
-            self.series.schema, segments, limit=lmt, offset=offset, select=select
-        )
+            # Load some segments
+            read_len = 0
+            segments = []
+            for sgm in self.series.segments(self.start, self.stop, closed=self.closed):
+                segments.append(sgm)
+                read_len += len(sgm)
+                if read_len >= lmt:
+                    break
 
-        # Update limit & offset
-        self.offset = max(self.offset - read_len, 0)
-        if self.offset == 0:
-            self.limit = max(self.limit - len(frm), 0)
-            if len(frm) == 0 or self.limit == 0:
-                raise StopIteration
+            # Create frame & yield it
+            frm = Frame.from_segments(
+                self.series.schema, segments, limit=lmt, offset=self.offset,
+                select=self.select,
+            )
+            yield frm
 
-        # Update start & closed
-        self.start = frm.stop()
-        self.closed = self.closed.set_left(False)
+            # Update limit & offset
+            self.offset = max(self.offset - read_len, 0)
+            if self.offset == 0:
+                if self.limit is not None:
+                    self.limit = max(self.limit - len(frm), 0)
+                # if len(frm) == 0:
+                #     break
 
-        return  frm
+            # Update start & closed
+            new_start = segments[-1].stop if frm.empty else frm.stop()
+            if new_start == self.start:
+                # Start did not move, we must stop
+                break
+            self.start = new_start
+            self.closed = self.closed.set_left(False)
+
 
 
 class KVSeries(Series):
