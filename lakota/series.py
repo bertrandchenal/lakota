@@ -1,4 +1,4 @@
-from numpy import ascontiguousarray, dtype, issubdtype
+from numpy import issubdtype
 
 from .batch import Batch
 from .changelog import phi
@@ -49,7 +49,7 @@ class Series:
             # Find leaf commit
             leaf_rev = self.changelog.leaf(before=before)
             if not leaf_rev:
-                return
+                return []
             from_ci = leaf_rev.commit(self.collection)
         return from_ci.segments(self.label, self.pod, start, stop, closed=closed)
 
@@ -229,7 +229,7 @@ class Series:
         return self.write(frame=frm, start=start, stop=stop, closed=closed, root=root)
 
     def __len__(self):
-        return len(Query(self, select=list(self.schema.idx)))
+        return sum(len(s) for s in self.segments())
 
     def __bool__(self):
         return self.label in self.collection.ls()
@@ -239,170 +239,55 @@ class Series:
         step=settings.page_len,
         start=None,
         stop=None,
+        before=None,
+        closed="LEFT",
         limit=None,
         offset=None,
         select=None,
-        closed="LEFT",
-        before=None,
     ):
-        return Query(
+
+        return Paginate(
             self,
+            step=step,
             start=start,
             stop=stop,
-            limit=limit,
-            offset=offset,
             before=before,
             closed=closed,
-        ).paginate(step=step)
+            limit=limit,
+            offset=offset,
+            select=select,
+        ).iter()
 
     def tail(
         self,
         length,
         start=None,
         stop=None,
+        before=None,
+        closed="LEFT",
         limit=None,
         offset=None,
         select=None,
-        closed="LEFT",
-        before=None,
     ):
         '''
         Return the last `length` values of the series. Optionaly
         pre-filtered between `start` and `stop`.
         '''
-        return Query(
-            self,
-            start=start,
-            stop=stop,
-            limit=limit,
-            offset=offset,
-            before=before,
-            closed=closed,
-        ).tail(length)
-
-    def frame(
-        self,
-        start=None,
-        stop=None,
-        limit=None,
-        offset=None,
-        select=None,
-        closed="LEFT",
-        before=None,
-    ):
-        return Query(
-            self,
-            start=start,
-            stop=stop,
-            limit=limit,
-            offset=offset,
-            before=before,
-            closed=closed,
-        ).frame()
-
-    def df(
-        self,
-        start=None,
-        stop=None,
-        limit=None,
-        offset=None,
-        select=None,
-        closed="LEFT",
-        before=None,
-    ):
-        return Query(
-            self,
-            start=start,
-            stop=stop,
-            limit=limit,
-            offset=offset,
-            before=before,
-            closed=closed,
-        ).df()
-
-
-class Query:
-    def __init__(
-        self,
-        series,
-        start=None,
-        stop=None,
-        limit=None,
-        offset=None,
-        select=None,
-        closed="LEFT",
-        before=None,
-        from_ci=None,
-    ):
-        self.series = series
-        self.start = self.series.schema.deserialize(start)
-        self.stop = self.series.schema.deserialize(stop)
-        self.closed = Closed.cast(closed)
-        self.limit = limit
-        self.offset = offset
-        self.select = select
-        self.before = before
-        self.from_ci = from_ci
-
-    def segments(self):
-        segments = self.series.segments(
-            start=self.start,
-            stop=self.stop,
-            before=self.before,
-            closed=self.closed,
-            from_ci=self.from_ci,
-        )
-        return segments
-
-    def __len__(self):
-        return sum(len(s) for s in self.segments())
-
-    def frame(self):
-        return Frame.from_segments(
-            self.series.schema,
-            self.segments(),
-            limit=self.limit,
-            offset=self.offset,
-            select=self.select,
-        )
-
-    def df(self):
-        return self.frame().df()
-
-    def paginate(self, step=settings.page_len):
-        if step <= 0:
-            raise ValueError("step argument must be > 0")
-        segments = self.segments()
-        select = self.select
-        limit = self.limit
-        pos = self.offset or 0
-        while True:
-            lmt = step if limit is None else min(step, limit)
-            offset = pos
-            frm = Frame.from_segments(
-                self.series.schema, segments, limit=lmt, offset=offset, select=select
-            )
-            if len(frm) == 0:
-                return
-            if limit is not None:
-                limit -= len(frm)
-            yield frm
-            pos += step
-
-    def tail(self, length):
         if length <= 0:
             raise ValueError("length argument must be > 0")
-        segments = self.segments()
-        if not segments:
-            return Frame(self.series.schema)
-        select = self.select
+        segments = self.segments(
+            start=self.schema.deserialize(start),
+            stop=self.schema.deserialize(stop),
+            before=before,
+            closed=closed,
+        )
+
         cnt = 0
         res = []
-
         # Create one frame per segment, starting from the last one.
-        for segment in reversed(segments):
+        for segment in reversed(list(segments)):
             frm = Frame.from_segments(
-                self.series.schema, [segment], select=select
+                self.schema, [segment], select=select
             )
             if cnt + len(frm) >= length:
                 # Last frame: keep the correct amount of lines
@@ -413,15 +298,145 @@ class Query:
             res.append(frm)
             cnt += len(frm)
 
+        if not res:
+            return Frame(self.schema)
+
         # Re-order frames and concat
         frm = Frame.concat(*reversed(res))
 
-        if (self.limit, self.offset) != (None, None):
-            start = self.offset or 0
-            stop = start + (self.limit or 0)
+        if (limit, offset) != (None, None):
+            start = offset or 0
+            stop = start + (limit or 0)
             frm = frm.slice(start, stop)
 
         return frm
+
+    def frame(
+        self,
+        start=None,
+        stop=None,
+        before=None,
+        closed="LEFT",
+        limit=None,
+        offset=None,
+        select=None,
+    ):
+        segments = self.segments(
+            start=self.schema.deserialize(start),
+            stop=self.schema.deserialize(stop),
+            before=before,
+            closed=closed,
+        )
+
+
+        return Frame.from_segments(
+            self.schema,
+            segments,
+            limit=limit,
+            offset=offset,
+            select=select,
+        )
+
+    def df(
+        self,
+        start=None,
+        stop=None,
+        before=None,
+        closed="LEFT",
+        limit=None,
+        offset=None,
+        select=None,
+    ):
+        return self.frame(
+            start=start,
+            stop=stop,
+            before=before,
+            closed=closed,
+            limit=limit,
+            offset=offset,
+            select=select,
+        ).df()
+
+
+class Paginate:
+    def __init__(
+        self,
+        series,
+        step=settings.page_len,
+        start=None,
+        stop=None,
+        before=None,
+        closed="LEFT",
+        limit=None,
+        offset=None,
+        select=None,
+    ):
+        self.series = series
+        self.start = series.schema.deserialize(start)
+        self.stop = series.schema.deserialize(stop)
+        self.closed = Closed.cast(closed)
+        self.limit = limit
+        self.offset = offset or 0
+        self.select = select
+        self.step = step
+
+        if step <= 0:
+            raise ValueError("step argument must be > 0")
+
+        leaf_rev = series.changelog.leaf(before=before)
+        self.from_ci = leaf_rev and leaf_rev.commit(self.series.collection)
+
+    def iter(self):
+        if not self.from_ci:
+            return []
+        for frm in self.loop():
+            if not frm.empty:
+                yield frm
+
+    def loop(self):
+        while True:
+            if self.limit == 0:
+                break
+            if self.limit is None:
+                lmt = self.step
+            else:
+                lmt = min(self.step, self.limit)
+
+            # Load some segments
+            read_len = 0
+            segments = []
+            for sgm in self.series.segments(self.start, self.stop, closed=self.closed):
+                segments.append(sgm)
+                read_len += len(sgm)
+                if read_len >= lmt:
+                    break
+
+            # Create frame & yield it
+            frm = Frame.from_segments(
+                self.series.schema, segments, limit=lmt, offset=self.offset,
+                select=self.select,
+            )
+            yield frm
+
+            # Update limit & offset
+            self.offset = max(self.offset - read_len, 0)
+            if self.offset == 0:
+                if self.limit is not None:
+                    self.limit = max(self.limit - len(frm), 0)
+
+            # Update start & closed
+            new_start = None
+            if not frm.empty:
+                new_start = frm.stop()
+            elif segments:
+                new_start = segments[-1].stop
+
+            if new_start is None or new_start == self.start:
+                # Start did not move, we must stop
+                break
+            self.start = new_start
+            self.closed = self.closed.set_left(False)
+
 
 
 class KVSeries(Series):

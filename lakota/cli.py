@@ -740,7 +740,7 @@ def run():
     )
     parser_squash.add_argument(
         "-b",
-        "--trim-before",
+        "--trim-before", # FIXME fails! + split squash into trim and defrag
         type=datetime_like,
         help="Delete revisions older than given date",
     )

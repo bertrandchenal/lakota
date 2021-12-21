@@ -50,25 +50,14 @@ class Frame:
 
     @classmethod
     def from_segments(cls, schema, segments, limit=None, offset=None, select=None):
-        if not segments:
-            return Frame(schema)
-        select = select or schema.columns
-        with Pool() as pool:
-            for name in schema.columns:
-                if name not in select:
-                    continue
-                pool.submit(
-                    Frame.read_segments, segments, name, limit=limit, offset=offset
-                )
+        if not select:
+            select = schema.columns
+        else:
+            select = [select] if isinstance(select, str) else select
 
-        res = dict(pool.results)
-        return Frame(schema, res)
-
-    @classmethod
-    def read_segments(cls, segments, name, limit=None, offset=None):
-        arrays = []
         start = offset or 0
         stop = None if limit is None else start + limit
+        frames = []
 
         for sgm in segments:
             if stop == 0:
@@ -78,12 +67,24 @@ class Frame:
                 if stop is not None:
                     stop = max(stop - len(sgm), 0)
                 continue
-            arr = sgm.read(name, start_pos=start, stop_pos=stop)
+            with Pool() as pool:
+                # For each column we schedule a lambda that return a tuple
+                # `(name, numpy_array)`
+                read_col = lambda name: (
+                    name,
+                    sgm.read(name, start_pos=start, stop_pos=stop)
+                )
+                for name in select:
+                    pool.submit(read_col, name)
+            values = dict(pool.results)
+            frames.append(Frame(schema, values))
+
             start = max(start - len(sgm), 0)
             if stop is not None:
                 stop = max(stop - len(sgm), 0)
-            arrays.append(arr)
-        return name, concatenate(arrays) if arrays else []
+
+        return Frame.concat(*frames) if frames else Frame(schema)
+
 
     def df(self, *columns):
         if DataFrame is None:
@@ -118,18 +119,19 @@ class Frame:
 
         # General cases
         schema = frames[0].schema
+        names = list(frames[0])
         cols = defaultdict(list)
         # Build dict of list
         for frm in frames:
             if not frm.schema == schema:
                 raise ValueError("Unable to concat frames with different schema")
-            for name in schema:
+            for name in names:
                 arr = frm[name]
                 if len(arr) == 0:
                     continue
                 cols[name].append(arr)
         # Concatenate all lists
-        for name in schema:
+        for name in names:
             cols[name] = concatenate(cols[name])
         # Create frame and sort it
         return Frame(schema, cols).sorted()

@@ -433,9 +433,8 @@ class Commit:
         if stop is None:
             closed = closed.set_right(True)
         res = []
-        for row in self.match(
-            label
-        ):  # XXX allow to pass condition instead of simple start-stop ?
+        # XXX allow to pass condition instead of simple start-stop ?
+        for row in self.match(label):
             arr_start = row["start"]
             arr_stop = row["stop"]
             arr_closed = Closed[row["closed"]]
@@ -466,7 +465,7 @@ class Commit:
                     arr_stop = stop
                 elif stop == arr_stop and arr_closed.right:
                     arr_closed = arr_closed.set_right(closed.right)
-            sgm = Segment(
+            yield Segment(
                 self,
                 pod,
                 row["digest"],
@@ -474,8 +473,6 @@ class Commit:
                 stop=arr_stop,
                 closed=arr_closed,
             )
-            res.append(sgm)
-        return res
 
     def delete_labels(self, rm_labels):
         keep = ~isin(self.label, rm_labels)
