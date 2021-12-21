@@ -387,7 +387,11 @@ def test_rev_filter(series):
 
 
 @pytest.mark.parametrize("extra_commit", [True, False])
-def test_paginate(series, extra_commit):
+def test_paginate(repo, extra_commit):
+    clct = repo.create_collection(schema, "paginate")
+    series = clct / "base"
+    series.write(orig_frm)
+
     ts = orig_frm["timestamp"]
     frm = next(series.paginate(step=3))
     assert all(frm["timestamp"] == ts)
@@ -456,6 +460,43 @@ def test_paginate(series, extra_commit):
     for frm in frames:
         res.extend(frm["timestamp"])
     assert res == []
+
+
+    # Test series with zero line
+    series = clct / "zero"
+    frames = list(series.paginate())
+    assert len(frames) == 0
+
+    # Test series with one line
+    series = clct / "one"
+    series.write(
+        {
+            "timestamp": [1589455909],
+            "value": [9],
+        }
+    )
+    frames = list(series.paginate(step=1))
+    assert len(frames) == 1
+    assert len(frames[0]) == 1
+
+    # Test series with overlap on bound (generate a closed-left
+    # segment)
+    series = clct / "two"
+    series.write(
+        {
+            "timestamp": [1589455908, 1589455909],
+            "value": [8, 9],
+        }
+    )
+    series.write(
+        {
+            "timestamp": [1589455908],
+            "value": [8],
+        }
+    )
+    frames = list(series.paginate(step=1))
+    assert len(frames) == 2
+    assert len(frames[0]) == 1
 
 
 @pytest.mark.parametrize("direction", ["fwd", "bwd", "rand"])

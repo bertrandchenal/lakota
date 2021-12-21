@@ -397,7 +397,10 @@ class Paginate:
         while True:
             if self.limit == 0:
                 break
-            lmt = min(self.step, self.step if self.limit is None else self.limit)
+            if self.limit is None:
+                lmt = self.step
+            else:
+                lmt = min(self.step, self.limit)
 
             # Load some segments
             read_len = 0
@@ -420,12 +423,15 @@ class Paginate:
             if self.offset == 0:
                 if self.limit is not None:
                     self.limit = max(self.limit - len(frm), 0)
-                # if len(frm) == 0:
-                #     break
 
             # Update start & closed
-            new_start = segments[-1].stop if frm.empty else frm.stop()
-            if new_start == self.start:
+            new_start = None
+            if not frm.empty:
+                new_start = frm.stop()
+            elif segments:
+                new_start = segments[-1].stop
+
+            if new_start is None or new_start == self.start:
                 # Start did not move, we must stop
                 break
             self.start = new_start
