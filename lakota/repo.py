@@ -68,10 +68,11 @@ See `lakota.collection` on how to manipulate collections
 
 ## Garbage Collection
 
-After some times, some series can be overwritten, deleted, squashed or
-merged. Sooner or later some pieces of data will get dereferenced,
-those can be deleted to recover storage space. It is simply done with
-the `gc` method, which returns the number of deleted files.
+After some times, some series can be overwritten, deleted,
+defragmented or merged. Sooner or later some pieces of data will get
+dereferenced, those can be deleted to recover storage space. It is
+simply done with the `gc` method, which returns the number of deleted
+files.
 
 ```python
 nb_hard_delete, nb_soft_delete = repo.gc()
@@ -368,7 +369,6 @@ class Repo:
 
             # Inactive file, check timestamp & delete or re-enable it
             dig, ext = dig.split(".")
-
             if ext > deadline:
                 # ext contains a ts created recently, we can not act on it yet
                 continue
@@ -392,11 +392,11 @@ class Repo:
         return nb_hard_del, nb_soft_del
 
     def _walk_folder(self, folder):
-        '''
+        """
         Return list of digests contained in the top folder (ignoring
         content deeper than 2 subfolders and so ignores changelog
         files)
-        '''
+        """
         digs = []
         pod = self.pod.cd(folder)
         for filename in pod.walk(max_depth=2):

@@ -1,5 +1,5 @@
 
-# Multiple writes, revision history and squash
+# Multiple writes, revision history and defrag
 
 This example starts by accumulating some writes in different series in
 a collection. It then shows how to see all the revisions of the
@@ -75,8 +75,8 @@ print(clct.series('Brussels').df(before=past_revision.epoch))
 
 
 
-# Finally we use squash to combine all the revisions into one and remove the history
-clct.squash()
+# Finally we use defrag to combine all the revisions into one and remove the history
+clct.defrag()
 print(clct.changelog.log())
 # [<Revision 00000000000-0000000000000000000000000000000000000000.1781641025f-bafbe905f65ac476e49b3d2357b3519ed984d528 *>]
 ```

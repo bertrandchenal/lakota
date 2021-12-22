@@ -38,9 +38,14 @@ clct.pull(remote_clct)
 clct.merge()
 ```
 
-Squash remove past revisions
+Trim remove past revisions
 ```python
-clct.squash()
+clct.trim()
+```
+
+Defrag Recombine small data files into bigger ones
+```python
+clct.defrag()
 ```
 """
 
@@ -50,6 +55,7 @@ from datetime import datetime, timedelta
 from itertools import chain
 from threading import Lock
 from typing import Dict, Any
+from warnings import warn
 
 from .batch import Batch
 from .changelog import Changelog, phi
@@ -103,9 +109,9 @@ class Collection:
         return self.changelog.commit(payload, parents=[parent])
 
     def rename(self, from_label, to_label):
-        '''
+        """
         Rename Series
-        '''
+        """
         leaf_rev = self.changelog.leaf()
         if not leaf_rev:
             return
@@ -116,7 +122,12 @@ class Collection:
         payload = ci.encode()
         return self.changelog.commit(payload, parents=[parent])
 
-    def clone(self, other_collection: "Collection", rename_columns: Dict[str, str]=None, defaults: Dict[str, Any]=None) -> Commit:
+    def clone(
+        self,
+        other_collection: "Collection",
+        rename_columns: Dict[str, str] = None,
+        defaults: Dict[str, Any] = None,
+    ) -> Commit:
         if other_collection.changelog.leaf():
             raise ValueError("Clone can only be saved into an empty collection")
 
@@ -135,7 +146,7 @@ class Collection:
             # Fill each commit row with digest & embed data of zeroes
             if defaults and col in defaults:
                 default_value = defaults[col]
-                values = [[default_value]*l for l in leaf_ci.length]
+                values = [[default_value] * l for l in leaf_ci.length]
             else:
                 values = [other_schema[col].zeroes(l) for l in leaf_ci.length]
             codec = other_schema[col].codec
@@ -266,7 +277,7 @@ class Collection:
             queue.extend(parents)
             yield rev
 
-    def squash(self, trim=None, max_chunk=settings.squash_max_chunk):
+    def squash(self, trim=None, max_chunk=settings.defrag_max_chunk):
         """
         Remove past revisions, collapse each series into one or few large
         frames. Returns newly created revisions.
@@ -285,52 +296,58 @@ class Collection:
         If `max_chunk` is less or equal to zero, no new revision is
         created.
         """
-        logger.info('Squash collection "%s"', self.label)
+        warn(
+            "Collection.squash will be deprecated, please use"
+            "Collection.trim & Collection.defrag"
+        )
 
+        revs = self.defrag(max_chunk=max_chunk)
+        if trim is not False:
+            self.trim(trim)
+        return revs
+
+    def trim(self, before=None):
+        """
+        If `before` is None (the default), all revisions older than twice
+        the timeout (see `settings.timeout` in `utils.py`) are
+        removed.  If set to a datetime, all the revisions older than
+        the given value will be deleted, keeping at least the last
+        commit.
+        """
+        logger.info('Trim collection "%s"', self.label)
+        if before is None:
+            before = datetime.now() - timedelta(seconds=settings.timeout) * 2
         # Read existing revisions
-        if trim is None:
-            trim = datetime.now() - timedelta(seconds=settings.timeout) * 2
-        if trim:
-            revs = self.changelog.log(before=trim)
-        else:
-            revs = []
+        revs = self.changelog.log(before=before)
+        if len(revs) <= 1:
+            return 0
+        self.changelog.pod.rm_many([r.path for r in revs[:-1]])
+        self.changelog.refresh()
+        return len(revs) - 1
 
-        if max_chunk <= 0:
-            # Simply remove older commit
-            self.changelog.pod.rm_many([r.path for r in revs[:-1]])
-            self.changelog.refresh()
-            return []
-
+    def defrag(self, max_chunk=settings.defrag_max_chunk):
         # Rewrite each series
         leaf = self.changelog.leaf()
         commit = leaf and leaf.commit(self)
         with self.multi() as batch:
             with Pool() as pool:
                 for series in self:
-                    pool.submit(self._squash_series, series, commit, max_chunk)
+                    pool.submit(self._defrag_series, series, commit, max_chunk)
 
-        # Remove old revisions
-        to_remove = [r.path for r in revs]
-        if not batch.revs:
-            # No new revision created, keep the last one
-            to_remove = to_remove[:-1]
-        self.changelog.pod.rm_many(to_remove)
-
-        self.changelog.refresh()
         return batch.revs
 
-    def _squash_series(self, series, commit, max_chunk):
-        logger.info('Squash series "%s/%s"', self.label, series.label)
-        # Re-write series. We use _find_squash_start to fast-forward
+    def _defrag_series(self, series, commit, max_chunk):
+        logger.info('Defrag series "%s/%s"', self.label, series.label)
+        # Re-write series. We use _find_defrag_start to fast-forward
         # in the series (we bet on the fact that most series are
         # append-only)
-        start, closed = self._find_squash_start(commit, series, max_chunk)
+        start, closed = self._find_defrag_start(commit, series, max_chunk)
         prev_stop = None
         for frm in series.paginate(start=start, closed=closed):
             series.write(frm, start=prev_stop, closed="r" if prev_stop else "b")
             prev_stop = frm.stop()
 
-    def _find_squash_start(self, commit, series, max_chunk):
+    def _find_defrag_start(self, commit, series, max_chunk):
         """
         Find the first "small" segment , and return its start values.
         """

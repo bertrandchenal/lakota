@@ -87,8 +87,8 @@ def test_pull(threaded, large):
         local_repo.pull(remote_repo)
 
 
-@pytest.mark.parametrize("squash", [False, True])
-def test_label_delete_push(squash):
+@pytest.mark.parametrize("defrag", [False, True])
+def test_label_delete_push(defrag):
     kv_schema = Schema.kv(timestamp="int*", value="float")
 
     labels = list("abcd")
@@ -108,17 +108,17 @@ def test_label_delete_push(squash):
 
     # Create some labels and push them
     local_clct.push(remote_clct)
-    if squash:
-        remote_clct.squash()
+    if defrag:
+        remote_clct.defrag()
     assert local_clct.ls() == labels
     assert remote_clct.ls() == labels
 
     # Delete one local label and push again
     local_clct.delete("c")
     local_clct.push(remote_clct)
-    if squash:
+    if defrag:
         remote_clct.merge()
-        remote_clct.squash()
+        remote_clct.defrag()
 
     else:
         remote_clct.refresh()
@@ -130,15 +130,15 @@ def test_label_delete_push(squash):
     sleep(0.1)  # Needed to avoid concurrent writes
     remote_clct.delete("d")
     local_clct.pull(remote_clct)
-    if squash:
-        local_clct.squash()
+    if defrag:
+        local_clct.defrag()
     else:
         local_clct.refresh()
     assert remote_clct.ls() == list("ab")
     assert local_clct.ls() == list("ab")
 
 
-def test_series_squash_stability():
+def test_series_defrag_stability():
     label = "LABEL"
     local_repo = Repo()
     local_coll = local_repo.create_collection(schema, "a_collection")
@@ -155,8 +155,8 @@ def test_series_squash_stability():
         series.write({"timestamp": ts, "value": values})
 
     local_coll.push(remote_coll)
-    local_coll.squash()
-    remote_coll.squash()
+    local_coll.defrag()
+    remote_coll.defrag()
 
     local_files = local_coll.pod.walk()
     remote_files = remote_coll.pod.walk()

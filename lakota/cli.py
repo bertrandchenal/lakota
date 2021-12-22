@@ -512,23 +512,40 @@ def merge(args):
     collection.merge()
 
 
-def squash(args):
+def defrag(args):
     """
-    Squash changelog of given series. If not series is given, squash
+    Defrag changelog of given series. If no series is given, defrag
     repo changelog.
     """
     repo = get_repo(args)
     labels = repo.ls() if args.all else args.labels
-    trim = args.trim_before if args.trim and args.trim_before else args.trim
 
     if labels:
         for label in labels:
             collection = get_collection(repo, label)
             if not collection:
                 exit(f'Collection "{label}" not found')
-            collection.squash(trim=trim)
+            collection.defrag()
     if args.all or not args.labels:
-        repo.registry.squash(trim=trim)
+        repo.registry.defrag()
+
+
+def trim(args):
+    """
+    Trim changelog of given series. If no series is given, trim
+    repo changelog.
+    """
+    repo = get_repo(args)
+    labels = repo.ls() if args.all else args.labels
+
+    if labels:
+        for label in labels:
+            collection = get_collection(repo, label)
+            if not collection:
+                exit(f'Collection "{label}" not found')
+            collection.trim(args.before)
+    if args.all or not args.labels:
+        repo.registry.trim(args.before)
 
 
 def push(args):
@@ -684,9 +701,9 @@ def run():
         "-c",
         type=str,
         default="LEFT",
-        help='Include or exclude the bounds of interval defined by --gt'
+        help="Include or exclude the bounds of interval defined by --gt"
         ' and --lt (defaults to "LEFT" or "l", other possible values: '
-        'RIGHT, r, BOTH, b and NONE, n)',
+        "RIGHT, r, BOTH, b and NONE, n)",
     )
     parser_read.set_defaults(func=read)
 
@@ -732,22 +749,25 @@ def run():
     parser_ls.add_argument("label", nargs="?")
     parser_ls.set_defaults(func=ls)
 
-    # Add squash command
-    parser_squash = subparsers.add_parser("squash")
-    parser_squash.add_argument("labels", nargs="*")
-    parser_squash.add_argument(
-        "-t", "--trim", default=True, type=bool_like, help="Delete history"
+    # Add defrag command
+    parser_defrag = subparsers.add_parser("defrag")
+    parser_defrag.add_argument("labels", nargs="*")
+    parser_defrag.add_argument(
+        "-a", "--all", action="store_true", help="Defrag all collections"
     )
-    parser_squash.add_argument(
+    parser_defrag.set_defaults(func=defrag)
+
+    # Add trim command
+    parser_trim = subparsers.add_parser("trim")
+    parser_trim.add_argument("labels", nargs="*")
+    parser_trim.add_argument(
         "-b",
-        "--trim-before", # FIXME fails! + split squash into trim and defrag
+        "--before",
         type=datetime_like,
         help="Delete revisions older than given date",
     )
-    parser_squash.add_argument(
-        "-a", "--all", action="store_true", help="Squash everything"
-    )
-    parser_squash.set_defaults(func=squash)
+    parser_trim.add_argument("-a", "--all", action="store_true", help="Trim everything")
+    parser_trim.set_defaults(func=trim)
 
     # Add push command
     parser_push = subparsers.add_parser("push")

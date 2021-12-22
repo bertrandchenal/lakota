@@ -4,7 +4,7 @@ from time import sleep
 import pytest
 from numpy import arange
 
-from lakota.repo import Repo, Schema
+from lakota import Repo, Schema, Frame
 from lakota.utils import settings
 
 schema = Schema(timestamp="timestamp*", value="float")
@@ -62,9 +62,12 @@ def test_multi_create():
     assert temperature.ls() == ["Brussels", "Paris"]
 
 
-@pytest.mark.parametrize("max_chunk", [0, settings.squash_max_chunk])
+@pytest.mark.parametrize("max_chunk", [1, settings.defrag_max_chunk])
 @pytest.mark.parametrize("must_trim", [True, False])
 def test_squash(must_trim, max_chunk):
+    # Collection.squash is deprecated, but still avail, this test
+    # should be removed when Collection.squash is removed.
+
     # We force full trim by providing a date in the future
     trim = datetime.now() + timedelta(hours=1) if must_trim is True else False
 
@@ -90,10 +93,10 @@ def test_squash(must_trim, max_chunk):
     temperature.squash(trim, max_chunk)
 
     expected = {
-        (True, settings.squash_max_chunk): 1,
-        (True, 0): 1,
-        (False, settings.squash_max_chunk): 2,
-        (False, 0): 2,
+        (True, settings.defrag_max_chunk): 1,
+        (True, 1): 1,
+        (False, settings.defrag_max_chunk): 2,
+        (False, 1): 2,
     }[must_trim, max_chunk]
     assert len(list(temperature.changelog)) == expected
 
@@ -108,10 +111,10 @@ def test_squash(must_trim, max_chunk):
     assert temp_bru.frame() == expected_frm
 
     expected = {
-        (True, settings.squash_max_chunk): 1,
-        (True, 0): 1,
-        (False, settings.squash_max_chunk): settings.squash_max_chunk,
-        (False, 0): 4,
+        (True, settings.defrag_max_chunk): 1,
+        (True, 1): 1,
+        (False, settings.defrag_max_chunk): settings.defrag_max_chunk,
+        (False, 1): 4,
     }[must_trim, max_chunk]
     assert len(list(temperature.changelog)) == expected
 
@@ -119,11 +122,68 @@ def test_squash(must_trim, max_chunk):
     assert temperature.ls() == ["Brussels", "Paris"]
 
 
+def test_trim():
+    repo = Repo()
+    # We force full trim by providing a date in the future
+    delta = timedelta(hours=1)
+
+    repo = Repo()
+    other_frame = {
+        "timestamp": [4, 5, 6],
+        "value": [4, 5, 6],
+    }
+    solar = repo.create_collection(schema, "solar")
+    nb = solar.trim()
+    assert nb == 0
+
+    # We need two writes in order to have something to trim
+    sol_bru = solar / "Brussels"
+    sol_bru.write(frame)
+    sol_bru.write(other_frame)
+
+    # `before` in the past
+    nb = solar.trim(before=datetime.now() - delta)
+    assert nb == 0
+    assert len(list(solar.changelog)) == 2
+
+    # `before` in the future
+    nb = solar.trim(before=datetime.now() + delta)
+    assert nb == 1
+    assert len(list(solar.changelog)) == 1
+
+def test_defrag():
+    repo = Repo()
+    other_frame = {
+        "timestamp": [4, 5, 6],
+        "value": [4, 5, 6],
+    }
+    demand = repo.create_collection(schema, "demand")
+    nb = demand.defrag()
+    assert nb == []
+
+    # We need more writes in order to have something to defrag
+    dem_bru = demand / "Brussels"
+    dem_bru.write(frame)
+    dem_bru.write(other_frame)
+    dem_bru.write({
+        "timestamp": range(7,20),
+        "value": range(7,20),
+    })
+
+    revs = demand.defrag()
+    assert revs == []
+    assert len(list(demand.changelog)) == 3
+
+    # force max_chunk to 1
+    revs = demand.defrag(max_chunk=1)
+    assert len(revs) == 1
+    assert len(list(demand.changelog)) == 4
+
 @pytest.mark.parametrize(
     "frame_len", [10, settings.page_len - 7, settings.page_len / 2]
 )
 @pytest.mark.parametrize("nb_chunk", [1, 4, 8])
-def test_squash_max_chunk(nb_chunk, frame_len):
+def test_defrag_max_chunk(nb_chunk, frame_len):
     repo = Repo()
     new_frame = lambda i: {
         "timestamp": arange(i * frame_len, (i + 1) * frame_len),
@@ -134,8 +194,8 @@ def test_squash_max_chunk(nb_chunk, frame_len):
     for i in range(0, nb_chunk):
         series.write(new_frame(i))
     expected = series.frame()
-    trim = datetime.now() + timedelta(hours=1)  # Future value to force full deletion
-    temperature.squash(trim=trim, max_chunk=4)
+    temperature.defrag(max_chunk=4)
+    temperature.trim(datetime.now() + timedelta(hours=1))  # Future value to force full deletion
     assert series.frame() == expected
 
     segments = list(series.segments())
@@ -218,9 +278,7 @@ def test_merge_concurrent():
     assert all(bxl_c.df()["value"] == [0, 1, 1, 1])
 
     # Concurrent writes, second turn (each series is still blind to
-    # the other, so each will commit on its branch) We squash to make
-    # sure the merge works (if not it will fail on "Non-closed updates
-    # not supported" in Commit.update)
+    # the other, so each will commit on its branch)
     for pos, srs in enumerate((bxl_b, bxl_a)):  # Reversed !
         srs.write(mk_frm(pos + 10))
         sleep(0.01)

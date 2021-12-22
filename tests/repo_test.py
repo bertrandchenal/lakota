@@ -17,8 +17,8 @@ def repo():
     return Repo(pod=MemPOD("."))
 
 
-@pytest.mark.parametrize("squash", [True, False])
-def test_create_collections(repo, squash):
+@pytest.mark.parametrize("defrag", [True, False])
+def test_create_collections(repo, defrag):
     """
     Create all labels in one go
     """
@@ -44,16 +44,15 @@ def test_create_collections(repo, squash):
     expected = list("abcef")
     assert repo.ls() == expected
 
-    if squash:
-        repo.registry.squash()
+    if defrag:
+        repo.registry.defrag(max_chunk=1)
 
     repo.create_collection(SCHEMA, "d")
     expected = list("abcdef")
     assert repo.ls() == expected
 
 
-@pytest.mark.parametrize("squash", [True, False])
-def test_double_create_collections(repo, squash):
+def test_double_create_collections(repo):
     """
     Test double call to create_collection for a same label
     """
@@ -89,14 +88,14 @@ def test_create_labels_chunks(repo, merge):
 
 
 @pytest.mark.parametrize(
-    "squash,once,to_delete",
+    "defrag,once,to_delete",
     product(
         [True, False],
         [True, False],
         [["eight"], ["zero"], ["eight", "zero"], ["seven"], ["foobar"]],
     ),
 )
-def test_delete(repo, squash, once, to_delete):
+def test_delete(repo, defrag, once, to_delete):
     if once:
         repo.create_collection(SCHEMA, *LABELS)
     else:
@@ -107,8 +106,8 @@ def test_delete(repo, squash, once, to_delete):
 
     # Remove one or more label and check result
     repo.delete(*to_delete)
-    if squash:
-        repo.registry.squash()
+    if defrag:
+        repo.registry.defrag()
     expected = [l for l in expected if l not in to_delete]
     assert repo.ls() == expected
     for label in to_delete:
@@ -186,9 +185,11 @@ def test_gc(repo, large):
         # commits
         return
 
-    # Squash collection (this delete older commits) & test again.
-    trim = datetime.now() + timedelta(hours=1)
-    coll.squash(trim)
+    # Defrag and Trim collection (this will delete older commits) &
+    # test again.
+    coll.defrag()
+    before = datetime.now() + timedelta(hours=1)
+    coll.trim(before)
     hard, soft = repo.gc()
     assert hard == 0
     assert soft > 0

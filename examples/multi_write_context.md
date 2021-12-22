@@ -1,5 +1,5 @@
 
-# Multiple writes, revision history and squash with context manager
+# Multiple writes, revision history and defrag with context manager
 
 This example is identical to [multi_write.md](multi_write.md) except that we use the
 `Collection.multi` context manager in order to group multi writes into
@@ -77,8 +77,8 @@ print(clct.series('Brussels').df(before=past_revision.epoch))
 
 
 
-# Finally we use squash to combine all the revisions into one and remove the history
-clct.squash()
+# Finally we use defrag to combine all the revisions into one and remove the history
+clct.defrag()
 print(clct.changelog.log())
 # [<Revision 00000000000-0000000000000000000000000000000000000000.1781641025f-bafbe905f65ac476e49b3d2357b3519ed984d528 *>]
 ```

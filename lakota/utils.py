@@ -36,7 +36,7 @@ class Settings:
     verify_ssl: bool = True
     embed_max_size: int = 1024
     page_len: int = 500_000
-    squash_max_chunk: int = 4  # Max number of small chunks in a series
+    defrag_max_chunk: int = 4  # Max number of small chunks in a series
     timeout: int = 600  # Max duration for a write batch (in seconds)
     max_threads: int = 10 # Size of the threadpool
 

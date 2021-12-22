@@ -57,12 +57,16 @@ def test_insert(pod):
         assert len(df) == 2880
 
 
-def do_squash_and_gc(token):
+def do_defrag_and_gc(token):
+    # We run defrag, trim & gc in parallel with the inserts
     pod = POD.from_token(token)
+    repo = Repo(pod=pod)
+    clc = repo.collection("my_collection")
     for i in range(10):
-        repo = Repo(pod=pod)
-        repo.gc()
+        clc.defrag(1)
+        clc.trim()
         sleep(0.05)
+    repo.gc()
 
 
 def test_gc():
@@ -77,7 +81,7 @@ def test_gc():
     client = Client(cluster)
     args = [(token, label, y) for y in years]
     insert_fut = client.map(insert, args)
-    gc_fut = client.submit(do_squash_and_gc, token)
+    gc_fut = client.submit(do_defrag_and_gc, token)
     assert sum(client.gather(insert_fut)) == 10_519_200
     client.gather(gc_fut)
     client.close()
