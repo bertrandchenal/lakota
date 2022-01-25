@@ -184,7 +184,7 @@ class Revision:
                 return payload
             else:
                 sleep(i / 10)
-        raise RuntimeError("Unable to read {self.path}")
+        raise RuntimeError(f"Unable to read {self.path}")
 
     def commit(self, collection):
         """

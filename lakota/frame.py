@@ -83,7 +83,15 @@ class Frame:
             if stop is not None:
                 stop = max(stop - len(sgm), 0)
 
-        return Frame.concat(*frames) if frames else Frame(schema)
+        # Return collected frames
+        if frames:
+            return Frame.concat(*frames)
+
+        # Return empty frame
+        frm = Frame(schema)
+        if select:
+            frm = frm.select(select)
+        return frm
 
 
     def df(self, *columns):

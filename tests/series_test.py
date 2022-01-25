@@ -9,10 +9,21 @@ from pandas import DataFrame
 from lakota import Frame, Repo, Schema
 from lakota.schema import ALIASES
 
+# Default schema with some data
 schema = Schema(timestamp="int *", value="float")
 orig_frm = {
     "timestamp": [1589455903, 1589455904, 1589455905],
     "value": [3.3, 4.4, 5.5],
+}
+
+
+## TODO write/adapt tests for multi series
+# Same with multi-index
+multi_schema = Schema(timestamp="int *", version="int *",  value="float")
+multi_orig_frm = {
+    "timestamp": [1589455903, 1589455903, 1589455904, 1589455904, 1589455905, 1589455905],
+    "version": [1, 2, 1, 2, 1, 2],
+    "value": [3.3, 4.4, 5.5, 6.6, 7.7, 8.8],
 }
 
 
@@ -22,6 +33,15 @@ orig_frm = {
 def repo():
     return Repo("memory://")
 
+
+@pytest.fixture(
+    scope="function",
+)
+def multi_series(request, repo):
+    clct = repo.create_collection(multi_schema, "--")
+    series = clct / "_"
+    series.write(multi_orig_frm)
+    return series
 
 @pytest.fixture(
     scope="function",
@@ -65,6 +85,10 @@ def test_double_write(series):
 
 @pytest.mark.parametrize("how", ["left", "right"])
 def test_spill_write(series, how):
+    '''
+    test a write that overlap the current data but with one extra row
+    before or after.
+    '''
     if how == "left":
         ts = [1589455902, 1589455903, 1589455904, 1589455905]
         vals = [22, 33, 44, 55]
@@ -201,6 +225,20 @@ def test_adjacent_write(series, how):
     else:
         assert all(frm_copy["timestamp"] == [1589455905, 1589455906])
         assert all(frm_copy["value"] == [5.5, 6.6])
+
+@pytest.mark.parametrize("cols", [['timestamp'], ['timestamp', 'value'], ['value']])
+def test_select(series, empty_series, cols):
+    df = series.df(select=cols)
+    assert list(df) == cols
+    assert len(df) > 1
+
+    df = empty_series.df(select=cols)
+    assert list(df) == cols
+    assert len(df) ==0
+
+    df = series.df(start=1589455905+1, select=cols)
+    assert list(df) == cols
+    assert len(df) == 0
 
 
 def test_write_open_left(series):
