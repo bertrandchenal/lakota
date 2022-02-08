@@ -235,6 +235,7 @@ class File:
     def __init__(self, content):
         self.content = content
         self.ts = time()
+        self.size = len(content)
 
     def touch(self):
         self.ts = time()
@@ -268,8 +269,19 @@ class Store:
         self.front_kv = {tuple(): Folder()}
         self.back_kv = {}
         self._update_lock = Lock()  # Lock to serialize updates
-        self._size = 0  # Actual size
+        self._size = 0  # Size of the front kv
+        self._nb_swap = 0 # testing helper
         self.lru_size = lru_size if lru_size and lru_size > 0 else None
+
+    def _ok_size(self):
+        '''
+        Re-compute size of front_kv and compare with self._size
+        '''
+        total = 0
+        for v in self.front_kv.values():
+            if isinstance(v, File):
+                total += len(v.content)
+        return total == self._size
 
     def get(self, key):
         item = self.front_kv.get(key)
@@ -280,42 +292,54 @@ class Store:
             # Percolate from back_kv
             item = self.back_kv.get(key)
             if item is not None:
-                self.front_kv[key] = item
+                with self._update_lock:
+                    self.front_kv[key] = item
+                    self._update_size(item.size)
+
         if isinstance(item, File):
+            # Update timestamp
             item.touch()
         return item
 
-    def set(self, key, value):
-        assert isinstance(value, (File, Folder))
-        self.front_kv[key] = value
-        if self.lru_size is not None and isinstance(value, File):
-            self._update_size(len(value.content))
+    def set(self, key, item):
+        '''
+        Add item to the store.
 
-    def setdefault(self, key, value):
-        assert isinstance(value, Folder)
-        return self.front_kv.setdefault(key, value)
+        We make the assumption that the key is not already in the store
+        (and if it's there the associated value is the same).
+        '''
+        assert isinstance(item, (File, Folder))
+        with self._update_lock:
+            self.front_kv[key] = item
+            self._update_size(item.size)
+
+    def setdefault(self, key, item):
+        assert isinstance(item, Folder)
+        return self.front_kv.setdefault(key, item)
 
     def delete(self, key):
-        item = self.front_kv.pop(key, None)
-        if self.lru_size is None:
-            return
-
-        self.back_kv.pop(key, None)
-        if isinstance(item, File):
-            self._update_size(-len(item.content))
+        with self._update_lock:
+            item = self.front_kv.pop(key, None)
+            if self.lru_size is None:
+                return
+            self.back_kv.pop(key, None)
+            self._update_size(-item.size)
 
     def swap(self):
         self.back_kv = self.front_kv
         self.front_kv = {tuple(): Folder()}
         self._size = 0
+        self._nb_swap += 1
 
     def _update_size(self, value):
+        if self.lru_size is None:
+            return
+
         self._size += value
         if value < 0 or self.lru_size is None:
             return
-        with self._update_lock:
-            if self._size > self.lru_size // 2:
-                self.swap()
+        if self._size > self.lru_size // 2:
+            self.swap()
 
 
 class MemPOD(POD):

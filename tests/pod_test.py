@@ -159,24 +159,43 @@ def test_mempod_lru():
         # path ("/"). hence the `+2`
         assert len(pod.store.front_kv) == i + 2
         assert len(pod.store.back_kv) == 0
+    assert pod.store._nb_swap == 0
+    assert pod.store._ok_size()
 
-    # When the above loop is done, front_kv is full. The very next
-    # write will trigger the swap (because the size of the content of
-    # front reach lru_size // 2
-
-    for i in range(1, 110):
+    # Writting again the same values shouldn't trigger any swap
+    for i in range(1, 51):
         pod.write(str(i), deadbeef)
-    assert len(pod.store.front_kv) == 9  # aka 109 - 100
-    assert pod.store._size <= lru_size
+    assert pod.store._nb_swap == 0
+    assert pod.store._ok_size()
+
+    # front_kv is now full. The next write that add a new key will
+    # trigger the swap (because the size of the content of front_kv
+    # reach lru_size // 2
+    pod.write("51", deadbeef)
+    assert len(pod.store.front_kv) == 1 # the root key
+    assert pod.store._size == 0
+    assert pod.store._nb_swap == 1
+    assert pod.store._ok_size()
+
+    # After the swap, the next write is the first File in front-kv
+    pod.write("51", deadbeef)
+    assert len(pod.store.front_kv) == 3 # root key + "/" + "52"
+    assert pod.store._size == len(deadbeef)
+    assert pod.store._ok_size()
+
+    # Read "old" item to trigger the copy of items from back to front
+    assert pod.read("50") == deadbeef
+    assert len(pod.store.front_kv) == 4
+    assert pod.store._ok_size()
 
     # Detect discarded files, makes sure newest files are still there
     for i in range(1, 60):
         try:
             pod.read(str(i))
         except FileNotFoundError:
-            assert i <= 51
+            assert i > 51
         else:
-            assert i > 50
+            assert i <= 51
 
     # Pathological case: write a value bigger than the request lru_size
     large_data = deadbeef * 100
@@ -184,3 +203,4 @@ def test_mempod_lru():
     # A swap was triggered, the data is already in back:
     assert pod.store.back_kv["/", "0"]
     assert pod.read("0") == large_data
+    assert pod.store._ok_size()
