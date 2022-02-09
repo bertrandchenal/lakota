@@ -234,11 +234,7 @@ class File:
 
     def __init__(self, content):
         self.content = content
-        self.ts = time()
         self.size = len(content)
-
-    def touch(self):
-        self.ts = time()
 
 
 class Folder:
@@ -292,13 +288,10 @@ class Store:
             # Percolate from back_kv
             item = self.back_kv.get(key)
             if item is not None:
-                with self._update_lock:
-                    self.front_kv[key] = item
+                self.front_kv[key] = item
+                if isinstance(item, File):
                     self._update_size(item.size)
 
-        if isinstance(item, File):
-            # Update timestamp
-            item.touch()
         return item
 
     def set(self, key, item):
@@ -306,11 +299,11 @@ class Store:
         Add item to the store.
 
         We make the assumption that the key is not already in the store
-        (and if it's there the associated value is the same).
+        (and if it is there, the associated value is the same).
         '''
         assert isinstance(item, (File, Folder))
-        with self._update_lock:
-            self.front_kv[key] = item
+        self.front_kv[key] = item
+        if isinstance(item, File):
             self._update_size(item.size)
 
     def setdefault(self, key, item):
@@ -318,12 +311,11 @@ class Store:
         return self.front_kv.setdefault(key, item)
 
     def delete(self, key):
-        with self._update_lock:
-            item = self.front_kv.pop(key, None)
-            if self.lru_size is None:
-                return
-            self.back_kv.pop(key, None)
-            self._update_size(-item.size)
+        item = self.front_kv.pop(key, None)
+        self.back_kv.pop(key, None)
+        if item is None or not isinstance(item, File):
+            return
+        self._update_size(-item.size)
 
     def swap(self):
         self.back_kv = self.front_kv
@@ -335,11 +327,10 @@ class Store:
         if self.lru_size is None:
             return
 
-        self._size += value
-        if value < 0 or self.lru_size is None:
-            return
-        if self._size > self.lru_size // 2:
-            self.swap()
+        with self._update_lock:
+            self._size += value
+            if self._size > self.lru_size // 2:
+                self.swap()
 
 
 class MemPOD(POD):

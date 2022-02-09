@@ -150,14 +150,14 @@ def test_walk(pod):
 
 def test_mempod_lru():
     lru_size = 100 * len(deadbeef)
-    pod = MemPOD("/", lru_size=lru_size)
+    pod = MemPOD(".", lru_size=lru_size)
 
     # Fill the pod until the selected limit
     for i in range(1, 51):
         pod.write(str(i), deadbeef)
         # Pod by default will contain an empty root and the selected
-        # path ("/"). hence the `+2`
-        assert len(pod.store.front_kv) == i + 2
+        # path, hence the `+1`
+        assert len(pod.store.front_kv) == i + 1
         assert len(pod.store.back_kv) == 0
     assert pod.store._nb_swap == 0
     assert pod.store._ok_size()
@@ -179,13 +179,13 @@ def test_mempod_lru():
 
     # After the swap, the next write is the first File in front-kv
     pod.write("51", deadbeef)
-    assert len(pod.store.front_kv) == 3 # root key + "/" + "52"
+    assert len(pod.store.front_kv) == 2 # root key + "51"
     assert pod.store._size == len(deadbeef)
     assert pod.store._ok_size()
 
     # Read "old" item to trigger the copy of items from back to front
     assert pod.read("50") == deadbeef
-    assert len(pod.store.front_kv) == 4
+    assert len(pod.store.front_kv) == 3
     assert pod.store._ok_size()
 
     # Detect discarded files, makes sure newest files are still there
@@ -197,10 +197,20 @@ def test_mempod_lru():
         else:
             assert i <= 51
 
+    # Delete some items
+    for i in range(1, 25):
+        pod.rm(str(i))
+    assert pod.store._ok_size()
+
     # Pathological case: write a value bigger than the request lru_size
     large_data = deadbeef * 100
     pod.write("0", large_data)
     # A swap was triggered, the data is already in back:
-    assert pod.store.back_kv["/", "0"]
+    assert pod.store.back_kv[("0",)]
     assert pod.read("0") == large_data
     assert pod.store._ok_size()
+
+    # Delete everything
+    pod.rm('.', recursive=True)
+    assert pod.store._ok_size()
+    assert pod.store._size == 0
