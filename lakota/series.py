@@ -1,4 +1,4 @@
-from numpy import issubdtype
+from numpy import issubdtype, repeat
 
 from .batch import Batch
 from .changelog import phi
@@ -184,7 +184,7 @@ class Series:
         # frames
         for frm in (head_frm, tail_frm):
             for col in read_cols:
-                frm[col] = self.schema[col].zeroes(len(frm))
+                frm[col] = repeat(self.schema[col].zero(), len(frm))
 
         full_frm = Frame.concat(head_frm, db_frm, tail_frm)
         return self.write(full_frm, start, stop, closed="b")

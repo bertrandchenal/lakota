@@ -4,7 +4,7 @@ from time import sleep
 import pytest
 from numpy import arange
 
-from lakota import Repo, Schema, Frame
+from lakota import Repo, Schema
 from lakota.utils import settings
 
 schema = Schema(timestamp="timestamp*", value="float")
@@ -394,20 +394,35 @@ def test_multi_batch():
 @pytest.mark.parametrize("new_type", ['str', 'int', 'float'])
 @pytest.mark.parametrize("rename", [None, {'value': 'new_value'}])
 @pytest.mark.parametrize("defaults", [None, {'extra_col': 5}])
-def test_clone(new_type, rename, defaults):
-
+@pytest.mark.parametrize("with_index", [False, True])
+def test_clone(new_type, rename, defaults, with_index):
+    # Prepare schemas
     if rename:
-        schema_bis = Schema(**{'timestamp':"timestamp*", rename['value']:"float", 'extra_col':new_type})
+        schema_bis = Schema(**{
+            'timestamp': "timestamp*",
+            rename['value']: "float",
+            'extra_col': new_type + ("*" if with_index else ''),
+        })
     else:
-        schema_bis = Schema(timestamp="timestamp*", value="float", extra_col=new_type)
-
+        schema_bis = Schema(
+            timestamp="timestamp*",
+            value="float",
+            extra_col=new_type + ("*" if with_index else ''),
+        )
     schema_dict = {'timestamp': "timestamp*", 'extra_col': new_type}
     schema_dict['value' if rename is None else rename['value']] = 'float'
 
+    #Create collections
     repo = Repo()
     temperature = repo.create_collection(schema, "temperature")
     temperature_bis = repo.create_collection(schema_bis, "temperature_bis")
+
+    # Generate two commits
     srs = temperature / "Brussels"
+    srs.write(frame)
+    orig = srs.frame()
+
+    srs = temperature / "Paris"
     srs.write(frame)
     orig = srs.frame()
 
@@ -417,11 +432,16 @@ def test_clone(new_type, rename, defaults):
 
     for col in ('timestamp', 'value'):
         dst_col = rename.get(col, col) if rename else col
+        if not all(new_frame[dst_col] == orig[col]):
+            import ipdb;ipdb.set_trace()
         assert all(new_frame[dst_col] == orig[col])
 
     cast = __builtins__[new_type]
 
-    expected = [cast(defaults['extra_col']) if defaults else ('' if new_type == 'str' else 0)] * 3
+    expected = [
+        cast(defaults['extra_col'])
+        if defaults
+        else ('' if new_type == 'str' else 0)] * 3
     assert all(new_frame['extra_col'] == expected)
 
     if rename is not None:

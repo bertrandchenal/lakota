@@ -3,7 +3,8 @@ from dataclasses import dataclass
 from datetime import date, datetime
 
 from numcodecs import registry
-from numpy import asarray, ascontiguousarray, dtype, frombuffer, issubdtype, ndarray, repeat
+from numpy import (asarray, ascontiguousarray, dtype, frombuffer, issubdtype,
+                   ndarray)
 
 from .utils import hexdigest
 
@@ -162,9 +163,8 @@ class SchemaColumn:
             and self.codec == other.codec
         )
 
-    def zeroes(self, length):
-        zero = "" if self.codec.dt == "str" else 0
-        return repeat(zero, length)
+    def zero(self):
+        return "" if self.codec.dt == "str" else 0
 
 
 class Schema:

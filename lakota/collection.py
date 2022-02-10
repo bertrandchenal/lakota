@@ -57,6 +57,8 @@ from threading import Lock
 from typing import Dict, Any
 from warnings import warn
 
+from numpy import asarray
+
 from .batch import Batch
 from .changelog import Changelog, phi
 from .commit import Commit
@@ -125,48 +127,75 @@ class Collection:
     def clone(
         self,
         other_collection: "Collection",
-        rename_columns: Dict[str, str] = None,
+        rename: Dict[str, str] = None,
         defaults: Dict[str, Any] = None,
     ) -> Commit:
         if other_collection.changelog.leaf():
             raise ValueError("Clone can only be saved into an empty collection")
 
         other_schema = other_collection.schema
+        # new2old will map the "old" label corresponding to it's new
+        # label (in other_schema)
+        new2old = {}
+        if rename:
+            for old, new in rename.items():
+                assert new in other_schema
+                new2old[new] = old
+
         leaf_rev = self.changelog.leaf()
+        defaults = defaults or {}
         leaf_ci = leaf_rev.commit(self)
-        all_dig = leaf_ci.digest
-        for old_label, new_label in (rename_columns or {}).items():
-            all_dig[new_label] = all_dig.pop(old_label)
+        all_dig = {}
+        start = {} #n: [] for n in leaf_ci.start
+        stop = {} #n: [] for n in leaf_ci.stop
         embedded = {}
+
         for col in other_schema:
-            if col in all_dig:
-                continue
+            old_col = new2old.get(col, col)
+
+            # TODO: raise an exception if a column is removed from the
+            # index!
+
+            # Determine default value
+            default_value = defaults.get(col, other_schema[col].zero())
+
+            # Add zero/default to start & stop
             if col in other_schema.idx:
-                raise ValueError("Can not add idx column")
-            # Fill each commit row with digest & embed data of zeroes
-            if defaults and col in defaults:
-                default_value = defaults[col]
-                values = [[default_value] * l for l in leaf_ci.length]
-            else:
-                values = [other_schema[col].zeroes(l) for l in leaf_ci.length]
+                if old_col in leaf_ci.start:
+                    start[col] = leaf_ci.start[old_col]
+                    stop[col] = leaf_ci.stop[old_col]
+                else:
+                    start_stop = [default_value] * len(leaf_ci.length)
+                    start[col] = start_stop
+                    stop[col] = start_stop
+
+            if old_col in leaf_ci.digest:
+                # XXX raise exception if dtype is different
+                all_dig[col] = leaf_ci.digest[old_col]
+                continue
+
+            # build digest & embed arrays (based on zeroes arrays)
+            values = [[default_value] * l for l in leaf_ci.length]
             codec = other_schema[col].codec
             col_embedded = {}
-            for v in values:
-                encoded, digest = codec.encode(v, with_digest=True)
-                col_embedded[digest] = encoded
-            # Add new coll to digest dict
 
-            all_dig[col] = list(col_embedded.keys())
+            # Compute digest and fill all_dig
+            all_dig[col] = []
+            for v in values:
+                encoded, digest = codec.encode(asarray(v), with_digest=True)
+                col_embedded[digest] = encoded
+                # Add new coll to digest dict
+                all_dig[col].append(digest)
+
             # Add data to embedded
             embedded.update(col_embedded)
-
         embedded.update(leaf_ci.embedded)
 
         new_ci = Commit(
             other_schema,
             leaf_ci.label,
-            leaf_ci.start,
-            leaf_ci.stop,
+            start,
+            stop,
             all_dig,
             leaf_ci.length,
             closed=leaf_ci.closed,
