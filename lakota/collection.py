@@ -176,13 +176,14 @@ class Collection:
 
             # build digest & embed arrays (based on zeroes arrays)
             values = [[default_value] * l for l in leaf_ci.length]
-            codec = other_schema[col].codec
+            sch_col = other_schema[col]
             col_embedded = {}
 
             # Compute digest and fill all_dig
             all_dig[col] = []
             for v in values:
-                encoded, digest = codec.encode(asarray(v), with_digest=True)
+                arr = sch_col.cast(asarray(v))
+                encoded, digest = sch_col.codec.encode(arr, with_digest=True)
                 col_embedded[digest] = encoded
                 # Add new coll to digest dict
                 all_dig[col].append(digest)

@@ -391,6 +391,9 @@ def test_multi_batch():
     assert not temperature.series("Brussels").frame().empty
 
 
+# TODO test for date and datetime, test with different default values
+# (0 vs 1970-01-01)
+
 @pytest.mark.parametrize("new_type", ['str', 'int', 'float'])
 @pytest.mark.parametrize("rename", [None, {'value': 'new_value'}])
 @pytest.mark.parametrize("defaults", [None, {'extra_col': 5}])
