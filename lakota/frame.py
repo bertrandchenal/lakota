@@ -141,8 +141,8 @@ class Frame:
         # Concatenate all lists
         for name in names:
             cols[name] = concatenate(cols[name])
-        # Create frame and sort it
-        return Frame(schema, cols).sorted()
+        # Create frame
+        return Frame(schema, cols)
 
     def sorted(self, *sort_columns):
         return self.mask(self.argsort(*sort_columns))

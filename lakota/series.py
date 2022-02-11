@@ -459,8 +459,8 @@ class KVSeries(Series):
             # Nothing to do
             return
 
-        # Concat both frame and reduce it
-        new_frm = Frame.concat(frame, db_frm)
+        # Concat both frames and reduce the result
+        new_frm = Frame.concat(frame, db_frm).sorted()
         reduce_kw = {c: c for c in self.schema.idx}
         non_idx = [c for c in self.schema if c not in self.schema.idx]
         reduce_kw.update({c: f"(first self.{c})" for c in non_idx})

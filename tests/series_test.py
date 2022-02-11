@@ -227,16 +227,23 @@ def test_adjacent_write(series, how):
         assert all(frm_copy["value"] == [5.5, 6.6])
 
 @pytest.mark.parametrize("cols", [['timestamp'], ['timestamp', 'value'], ['value']])
-def test_select(series, empty_series, cols):
+@pytest.mark.parametrize("extra_write", [False, True])
+def test_select(series, empty_series, cols, extra_write):
+    if extra_write:
+        series.write({
+            "timestamp": [1589455906, 1589455907, 1589455908],
+            "value": [3.3, 4.4, 5.5],
+        })
     df = series.df(select=cols)
     assert list(df) == cols
     assert len(df) > 1
 
     df = empty_series.df(select=cols)
     assert list(df) == cols
-    assert len(df) ==0
+    assert len(df) == 0
 
-    df = series.df(start=1589455905+1, select=cols)
+    start = 1589455909 if extra_write else 1589455906
+    df = series.df(start=start, select=cols)
     assert list(df) == cols
     assert len(df) == 0
 

@@ -173,7 +173,7 @@ def test_concat(frm):
     frm2 = Frame.concat(frm, frm)
     for name in frm:
         col = list(frm[name])
-        expected = sorted(col + col)
+        expected = col + col
         result = list(frm2[name])
         assert result == expected
 
