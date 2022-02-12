@@ -9,12 +9,11 @@ from lakota.utils import timeit
 
 schema = Schema(timestamp="M8[s] *", value="int")
 years = list(range(2000, 2020))
-
+single_pod = None
 
 def insert(args):
-    token, label, year = args
-    pod = POD.from_token(token)
-    repo = Repo(pod=pod)
+    label, year = args
+    repo = Repo(pod=single_pod)
     collection = repo / "my_collection"
     series = collection / label
     ts = date_range(f"{year}-01-01", f"{year+1}-01-01", freq="1min", closed="left")
@@ -30,15 +29,16 @@ def insert(args):
 
 
 def test_insert(pod):
+    global single_pod
     # Write with workers
     label = "my_label"
+    single_pod = pod
     repo = Repo(pod=pod)
     # Create collection and label
     collection = repo.create_collection(schema, "my_collection")
-    token = pod.token
     cluster = LocalCluster(processes=False)
     client = Client(cluster)
-    args = [(token, label, y) for y in years]
+    args = [(label, y) for y in years]
     with timeit(f"\nWRITE ({pod.protocol})"):
         fut = client.map(insert, args)
         assert sum(client.gather(fut)) == 10_519_200
@@ -57,10 +57,9 @@ def test_insert(pod):
         assert len(df) == 2880
 
 
-def do_defrag_and_gc(token):
+def do_defrag_and_gc():
     # We run defrag, trim & gc in parallel with the inserts
-    pod = POD.from_token(token)
-    repo = Repo(pod=pod)
+    repo = Repo(pod=single_pod)
     clc = repo.collection("my_collection")
     for i in range(10):
         clc.defrag(1)
@@ -71,17 +70,17 @@ def do_defrag_and_gc(token):
 
 def test_gc():
     # Create pod, repo & collection
-    pod = POD.from_uri("memory://")
-    token = pod.token
+    global single_pod
+    single_pod = POD.from_uri("memory://")
     label = "my_label"
-    repo = Repo(pod=pod)
+    repo = Repo(pod=single_pod)
     clc = repo.create_collection(schema, "my_collection")
     # Start cluster & schedule concurrent writes & gc
     cluster = LocalCluster(processes=False)
     client = Client(cluster)
-    args = [(token, label, y) for y in years]
+    args = [(label, y) for y in years]
     insert_fut = client.map(insert, args)
-    gc_fut = client.submit(do_defrag_and_gc, token)
+    gc_fut = client.submit(do_defrag_and_gc)
     assert sum(client.gather(insert_fut)) == 10_519_200
     client.gather(gc_fut)
     client.close()

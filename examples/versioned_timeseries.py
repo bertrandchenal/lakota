@@ -1,6 +1,6 @@
 from lakota import Repo, Schema
 
-# TODO use a KVSeries instead (it solve the problem explained at the bottom)
+# In some situation we can use a KVSeries instead (it solve the problem explained at the bottom)
 
 ts_schema = Schema(
     timestamp="timestamp*",

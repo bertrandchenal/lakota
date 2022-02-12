@@ -20,9 +20,7 @@ import os
 import shutil
 from pathlib import Path, PurePosixPath
 from threading import Lock
-from time import time
 from urllib.parse import parse_qs, urlsplit
-from uuid import uuid4
 
 try:
     import boto3
@@ -40,11 +38,6 @@ __all__ = ["POD", "FilePOD", "MemPOD", "CachePOD"]
 
 
 class POD:
-    _by_token = {}
-
-    def __init__(self):
-        self.token = str(uuid4())
-        POD._by_token[self.token] = self
 
     @classmethod
     def from_token(cls, token):
