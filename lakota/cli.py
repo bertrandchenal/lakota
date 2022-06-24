@@ -405,7 +405,7 @@ def rev(args):
         if collection is None:
             exit(f"Collection '{args.label}' not found")
     else:
-        collection = repo.collection_series
+        collection = repo.registry
         series = None
     fmt = lambda a: " / ".join(map(str, a))
     for rev in collection.changelog.log():
