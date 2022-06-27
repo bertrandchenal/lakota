@@ -74,6 +74,7 @@ class S3POD(POD):
             options["PaginationConfig"] = {"MaxItems": limit}
 
         page_iterator = paginator.paginate(**options)
+
         names = []
         for page in page_iterator:
             # Extract pseudo-folder names
@@ -134,9 +135,22 @@ class S3POD(POD):
         else:
             if recursive:
                 prefix = "" if prefix in (".", "") else prefix + "/"
-            resp = self.client.list_objects_v2(
-                Bucket=str(self.bucket), Prefix=prefix)
-            keys = [item["Key"] for item in resp.get("Contents", [])]
+            # Collect keys
+            keys = []
+            token = None
+            while True:
+                kw = {
+                    "Bucket": str(self.bucket),
+                    "Prefix": prefix,
+                }
+                if token:
+                    kw["ContinuationToken"] = token
+                resp = self.client.list_objects_v2(**kw)
+                new_keys = [item["Key"] for item in resp.get("Contents", [])]
+                keys.extend(new_keys)
+                token = resp.get("NextContinuationToken")
+                if not token:
+                    break
 
         if not recursive and len(keys) > 1:
             # We raise an OSError to mimic file based access
@@ -152,6 +166,7 @@ class S3POD(POD):
                     "Quiet": True,
                 },
             )
+
             # TODO check for error in response
         except ClientError as err:
             if err.response["Error"]["Code"] != "MalformedXML":
