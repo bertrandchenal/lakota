@@ -1,3 +1,4 @@
+from itertools import chain
 from pathlib import PurePosixPath
 
 import boto3
@@ -59,31 +60,40 @@ class S3POD(POD):
         path = self.path.joinpath(*others)
         return S3POD(self.bucket / path, client=self.client)
 
-    def ls(self, relpath=".", missing_ok=False, limit=None):
-        logger.debug("LIST s3:///%s/%s %s", self.bucket, self.path, relpath)
+    def ls_iter(self, prefix, limit=None, delimiter="/"):
+        '''
+        Iterable that yield lists of object keys
+        '''
+        logger.debug("LIST s3:///%s/%s", self.bucket, prefix)
         paginator = self.client.get_paginator("list_objects")
-        prefix = str(self.path / relpath)
-        prefix = "" if prefix in (".", "") else prefix + "/"
-        cut = len(prefix)
         options = {
             "Bucket": str(self.bucket),
             "Prefix": prefix,
-            "Delimiter": "/",
         }
+        if delimiter:
+            options["Delimiter"] = delimiter
         if limit is not None:
             options["PaginationConfig"] = {"MaxItems": limit}
 
         page_iterator = paginator.paginate(**options)
-
-        names = []
         for page in page_iterator:
             # Extract pseudo-folder names
             common_prefixes = page.get("CommonPrefixes", [])
-            names.extend(item["Prefix"][cut:].rstrip("/") for item in common_prefixes)
+            yield [item["Prefix"].rstrip("/") for item in common_prefixes]
             # Extract keys (filenames)
             contents = page.get("Contents", [])
-            names.extend(item["Key"][cut:] for item in contents)
-        return names
+            yield [item["Key"] for item in contents]
+
+    def ls(self, relpath=".", missing_ok=False, limit=None, delimiter="/"):
+        '''
+        The parameter `missing_ok` is not supported, it is present for
+        compatibility reason with the other pods.
+        '''
+        prefix = str(self.path / relpath)
+        prefix = "" if prefix in (".", "") else prefix + delimiter
+        cut = len(prefix)
+        it = self.ls_iter(prefix, limit=limit, delimiter=delimiter)
+        return [item[cut:] for item in chain.from_iterable(it)]
 
     def read(self, relpath, mode="rb"):
         logger.debug("READ s3:///%s/%s %s", self.bucket, self.path, relpath)
@@ -126,38 +136,38 @@ class S3POD(POD):
 
     def rm(self, relpath=".", recursive=False, missing_ok=False):
         logger.debug("REMOVE s3://%s/%s %s", self.bucket, self.path, relpath)
-
         prefix = str(self.path / relpath)
-        if missing_ok and not recursive:
-            # We don't need to list remote keys if we don't plan to
-            # check their existance
-            keys = [prefix]
-        else:
-            if recursive:
-                prefix = "" if prefix in (".", "") else prefix + "/"
-            # Collect keys
-            keys = []
-            token = None
-            while True:
-                kw = {
-                    "Bucket": str(self.bucket),
-                    "Prefix": prefix,
-                }
-                if token:
-                    kw["ContinuationToken"] = token
-                resp = self.client.list_objects_v2(**kw)
-                new_keys = [item["Key"] for item in resp.get("Contents", [])]
-                keys.extend(new_keys)
-                token = resp.get("NextContinuationToken")
-                if not token:
-                    break
+        if not recursive:
+            if missing_ok:
+                keys = [prefix]
+            else:
+                # We must make sure the key exists
+                it = self.ls_iter(prefix, limit=2, delimiter="")
+                keys = list(chain.from_iterable(it))
+                if not keys:
+                    raise FileNotFoundError(f"{relpath} not found")
 
-        if not recursive and len(keys) > 1:
-            # We raise an OSError to mimic file based access
-            raise OSError(f"{relpath} is not empty")
-        if not keys and not missing_ok:
+            if len(keys) > 1:
+                # We raise an OSError to mimic file based access
+                raise OSError(f"{relpath} is not empty")
+            self._delete_keys([relpath])
+            return
+
+        # Recursive case, we use ls_iter to loop on a potentially
+        # large number of files
+        prefix = "" if prefix in (".", "") else prefix + "/"
+        files_found = False
+        for chunk in self.ls_iter(prefix, delimiter=""):
+            if not chunk:
+                # can be empty
+                continue
+            files_found = True
+            self._delete_keys(chunk)
+
+        if not files_found and not missing_ok:
             raise FileNotFoundError(f"{relpath} not found")
 
+    def _delete_keys(self, keys):
         try:
             _ = self.client.delete_objects(
                 Bucket=str(self.bucket),
