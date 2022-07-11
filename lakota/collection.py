@@ -347,13 +347,19 @@ class Collection:
         logger.info('Trim collection "%s"', self.label)
         if before is None:
             before = datetime.now() - timedelta(seconds=settings.timeout) * 2
-        # Read existing revisions
+
+        # Read existing revisions, make sure we don't erase the last one
         revs = self.changelog.log(before=before)
-        if len(revs) <= 1:
+        if not revs:
             return 0
-        self.changelog.pod.rm_many([r.path for r in revs[:-1]])
+        if revs[-1].is_leaf:
+            full_revs = self.changelog.log()
+            if len(full_revs) == len(revs):
+                revs = revs[:-1]
+
+        self.changelog.pod.rm_many([r.path for r in revs])
         self.changelog.refresh()
-        return len(revs) - 1
+        return len(revs)
 
     def defrag(self, max_chunk=settings.defrag_max_chunk):
         # Rewrite each series
