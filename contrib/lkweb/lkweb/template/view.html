@@ -1,0 +1,185 @@
+
+{% set view_url = url_for('view', collection=collection, label=label, column=column) %}
+
+<div class="card">
+  <form
+    hx-get="{{view_url}}?{{params | urlencode}}"
+    hx-target="#main"
+    id="view-form">
+    <div class="card-header">
+	<div class="row" >
+	  <div class="col-6">
+	    <label class="col-form-label">{{label}}:{{column}}</label>
+	  </div>
+	  <div class="col-6">
+
+	    <div class="btn-toolbar" role="toolbar" aria-label="Toolbar">
+	      <div class="btn-group mr-1" role="group" aria-label="Basic example">
+		<button type="submit"
+			class="btn btn-secondary btn-sm"
+			name="switch_view"
+			value="graph"
+			type="button"
+			id="graph-btn">Graph</button>
+		<button class="btn btn-secondary btn-sm"
+			type="submit"
+			name="switch_view"
+			id="table-btn"
+			value="table">Table</button>
+	      </div>
+
+	      <!-- </div> -->
+
+	    <!-- <div class="col"> -->
+	      <div class="btn-group mr-1" role="group" aria-label="Basic example">
+		<button type="button" class="btn btn-secondary btn-sm"
+			data-toggle="collapse" href="#collapse"
+			role="button" aria-expanded="false" aria-controls="collapse">
+		  Filters
+		</button>
+	      </div>
+	      <!-- </div> -->
+
+	    <!-- <div class="col-1"> -->
+	      <div class="btn-group" role="group" aria-label="Pagination">
+		<button class="btn btn-secondary btn-sm"
+			name="prev_next"
+			type="submit"
+			{{'disabled' if params.page == 0 else ''}}
+			id="prev-btn"
+			value="prev">⯇</button>
+		<button class="btn btn-secondary btn-sm"
+			type="submit"
+			name="prev_next"
+			value="next"
+			id="next-btn">⯈</button>
+	      </div>
+	    </div>
+	  </div>
+	</div>
+    </div>
+
+    <ul class="list-group list-group-flush">
+
+
+      <!-- <li class="list-group-item"> -->
+      <!-- <div class="row" > -->
+      <!-- 	<div class="col-10"> -->
+      <!-- 	</div> -->
+      <!-- 	<div class="col"> -->
+      <!-- 	  <button type="button" class="btn btn-outline-primary btn-sm" -->
+      <!-- 		  data-toggle="collapse" href="#collapse" -->
+      <!-- 		  role="button" aria-expanded="false" aria-controls="collapse"> -->
+      <!-- 	    Filters -->
+      <!-- 	  </button> -->
+      <!-- 	</div> -->
+      <!-- </div> -->
+      <!-- </li> -->
+
+      <li class="list-group-item collapse {{'show' if show_filters else ''}}" id="collapse">
+
+	<div class="row" >
+	  <div class="col">
+	    <h4>Horizon</h4>
+	  </div>
+	  <div class="col-5" >
+	    <div class="form-group">
+	      <code for="ui-start">Start</code>
+	      <input
+		type="date"
+		class="form-control"
+		id="ui-start"
+		name="start"
+		value="{{params.start}}">
+	    </div>
+	  </div>
+	  <div class="col-5" >
+	    <div class="form-group">
+	      <code for="ui-stop">Stop</code>
+	      <input
+		type="date"
+		class="form-control"
+		id="ui-stop"
+		name="stop"
+		value="{{params.stop}}">
+	    </div>
+	  </div>
+	</div>
+
+	<div class="row" >
+	  <div class="col-10">
+	  </div>
+	  <div class="col">
+	  <div class="d-flex flex-row-reverse">
+	    <button type="submit"
+		    class="btn btn-outline-primary btn-sm"
+		    id="refresh">Apply</button>
+	  </div>
+	  </div>
+	</div>
+
+	<div class="row" >
+	  <div class="col-xl-4" >
+	    {% if inputs %}
+	    <h4>Drill Down</h4>
+	    {% endif %}
+	    {% for name, (default, values) in inputs.items() %}
+	    <div class="form-group">
+	      <code for="select-{{name}}">{{name}}</code>
+	      <select
+		class="custom-select"
+		name="{{name}}"
+		id="select-{{name}}" >
+		{% for value in values %}
+		{% if value == default %}
+		<option value="{{value}}" selected>{{value}}</option>
+		{% else %}
+		<option value="{{value}}">{{value}}</option>
+		{% endif %}
+		{% endfor %}
+	      </select>
+	    </div>
+	    {% endfor %}
+	  </div>
+
+	</div>
+      </li>
+
+      <li class="list-group-item">
+	{% if params.view == "table" %}
+	<div hx-target="this"
+	     hx-trigger="revealed"
+	     hx-get="{{url_for('read', collection=collection, label=label, column=column, ext='html')}}?{{params | urlencode}}"
+	  >
+	</div>
+	{% else %}
+	<div id="{{graph_id}}">
+	</div>
+
+	<script type="text/javascript">
+	  load_graph(
+	      "{{url_for('read', collection=collection, label=label, column=column, ext='graph')}}?{{params | urlencode | safe}}", "{{graph_id}}",
+	      "{{page_len}}");
+	</script>
+	{% endif %}
+
+      </li> <!-- table/graph -->
+    </ul> <!-- /ul.list-group -->
+
+    <!-- <div class="card-footer"> -->
+    <!--   <div class="row" > -->
+    <!-- 	<div class="col-10"> -->
+    <!-- 	</div> -->
+    <!-- 	<div class="col"> -->
+    <!-- 	  <button type="button" class="btn btn-outline-primary btn-sm" -->
+    <!-- 		  data-toggle="collapse" href="#collapse" -->
+    <!-- 		  role="button" aria-expanded="false" aria-controls="collapse"> -->
+    <!-- 	    Filters -->
+    <!-- 	  </button> -->
+    <!-- 	</div> -->
+    <!--   </div> -->
+    <!-- </div> -->
+  </form>
+</div>
+<a href="{{url_for('read', collection=collection, label=label, column=column, ext='json')}}?{{params | urlencode}}">&#123;JSON&#125;</a>
+</div>

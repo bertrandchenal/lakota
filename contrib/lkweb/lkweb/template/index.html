@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <title>{{title}}</title>
+    <link rel="stylesheet" href="{{ url_for('static', path='vendor.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', path='index.css') }}">
+  </head>
+  <body>
+
+    <div class="container-sm" style="padding-bottom: 1em;">
+      <nav class="navbar navbar-light bg-light">
+	<a class="navbar-brand" href="#">
+	  <img src="{{b64logo}}" alt="Logo"  class="d-inline-block align-top">
+	</a>
+      </nav>
+    </div>
+
+
+    <div class="container-sm">
+      <div class="row ">
+
+	<!-- Main Div -->
+	<div class="col-sm-8" id="main">
+	  <div class="alert alert-primary mx-auto" style="width:50%;">
+	    <p>Start by adding a Series with the "Add" BUTTON</p>
+	  </div>
+	</div> <!-- END MAIN DIV -->
+
+	<!-- START SIDEBAR -->
+	<div class="col-sm-4">
+	  <div class="card bg-light">
+	    <div class="card-body">
+	      <span class="col-sm-9 col-form-label">Series</span>
+	      <button type="button" class="btn btn-primary btn-sm float-right"
+		      data-target="#search-modal"
+		      data-toggle="modal">
+		Add ＋
+	      </button>
+
+	    </div>
+	    <ul class="list-group list-group-flush" id="series-selection">
+	    </ul>
+
+	  </div>
+	</div> <!-- END SIDEBAR -->
+
+      </div>
+    </div> <!-- END CONTAINER -->
+
+
+    <!-- START MODAL -->
+    <div class="modal" id="search-modal" tabindex="-1" role="dialog" >
+      <div class="modal-dialog modal-dialog-scrollable">
+	<div class="modal-content">
+	  <div class="modal-header">
+	    <h5>Add Series</h5>
+	    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+	      <span aria-hidden="true">&times;</span>
+	    </button>
+	  </div>
+	  <form class="modal-header">
+	    <input type="text" class="form-control" placeholder="Filter"
+		   name="label" hx-trigger="keyup changed delay:300ms, revealed"
+		   hx-get="{{url_for('search')}}" hx-target="#search-modal-results">
+	  </form>
+	  <div class="modal-body" id="search-modal-results">
+	    <!-- element filed BY the search input -->
+	  </div>
+	  <div class="modal-footer">
+	    <button type="button" class="btn btn-light" data-dismiss="modal">Close</button>
+	  </div>
+	</div>
+      </div>
+    </div> <!-- END MODAL -->
+
+
+  </body>
+
+  <script src="{{ url_for('static', path='vendor.js') }}"></script>
+  <script src="{{ url_for('static', path='htmx.js') }}"></script>
+  <script src="{{ url_for('static', path='index.js') }}"></script>
+</html>

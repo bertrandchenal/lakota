@@ -1,0 +1,18 @@
+<table class="table">
+  <thead>
+    <tr>
+      {% for col in columns %}
+      <th scope="col">{{col}}</th>
+      {% endfor %}
+    </tr>
+  </thead>
+  <tbody>
+    {% for record in frame.records() %}
+    <tr>
+      {% for col in columns %}
+      <td>{{ record[col] }}</td>
+      {% endfor %}
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>

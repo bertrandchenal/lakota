@@ -1,0 +1,5 @@
+lakota
+uvicorn
+fastapi
+orjson
+jinja2

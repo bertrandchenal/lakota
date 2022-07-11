@@ -1,0 +1,18 @@
+<div class="card-body p-0">
+  <table class="table table-borderless table-hover ">
+	<tbody>
+      {% for clc, srs in labels%}
+      <tr>
+		<td>{{clc}} / {{srs}}</td>
+		<td>
+		  <button type="input" class="btn btn-outline-primary btn-sm"
+			  hx-get="{{url_for('series', collection=clc, series=srs)}}"
+		  	  hx-target="#series-selection" hx-swap="beforeend">Add</button>
+
+		</td>
+      </tr>
+	  {% endfor %}
+	</tbody>
+  </table>
+</div>
+
