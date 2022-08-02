@@ -93,11 +93,11 @@ class Frame:
             frm = frm.select(select)
         return frm
 
-
     def df(self, *columns):
         if DataFrame is None:
             raise ModuleNotFoundError("No module named 'pandas'")
-        return DataFrame({c: self[c] for c in self.schema.columns if c in self.columns})
+        return DataFrame({c: self[c] for c in self.schema.columns
+                          if c in self.columns})
 
     def argsort(self, *sort_columns):
         sort_columns = sort_columns or list(self.schema.idx)
@@ -132,7 +132,8 @@ class Frame:
         # Build dict of list
         for frm in frames:
             if not frm.schema == schema:
-                raise ValueError("Unable to concat frames with different schema")
+                msg = "Unable to concat frames with different schema"
+                raise ValueError(msg)
             for name in names:
                 arr = frm[name]
                 if len(arr) == 0:
@@ -373,6 +374,8 @@ class Frame:
         return iter(self.columns)
 
     def select(self, keep):
+        if not keep:
+            return self
         cols = {k: v for k, v in self.columns.items() if k in keep}
         return Frame(self.schema, cols)
 

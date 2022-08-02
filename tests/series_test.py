@@ -432,10 +432,14 @@ def test_rev_filter(series):
 
 
 @pytest.mark.parametrize("extra_commit", [True, False])
-def test_paginate(repo, extra_commit):
+@pytest.mark.parametrize("select_col", ["timestamp", "value"])
+def test_paginate(repo, extra_commit, select_col):
     clct = repo.create_collection(schema, "paginate")
-    series = clct / "base"
-    series.write(orig_frm)
+    series = clct / "test-paginate"
+    series.write({
+        "timestamp": [1589455903, 1589455904, 1589455905],
+        "value": [1589455903, 1589455904, 1589455905],
+    })
 
     ts = orig_frm["timestamp"]
     frm = next(series.paginate(step=3))
@@ -454,62 +458,62 @@ def test_paginate(repo, extra_commit):
     series.write(
         {
             "timestamp": [1589455906, 1589455907, 1589455908],
-            "value": [6, 7, 8],
+            "value": [1589455906, 1589455907, 1589455908],
         }
     )
     series.write(
         {
             "timestamp": [1589455909, 1589455910, 1589455911],
-            "value": [9, 10, 11],
+            "value": [1589455909, 1589455910, 1589455911],
         }
     )
     if extra_commit:
         series.write(
             {
                 "timestamp": [1589455907, 1589455908, 1589455909, 1589455910],
-                "value": [7, 8, 9, 10],
+                "value": [1589455907, 1589455908, 1589455909, 1589455910],
             }
         )
 
     # Paginate and reassemble
-    frames = series.paginate(2)
+    frames = series.paginate(2, select=[select_col])
     res = []
     for frm in frames:
-        res.extend(frm["timestamp"])
+        res.extend(frm[select_col])
     assert res == list(range(1589455903, 1589455912))
 
     # Same with offset
-    frames = series.paginate(2, offset=1)
+    frames = series.paginate(2, offset=1, select=[select_col])
     res = []
     for frm in frames:
-        res.extend(frm["timestamp"])
+        res.extend(frm[select_col])
     assert res == list(range(1589455904, 1589455912))
 
     # Same with offset and limit
-    frames = series.paginate(2, offset=1, limit=5)
+    frames = series.paginate(2, offset=1, limit=5, select=[select_col])
     res = []
     for frm in frames:
-        res.extend(frm["timestamp"])
+        res.extend(frm[select_col])
     assert res == list(range(1589455904, 1589455909))
 
     # Same with offset and limit
-    frames = series.paginate(10, offset=1, limit=5)
+    frames = series.paginate(10, offset=1, limit=5, select=[select_col])
     res = []
     for frm in frames:
-        res.extend(frm["timestamp"])
+        res.extend(frm[select_col])
     assert res == list(range(1589455904, 1589455909))
 
     # Same with offset and limit
-    frames = series.paginate(offset=10, limit=5)
+    frames = series.paginate(offset=10, limit=5, select=[select_col])
     res = []
     for frm in frames:
-        res.extend(frm["timestamp"])
+        res.extend(frm[select_col])
     assert res == []
 
 
     # Test series with zero line
     series = clct / "zero"
-    frames = list(series.paginate())
+    frames = list(series.paginate(select=[select_col]))
     assert len(frames) == 0
 
     # Test series with one line
@@ -517,10 +521,10 @@ def test_paginate(repo, extra_commit):
     series.write(
         {
             "timestamp": [1589455909],
-            "value": [9],
+            "value": [1589455909],
         }
     )
-    frames = list(series.paginate(step=1))
+    frames = list(series.paginate(step=1, select=[select_col]))
     assert len(frames) == 1
     assert len(frames[0]) == 1
 
@@ -530,13 +534,13 @@ def test_paginate(repo, extra_commit):
     series.write(
         {
             "timestamp": [1589455908, 1589455909],
-            "value": [8, 9],
+            "value": [1589455908, 1589455909],
         }
     )
     series.write(
         {
             "timestamp": [1589455908],
-            "value": [8],
+            "value": [1589455908],
         }
     )
     frames = list(series.paginate(step=1))

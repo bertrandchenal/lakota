@@ -394,6 +394,14 @@ class Paginate:
                 yield frm
 
     def loop(self):
+        if self.select:
+            select_with_idx = self.select + [
+                c for c in self.series.schema.idx
+                if c not in self.select
+            ]
+        else:
+            select_with_idx = self.select
+
         while True:
             if self.limit == 0:
                 break
@@ -414,9 +422,9 @@ class Paginate:
             # Create frame & yield it
             frm = Frame.from_segments(
                 self.series.schema, segments, limit=lmt, offset=self.offset,
-                select=self.select,
+                select=select_with_idx,
             )
-            yield frm
+            yield frm.select(self.select)
 
             # Update limit & offset
             self.offset = max(self.offset - read_len, 0)
@@ -436,7 +444,6 @@ class Paginate:
                 break
             self.start = new_start
             self.closed = self.closed.set_left(False)
-
 
 
 class KVSeries(Series):
