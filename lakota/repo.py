@@ -484,7 +484,7 @@ class Repo:
 
         elif file_type == "parquet":
             df = series.df()
-            data = df.to_parquet(compression="brotli")
+            data = df.to_parquet()
             pod.write(f"{series.label}.parquet", data)
         else:
             exit(f'Unsupported file type "{file_type}"')
