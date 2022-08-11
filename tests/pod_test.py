@@ -63,6 +63,13 @@ def test_write_delete(pod):
     pod.rm("key")
     assert pod.ls() == []
 
+    pod.write("ham/key", deadbeef)
+    pod.rm("ham/key")
+    if isinstance(pod, (S3POD, CachePOD)):
+        assert pod.ls() == []
+    else:
+        assert pod.ls() == ["ham"]
+
 
 def test_write_delete_recursive(pod):
     top_pod = pod.cd("top_dir")
@@ -87,6 +94,7 @@ def test_missing_ok(pod):
             pod.rm('i-do-not-exist', recursive=recursive)
         # Shoudn't raise an error
         pod.rm('i-do-not-exist', recursive=recursive, missing_ok=True)
+
 
 def test_write_rm_many(pod):
     assert pod.ls(missing_ok=True) == []

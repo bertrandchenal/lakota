@@ -150,7 +150,7 @@ class S3POD(POD):
             if len(keys) > 1:
                 # We raise an OSError to mimic file based access
                 raise OSError(f"{relpath} is not empty")
-            self._delete_keys([relpath])
+            self._delete_keys([prefix])
             return
 
         # Recursive case, we use ls_iter to loop on a potentially
