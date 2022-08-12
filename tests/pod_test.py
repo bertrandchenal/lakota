@@ -64,11 +64,13 @@ def test_write_delete(pod):
     assert pod.ls() == []
 
     pod.write("ham/key", deadbeef)
+    pod.write("spam/key", deadbeef)
     pod.rm("ham/key")
+    pod.cd("spam").rm("key")
     if isinstance(pod, (S3POD, CachePOD)):
         assert pod.ls() == []
     else:
-        assert pod.ls() == ["ham"]
+        assert pod.ls() == ["ham", "spam"]
 
 
 def test_write_delete_recursive(pod):
