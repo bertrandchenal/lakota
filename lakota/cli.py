@@ -623,14 +623,6 @@ def serve(args):
     server.run(repo_map, args.web_uri, debug=args.verbose)
 
 
-def deploy(args):
-    try:
-        from lakota.aws_utils import deploy_lambda
-    except ImportError:
-        exit("Please install boto3 and aws-wsgi to deploy lambda")
-    deploy_lambda(args.name, args.arn, args.lakota_package)
-
-
 def print_help(parser, args):
     cmd = args.help_cmd and globals().get(args.help_cmd)
     if cmd and cmd.__doc__:
@@ -685,7 +677,7 @@ def run():
     parser_read.add_argument("--before", "-B", default=None, type=datetime_like)
     parser_read.add_argument("--mask", "-m", type=str, default=None)
     parser_read.add_argument(
-        "--greater-than",
+        "--greater-than", # TODO rename into --ge (and provide proper --gt), get rid of --closed
         "--gt",
         action="append",
         help="Keep rows where index is bigger the given value",
@@ -850,17 +842,6 @@ def run():
         help="Base url at which the repo will be served",
     )
     parser_serve.set_defaults(func=serve)
-
-    # Add deploy command
-    parser_deploy = subparsers.add_parser("deploy")
-    parser_deploy.add_argument("name", help="Lambda function name")
-    parser_deploy.add_argument("--arn", help="ARN of the role")
-    parser_deploy.add_argument(
-        "--lakota-package",
-        help="Full path to clone (if not set use the offical package",
-        default="lakota",
-    )
-    parser_deploy.set_defaults(func=deploy)
 
     # Parse args
     args = parser.parse_args()

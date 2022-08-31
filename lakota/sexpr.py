@@ -95,6 +95,10 @@ class Env:
                 raise KeyError(part)
         return res
 
+    def __repr__(self):
+        content = repr(self.values)
+        return f"<Env {content}>"
+
 
 class Token:
     def __init__(self, value):
@@ -162,7 +166,7 @@ class Agg:
         self.op = op
         self.env = env
 
-    def __call__(self, arr=None, *operands):
+    def __call__(self, arr, *operands):
         bins = self.env.get("_bins", None)
         keys = self.env.get("_keys", None)
         if bins is not None:

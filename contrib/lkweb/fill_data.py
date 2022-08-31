@@ -1,5 +1,5 @@
 from lakota import Repo, Schema
-from numpy import sin, cos, arange
+from numpy import sin, cos, arange, around
 from rich.progress import track
 
 repo = Repo('.lakota')
@@ -15,5 +15,5 @@ with clc.multi():
             srs = clc / name
             srs.write({
                 'timestamp': ts,
-                'value': fn(ts/50_000),
+                'value': around(fn(ts/50_000), 6),
             })
