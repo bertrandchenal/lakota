@@ -8,6 +8,7 @@ from fastapi import FastAPI, Request, Query, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.middleware.gzip import GZipMiddleware
 
 from lakota import Repo
 from lakota.utils import logger
@@ -15,7 +16,7 @@ from numpy import asarray, char
 from numpy.core.defchararray import find
 
 
-lk_repo_url = os.environ.get("LK_REPO_URL", ".lakota")
+lk_repo_url = os.environ.get("LAKOTA_REPO", ".lakota")
 logger.setLevel("CRITICAL")
 static_prefix = "static"
 repo = Repo([
@@ -24,12 +25,13 @@ repo = Repo([
 ])
 here = Path(__file__).resolve().parent
 
-PAGE_LEN = 50_000
+PAGE_LEN = 500_000
 
 title = "LK-web"
 app = FastAPI(app_name=title)
 templates = Jinja2Templates(directory=here / "template")
 app.mount("/static", StaticFiles(directory=here / "static"), name="static")
+app.add_middleware(GZipMiddleware, minimum_size=1000_000)
 
 uplot_options = {
     # 'title': '',
@@ -107,7 +109,14 @@ def series(request: Request, collection: str, series: str):
     series = unquote(series).strip()
     collection = unquote(collection).strip()
     clct = repo / collection
-    columns = [c for c in clct.schema.columns if c not in clct.schema.idx]
+    columns = []
+    for name, info in clct.schema.columns.items():
+        if name in clct.schema.idx:
+            continue
+        if info.codec.dt not in ("f8", "i8"):
+            continue
+        columns.append(name)
+
     return templates.TemplateResponse(
         "series.html",
         {

@@ -103,6 +103,7 @@ class S3POD(POD):
         except ClientError as err:
             if err.response["Error"]["Code"] == "NoSuchKey":
                 raise FileNotFoundError(f'Key "{relpath}" not found')
+            raise
 
         return resp["Body"].read()
 

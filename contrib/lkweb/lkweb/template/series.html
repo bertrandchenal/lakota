@@ -1,15 +1,19 @@
 <li class="list-group-item">
   <div class="d-flex w-100 justify-content-between">
-    <code class="d-inline-block text-truncate" style="max-width: 18rem;">{{collection}} / {{series}}</code>
-	<button type="button" class="close" aria-label="Close" onclick="$(this).parent().parent().remove()">
-	  <span aria-hidden="true">&times;</span>
-	</button>
+    <code class="d-inline-block text-truncate" style="max-width: 18rem;"
+	  title="{{series}}">
+      {{collection}} / {{series}}
+    </code>
+  </div>
+  <button type="button" class="close" aria-label="Close" onclick="$(this).parent().remove()">
+    <span aria-hidden="true">&times;</span>
+  </button>
 
   </div>
   <ul class="list-unstyled">
   	{% for column in columns %}
   	<li>
-  	  <a href="#" hx-get="{{url_for('view', collection=collection, label=series, column=column)}}" hx-target="#main">{{column}}</a>
+  	  <a href="#" hx-get="{{url_for('view', collection=collection, label=series, column=column)}}" hx-target="#main"> {{column}}</a>
   	</li>
   	{% endfor %}
   </ul>
