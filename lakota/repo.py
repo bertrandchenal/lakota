@@ -34,7 +34,8 @@ pod = POD.from_uri('s3:///bucket_name?key=KEY&secret=SECRET')
 repo = Repo(pod=pod)
 ```
 
-Similarly, you can use a compatible service through the `endpoint_url` parameter:
+Similarly, you can use a compatible service through the `endpoint_url`
+parameter:
 
 ```python
 pod = POD.from_uri('s3:///bucket_name', endpoint_url='http://127.0.0.1:5300')
@@ -141,8 +142,8 @@ class Repo:
             start = stop = None
         series = self.registry.series(namespace)
         frm = series.frame(start=start, stop=stop, closed="BOTH")
-        for l in frm["label"]:
-            yield self.collection(l, frm)
+        for label in frm["label"]:
+            yield self.collection(label, frm)
 
     def __truediv__(self, name):
         return self.collection(name)
@@ -190,24 +191,31 @@ class Repo:
                 raise ValueError(f"Invalid label: {label}")
             if label in current_labels:
                 if raise_if_exists:
-                    raise ValueError(f"Collection with label '{label}' already exists")
+                    msg = f"Collection with label '{label}' already exists"
+                    raise ValueError(msg)
                 else:
                     continue
             # Generate random digest
             digest = hexdigest(uuid4().bytes)
             folder, filename = hashed_path(digest)
             new_labels.append(label)
-            meta.append({"path": str(folder / filename), "schema": schema_dump})
+            meta.append({
+                "path": str(folder / filename),
+                "schema": schema_dump,
+            })
 
         if new_labels:
             series.write({"label": new_labels, "meta": meta})
 
         # Return collections
-        mask = "(isin self.label (list %s))" % " ".join(f'"{l}"' for l in labels)
-        frm = series.frame(start=min(labels), stop=max(labels), closed="BOTH").mask(
-            mask
-        )
-        res = [self.collection(l, from_frm=frm) for l in labels]
+        mask = "(isin self.label (list %s))" % " ".join(
+            f'"{l}"' for l in labels)
+        frm = series.frame(
+            start=min(labels),
+            stop=max(labels),
+            closed="BOTH",
+        ).mask(mask)
+        res = [self.collection(lbl, from_frm=frm) for lbl in labels]
         if len(labels) == 1:
             return res[0]
         return res
@@ -232,8 +240,8 @@ class Repo:
 
         """
         to_remove = []
-        for l in labels:
-            clct = self.collection(l)
+        for lbl in labels:
+            clct = self.collection(lbl)
             if not clct:
                 continue
             to_remove.append(clct.changelog.pod)
@@ -273,14 +281,14 @@ class Repo:
         # Pull registry
         self.registry.pull(remote.registry, shallow=shallow)
         # Extract frames
-        local_cache = {l.label: l for l in self.search()}
-        remote_cache = {r.label: r for r in remote.search()}
+        local_cache = {loc.label: loc for loc in self.search()}
+        remote_cache = {rem.label: rem for rem in remote.search()}
         if not labels:
             labels = remote_cache.keys()
         for label in labels:
             logger.info("Sync collection: %s", label)
             r_clct = remote_cache[label]
-            if not label in local_cache:
+            if label not in local_cache:
                 l_clct = self.create_collection(r_clct.schema, label)
             else:
                 l_clct = local_cache[label]
@@ -317,7 +325,7 @@ class Repo:
         idx = idx[0]
         # rebuild label list
         labels = list(frm["label"])
-        frm["label"] = labels[:idx] + [to_label] + labels[idx + 1 :]
+        frm["label"] = labels[:idx] + [to_label] + labels[idx + 1:]
         # Re-order frame
         frm = frm.sorted()
 
@@ -359,7 +367,7 @@ class Repo:
         # Soft-Delete ("bury") files on fs not in changelogs
         inactive = all_dig - active_digests
         for dig in inactive:
-            if not "." in dig:
+            if "." not in dig:
                 # Disable digest
                 folder, filename = hashed_path(dig)
                 path = str(folder / filename)
@@ -449,7 +457,8 @@ class Repo:
             srs = collection / stem
             srs.write(df)
         else:
-            raise ValueError(f"Unable to load {filename}, extension not supported")
+            msg = f"Unable to load {filename}, extension not supported"
+            raise ValueError(msg)
 
     def export_collections(self, dest, collections=None, file_type="csv"):
         if not isinstance(dest, POD):

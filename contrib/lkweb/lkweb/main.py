@@ -19,13 +19,14 @@ from numpy.core.defchararray import find
 lk_repo_url = os.environ.get("LAKOTA_REPO", ".lakota")
 logger.setLevel("CRITICAL")
 static_prefix = "static"
+PAGE_LEN = 500_000
+LRU_SIZE = 500 * 1024 * 1024 # 500MB
 repo = Repo([
-    "memory://",
+    f"memory://?lru_size={LRU_SIZE}",
     lk_repo_url,
 ])
 here = Path(__file__).resolve().parent
 
-PAGE_LEN = 500_000
 
 title = "LK-web"
 app = FastAPI(app_name=title)
