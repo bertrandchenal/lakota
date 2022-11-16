@@ -80,7 +80,8 @@ Date: 2020-12-14 15:03:10.961000
 Revision: 176618fecf1-1b49944eecf9fd02fb13c0f0ac2e92f4e9d62620.17661929034-08d4cd873f7900d89d78e589acdbf54524da45c7*
 Date: 2020-12-14 15:06:03.828000
 
-$ lakota squash temperature # squash all revisions into one
+$ lakota defrag temperature  # Rewrite the timeseries into larger segments
+$ lakota trim temperature  # Remove older revs
 $ lakota rev temperature
 
 Revision: 00000000000-0000000000000000000000000000000000000000.176619478d1-425a9d4eaa62dad4e560875834ed79a17238c6a6*
@@ -106,11 +107,11 @@ Built-in help:
 ```shell
 $ lakota  --help
 usage: lakota [-h] [--repo REPO] [--timing] [--pretty] [--verbose]
-              {read,len,rev,ls,squash,push,pull,create,write,delete,truncate,gc,help,version}
+              {read,len,rev,ls,trim,defrag,push,pull,create,write,delete,truncate,gc,help,version}
               ...
 
 positional arguments:
-  {read,len,rev,ls,squash,push,pull,create,write,delete,truncate,gc,help,version}
+  {read,len,rev,ls,trim,defrag,push,pull,create,write,delete,truncate,gc,help,version}
 
 optional arguments:
   -h, --help            show this help message and exit
