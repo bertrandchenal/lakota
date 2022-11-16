@@ -627,7 +627,8 @@ def print_help(parser, args):
     cmd = args.help_cmd and globals().get(args.help_cmd)
     if cmd and cmd.__doc__:
         print(cmd.__doc__)
-    parser.parse_args([args.help_cmd, "-h"])
+    if cmd:
+        parser.parse_args([args.help_cmd, "-h"])
 
 
 def bool_like(v):
