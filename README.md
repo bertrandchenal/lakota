@@ -10,18 +10,18 @@ Documentation: https://bertrandchenal.github.io/lakota/
 
 ## Install
 
-Lakota requires Python 3.7 or later, the `s3fs` module is required if
+Lakota requires Python 3.7 or later, the `boto3` module is required if
 you want to access datasets on S3.
 
 ```
-pip install lakota s3fs
+pip install lakota boto3
 ```
 
 Python 3.6 should also work with the addition of the `dataclasses`
-module and an older version of `s3fs`:
+module and an older version of `boto3`:
 
 ```
-pip install dataclasses lakota "s3fs<0.5"
+pip install dataclasses lakota boto3
 ```
 
 
