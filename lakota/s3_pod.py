@@ -95,6 +95,7 @@ class S3POD(POD):
         it = self.ls_iter(prefix, limit=limit, delimiter=delimiter)
         return [item[cut:] for item in chain.from_iterable(it)]
 
+    @POD.capture_metric
     def read(self, relpath, mode="rb"):
         logger.debug("READ s3:///%s/%s %s", self.bucket, self.path, relpath)
         key = str(self.path / relpath)
@@ -107,6 +108,7 @@ class S3POD(POD):
 
         return resp["Body"].read()
 
+    @POD.capture_metric
     def write(self, relpath, data, mode="wb", force=False):
         if not force and self.isfile(relpath):
             logger.debug("SKIP-WRITE s3:///%s/%s %s", self.bucket, self.path, relpath)

@@ -1,6 +1,6 @@
 import pytest
 
-from lakota.pod import S3POD, CachePOD, FilePOD, MemPOD
+from lakota.pod import S3POD, CachePOD, FilePOD, MemPOD, POD
 
 deadbeef = bytes.fromhex("DEADBEEF")
 
@@ -224,3 +224,17 @@ def test_mempod_lru():
     pod.rm('.', recursive=True)
     assert pod.store._ok_size()
     assert pod.store._size == 0
+
+
+def test_metrics(pod):
+    pod_name = pod.__class__.__name__
+    if pod_name == 'CachePOD':
+        # CachePOD is a pass-through
+        return
+
+    POD.reset_metrics()
+    assert not pod._metrics
+    pod.write("key", deadbeef)
+    assert POD._metrics[f'{pod_name}.write'] == len(deadbeef)
+    pod.read("key")
+    assert POD._metrics[f'{pod_name}.read'] == len(deadbeef)

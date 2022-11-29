@@ -230,7 +230,6 @@ timestamp,value
 
 import argparse
 import csv
-import json
 import os
 import sys
 from datetime import datetime
@@ -242,7 +241,7 @@ from . import __version__
 from .pod import POD
 from .repo import Repo
 from .schema import Schema
-from .utils import logger, strpt, timeit
+from .utils import logger, strpt, timeit, pretty_nb
 
 # Take default repo from env variable, fallback to .lakota in current dir
 default_repo = os.environ.get("LAKOTA_REPO", "file:///.lakota")
@@ -663,6 +662,7 @@ def run():
     )
     parser.add_argument("--timing", "-t", action="store_true", help="Enable timing")
     parser.add_argument("--pretty", "-P", action="store_true", help="Tabulate output")
+    parser.add_argument("--metrics", "-m", action="store_true", help="Show metrics")
     parser.add_argument(
         "--verbose", "-v", action="count", help="Increase verbosity", default=0
     )
@@ -863,6 +863,11 @@ def run():
                 args.func(args)
         else:
             args.func(args)
+
+        if args.metrics:
+            for name, value in POD._metrics.items():
+                fmt_v = pretty_nb(value) + 'o'
+                print('Total {}: {}'.format(name, fmt_v), file=sys.stderr)
 
     except (BrokenPipeError, KeyboardInterrupt):
         pass

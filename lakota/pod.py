@@ -18,6 +18,8 @@ It is mainly used through the `lakota.Repo` class.
 import io
 import os
 import shutil
+from collections import Counter
+from contextlib import contextmanager
 from pathlib import Path, PurePosixPath
 from threading import Lock
 from urllib.parse import parse_qs, urlsplit
@@ -39,9 +41,31 @@ __all__ = ["POD", "FilePOD", "MemPOD", "CachePOD"]
 
 class POD:
 
+    _metrics = Counter()
+
     @classmethod
     def from_token(cls, token):
         return cls._by_token[token]
+
+    @classmethod
+    def capture_metric(cls, fn):
+        qn = fn.__qualname__
+        _, method = qn.rsplit('.', 1)
+
+        def read_wrapper(self, relpath, mode="rb"):
+            payload = fn(self, relpath, mode=mode)
+            cls._metrics.update({qn: len(payload)})
+            return payload
+
+        def write_wrapper(self, relpath, data, mode="wb", force=False):
+            cls._metrics.update({qn: len(data)})
+            return fn(self, relpath, data, mode=mode, force=force)
+
+        return read_wrapper if method == "read" else write_wrapper
+
+    @classmethod
+    def reset_metrics(cls):
+        cls._metrics = Counter()
 
     @classmethod
     def from_uri(cls, uri=None):
@@ -167,12 +191,14 @@ class FilePOD(POD):
                 return []
             raise
 
+    @POD.capture_metric
     def read(self, relpath, mode="rb"):
         logger.debug("READ %s %s", self.path, relpath)
         path = self.path / relpath
         # XXX make sure path is subpath of self.path
         return path.open(mode).read()
 
+    @POD.capture_metric
     def write(self, relpath, data, mode="wb", force=False):
         if not force and self.isfile(relpath):
             logger.debug("SKIP-WRITE %s %s", self.path, relpath)
@@ -352,6 +378,7 @@ class MemPOD(POD):
         item = self.store.get(key)
         return isinstance(item, File)
 
+    @POD.capture_metric
     def write(self, relpath, data, mode="rb", force=False):
         current_path = tuple()
         relpath = self.split(relpath)
@@ -415,6 +442,7 @@ class MemPOD(POD):
             # recursive deletion
             parent_folder.rm(path[-1])
 
+    @POD.capture_metric
     def read(self, relpath, mode="rb"):
         logger.debug("READ memory://%s %s", "/".join(self.parts), relpath)
         path = self.parts + self.split(relpath)
@@ -543,6 +571,7 @@ class SSHPOD(POD):
                 return []
             raise
 
+    @POD.capture_metric
     def read(self, relpath, mode="rb"):
         logger.debug("READ %s %s", self.path, relpath)
         path = self.path / relpath

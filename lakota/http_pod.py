@@ -38,6 +38,7 @@ class HttpPOD(POD):
             resp.raise_for_status()
         return resp.json()["body"]
 
+    @POD.capture_metric
     def read(self, relpath, mode="rb"):
         logger.debug("READ %s://%s %s", self.protocol, self.path, relpath)
         params = {"path": str(self.path / relpath)}
@@ -49,6 +50,7 @@ class HttpPOD(POD):
             resp.raise_for_status()
         return base64.b64decode(resp.json()["body"])
 
+    @POD.capture_metric
     def write(self, relpath, data, mode="wb", force=False):
         logger.debug("WRITE %s://%s %s", self.protocol, self.path, relpath)
         path = str(self.path / relpath)

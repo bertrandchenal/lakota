@@ -32,7 +32,7 @@ title = "LK-web"
 app = FastAPI(app_name=title)
 templates = Jinja2Templates(directory=here / "template")
 app.mount("/static", StaticFiles(directory=here / "static"), name="static")
-app.add_middleware(GZipMiddleware, minimum_size=1000_000)
+app.add_middleware(GZipMiddleware, minimum_size=100_000)
 
 uplot_options = {
     # 'title': '',
