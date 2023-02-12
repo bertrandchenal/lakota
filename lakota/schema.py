@@ -194,7 +194,7 @@ class Schema:
     @classmethod
     def from_frame(cls, frame, idx_columns=None):
         """
-        Instantiate a schema based on the column names and type if the
+        Instantiate a schema based on the column names and type of the
         given frame (a dict or a dataframe)
         """
         idx_columns = idx_columns or list(frame)

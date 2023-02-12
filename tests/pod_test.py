@@ -70,7 +70,7 @@ def test_write_delete(pod):
     if isinstance(pod, (S3POD, CachePOD)):
         assert pod.ls() == []
     else:
-        assert pod.ls() == ["ham", "spam"]
+        assert sorted(pod.ls()) == ["ham", "spam"]
 
 
 def test_write_delete_recursive(pod):

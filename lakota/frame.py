@@ -36,6 +36,12 @@ class Frame:
     }
 
     def __init__(self, schema, columns=None):
+        """
+        Create a Frame object base on given schema and columns.
+        Columns should be a frame-like structure: a dict of list, a
+        dict of numpy array, a pandas dataframe or another Frame
+        instance.
+        """
         self.schema = schema
         if DataFrame is not None and isinstance(columns, DataFrame):
             columns = {c: columns[c].values for c in columns}
@@ -357,8 +363,10 @@ class Frame:
             return self.mask(by)
         # By list -> return a frame with the corresponding columns
         if isinstance(by, list):
-            cols = [self[c] for c in by]
-            sch = Schema.from_frame(cols)
+            # We trust the user on this one (meaningful index):
+            idx = [c for c in by if c in self.schema.idx]
+            cols = {c: self.columns[c] for c in by}
+            sch = Schema.from_frame(cols, idx)
             return Frame(sch, cols)
         # By column name -> return an array
         if by in self.columns:

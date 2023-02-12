@@ -321,3 +321,9 @@ def test_from_records():
 
     frm = Frame.from_records(base_schema, [])
     assert frm.get("category") == None
+
+
+def test_select_cols(frm):
+    frm2 = frm[["category"]]
+    assert list(frm2) == ["category"]
+    assert len(frm2) == len(frm)

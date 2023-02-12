@@ -19,7 +19,6 @@ import io
 import os
 import shutil
 from collections import Counter
-from contextlib import contextmanager
 from pathlib import Path, PurePosixPath
 from threading import Lock
 from urllib.parse import parse_qs, urlsplit
